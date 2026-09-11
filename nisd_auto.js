@@ -161,7 +161,14 @@
               <div class="tn-btn-bar">
                 <button type="button" class="tn-btn-submit" id="tnBtnSubmit">Submit</button>
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
-                <button type="button" class="tn-btn-apply" id="tnBtnApply" style="display:none">⚡ Load into Dashboard</button>
+                <div id="tnApplyWrap" style="display:none; align-items:center; gap:8px;">
+                  <select id="tnSlotSel" style="font-size:12px; padding:6px 10px; border-radius:7px; border:1px solid #a855f7;">
+                    <option value="nisd0">NISD Range 1 (12 Days)</option>
+                    <option value="nisd1">NISD Range 2 (10 Days)</option>
+                    <option value="nisd2">NISD Range 3 (&lt;10 Days)</option>
+                  </select>
+                  <button type="button" class="tn-btn-apply" id="tnBtnApply">⚡ Load into Dashboard</button>
+                </div>
               </div>
             </div>
 
@@ -223,6 +230,7 @@
 
     function openModal() {
       if (backdrop) backdrop.classList.add('open');
+      populateSlots();
     }
     function closeModal() {
       if (backdrop) backdrop.classList.remove('open');
@@ -247,7 +255,7 @@
         if (range === 'screenshot') {
           document.getElementById('tnFromDate').value = '31-08-2026';
           document.getElementById('tnToDate').value = '10-09-2026';
-          document.getElementById('tnVillageSel').value = '109'; // Agavalam
+          document.getElementById('tnVillageSel').value = '109';
           return;
         } else if (range === '12') {
           from.setDate(to.getDate() - 12);
@@ -273,11 +281,20 @@
     if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
   }
 
+  function populateSlots() {
+    const slotSel = document.getElementById('tnSlotSel');
+    if (!slotSel) return;
+    const slots = window.NISD_SLOTS || [];
+    if (slots.length) {
+      slotSel.innerHTML = slots.map((s, i) => `<option value="${s.key}">Slot ${i + 1} (${s.label || s.key})</option>`).join('');
+    }
+  }
+
   async function handleFetch() {
     const statusBanner = document.getElementById('tnStatusBanner');
     const reportArea = document.getElementById('tnReportArea');
     const excelBtn = document.getElementById('tnBtnExcel');
-    const applyBtn = document.getElementById('tnBtnApply');
+    const applyWrap = document.getElementById('tnApplyWrap');
 
     const distCode = document.getElementById('tnDistSel').value;
     const talukCode = document.getElementById('tnTalukSel').value;
@@ -296,7 +313,7 @@
     showStatus(`Connecting to Tamil Nilam & fetching live report for ${targetDesc}...`, 'info');
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
-    applyBtn.style.display = 'none';
+    if (applyWrap) applyWrap.style.display = 'none';
 
     try {
       const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}`;
@@ -319,7 +336,10 @@
 
       reportArea.style.display = 'block';
       excelBtn.style.display = 'inline-block';
-      applyBtn.style.display = 'inline-block';
+      if (applyWrap) {
+        applyWrap.style.display = 'inline-flex';
+        populateSlots();
+      }
 
     } catch (err) {
       console.error('Fetch error:', err);
@@ -477,19 +497,20 @@
   }
 
   async function handleApplyToDashboard() {
-    if (!currentReportData) return;
-    if (typeof window.store === 'undefined') {
-      alert('Dashboard store not found on this page.');
+    if (!currentReportData) {
+      showStatus('Please click Submit to fetch the report first.', 'error');
       return;
     }
 
-    try {
-      showStatus('Formatting and applying to dashboard NISD slot...', 'info');
+    const distCode = document.getElementById('tnDistSel').value;
+    const talukCode = document.getElementById('tnTalukSel').value;
+    const fromDate = document.getElementById('tnFromDate').value.trim();
+    const toDate = document.getElementById('tnToDate').value.trim();
+    const slotSel = document.getElementById('tnSlotSel');
+    const slotKey = (slotSel && slotSel.value) || (window.NISD_KEYS && window.NISD_KEYS[0]) || 'nisd0';
 
-      const distCode = document.getElementById('tnDistSel').value;
-      const talukCode = document.getElementById('tnTalukSel').value;
-      const fromDate = document.getElementById('tnFromDate').value.trim();
-      const toDate = document.getElementById('tnToDate').value.trim();
+    try {
+      showStatus(`Fetching NISD range dataset for slot ${slotKey}...`, 'info');
 
       const res = await fetch(`/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=nisd-range`);
       const rangeData = await res.json();
@@ -498,24 +519,37 @@
         throw new Error('Could not format data into NISD range rows.');
       }
 
-      const slotKey = (window.NISD_KEYS && window.NISD_KEYS[0]) || 'nisd0';
-      window.store[slotKey] = {
-        name: `TamilNilam Auto (${fromDate} to ${toDate})`,
+      // Ensure store exists
+      if (!window.store) {
+        window.store = {};
+      }
+
+      const parsedData = {
+        name: `Tamil Nilam Auto (${fromDate} to ${toDate})`,
         rows: rangeData.rows,
         footer: null,
         period: rangeData.period,
         asOn: rangeData.asOn
       };
 
+      window.store[slotKey] = parsedData;
+
+      if (typeof window.markLoaded === 'function') {
+        window.markLoaded(slotKey, parsedData.name, parsedData.rows.length, false);
+      }
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();
-      if (typeof window.runDashboard === 'function') window.runDashboard();
+      if (typeof window.render === 'function') window.render();
 
-      showStatus(`Successfully loaded into dashboard slot "${slotKey}"!`, 'info');
+      showStatus(`✓ Successfully loaded ${rangeData.rows.length} villages into Dashboard (${slotKey})!`, 'info');
+      if (typeof window.toast === 'function') {
+        window.toast('Loaded into Dashboard', `${rangeData.rows.length} villages assigned to ${slotKey}`, 'ok');
+      }
+
       setTimeout(() => {
         const backdrop = document.getElementById('tnModalBackdrop');
         if (backdrop) backdrop.classList.remove('open');
-      }, 1200);
+      }, 1500);
 
     } catch (err) {
       console.error('Apply error:', err);

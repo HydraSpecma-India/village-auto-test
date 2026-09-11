@@ -1152,7 +1152,7 @@ function refreshFileNames(){
 }
 refreshFileNames();
 
-const store = {village:null, vaoDetails:null, isdRuralPdf:null, nisdFirka:null,
+const store = window.store = {village:null, vaoDetails:null, isdRuralPdf:null, nisdFirka:null,
                isdNatham:null, flineRural:null, flineNatham:null};
 OPT_KEYS.forEach(k => store[k] = null);
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -5271,6 +5271,17 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
 document.getElementById('talukSel').addEventListener('change', ()=>{ if(CLOUD_ON && ME) restoreFromCloud(); });
 
 initCloud();
+
+window.store = store;
+window.render = render;
+window.updateRail = updateRail;
+window.markLoaded = markLoaded;
+window.renderNisdDrops = renderNisdDrops;
+if(typeof saveToCloud !== 'undefined') window.saveToCloud = saveToCloud;
+if(typeof NISD_KEYS !== 'undefined') window.NISD_KEYS = NISD_KEYS;
+if(typeof NISD_SLOTS !== 'undefined') window.NISD_SLOTS = NISD_SLOTS;
+if(typeof toast !== 'undefined') window.toast = toast;
+
 </script>
 <script src="/nisd_auto.js"></script>
 </body>
