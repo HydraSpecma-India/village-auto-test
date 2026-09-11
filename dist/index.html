@@ -496,7 +496,10 @@
   .pill.cloud.off{border-color:var(--err-border); background:var(--err-soft); color:var(--err)}
 
   /* ============ Full-Page Modal Overlay ============ */
-  #usersPanel.full-page {
+  #usersPanel.full-page[hidden] {
+    display: none !important;
+  }
+  #usersPanel.full-page:not([hidden]) {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -3957,13 +3960,33 @@ function openUsersPanel(){
   if(!isAdmin || ADMIN_TAB === 'creds'){
     ADMIN_TAB = 'users';
   }
-  document.getElementById('usersPanel').hidden = false;
-  document.getElementById('usersBack').hidden = false;
+  const panel = document.getElementById('usersPanel');
+  const back = document.getElementById('usersBack');
+  if(panel){
+    panel.removeAttribute('hidden');
+    panel.hidden = false;
+    panel.style.display = 'flex';
+  }
+  if(back){
+    back.removeAttribute('hidden');
+    back.hidden = false;
+    back.style.display = 'block';
+  }
   renderAdminTabs();
 }
 function closeUsersPanel(){
-  document.getElementById('usersPanel').hidden = true;
-  document.getElementById('usersBack').hidden = true;
+  const panel = document.getElementById('usersPanel');
+  const back = document.getElementById('usersBack');
+  if(panel){
+    panel.setAttribute('hidden', 'true');
+    panel.hidden = true;
+    panel.style.display = 'none';
+  }
+  if(back){
+    back.setAttribute('hidden', 'true');
+    back.hidden = true;
+    back.style.display = 'none';
+  }
 }
 function renderAdminTabs(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
