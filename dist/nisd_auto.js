@@ -260,6 +260,12 @@
       nisdActions.prepend(nisdBtn);
     }
 
+    const talukLabel = document.querySelector('.topbar .inner .taluksel');
+    if (talukLabel && !document.getElementById('tnFlashFillBtn')) {
+      const flashBtnHtml = `<button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="1-Click Auto Pull All 4 Requirement Datasets for Selected Taluk" style="margin-left:8px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>`;
+      talukLabel.insertAdjacentHTML('afterend', flashBtnHtml);
+    }
+
     bindEvents();
   }
 
@@ -268,6 +274,7 @@
     const closeBtn = document.getElementById('tnCloseModal');
     const triggerBtn = document.getElementById('tnAutoTriggerBtn');
     const nisdCardBtn = document.getElementById('tnNisdCardBtn');
+    const flashFillBtn = document.getElementById('tnFlashFillBtn');
     const submitBtn = document.getElementById('tnBtnSubmit');
     const excelBtn = document.getElementById('tnBtnExcel');
     const applyBtn = document.getElementById('tnBtnApply');
@@ -291,6 +298,7 @@
 
     if (triggerBtn) triggerBtn.addEventListener('click', openModal);
     if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
+    if (flashFillBtn) flashFillBtn.addEventListener('click', handleFlashFillAll);
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
 
     if (backdrop) {
@@ -1303,6 +1311,200 @@
     } catch (err) {
       console.error('Apply error:', err);
       showStatus(`Failed to apply to dashboard: ${err.message}`, 'error');
+    }
+  }
+
+  async function handleFlashFillAll() {
+    const btn = document.getElementById('tnFlashFillBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Flash Filling All...';
+    }
+
+    const talukSel = document.getElementById('talukSel') || document.getElementById('tnTalukSel');
+    const talukCode = (talukSel && talukSel.value) ? talukSel.value : '12';
+    const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
+    const talukName = talukOption ? talukOption.text : `Taluk ${talukCode}`;
+    const distCode = document.getElementById('tnDistSel')?.value || '37';
+
+    const creds = getTnCreds();
+    if (!creds || !creds.username) {
+      if (typeof window.toast === 'function') {
+        window.toast('Credentials Required', 'Please configure username and password in Admin settings.', 'warn');
+      } else {
+        alert('Tamil Nilam credentials not found. Please configure username and password in Admin settings.');
+      }
+      if (btn) { btn.disabled = false; btn.innerHTML = '⚡ 1-Click Flash Fill All'; }
+      return;
+    }
+
+    if (typeof window.toast === 'function') {
+      window.toast('⚡ 1-Click Flash Fill Started', `Pulling NISD Rural, ISD Rural, NISD Natham & ISD Natham for ${talukName}...`, 'info');
+    }
+    showStatus(`⚡ Flash Filling all 4 requirement datasets (NISD Rural, ISD Rural, NISD Natham, ISD Natham) for ${talukName}...`, 'info');
+
+    try {
+      const today = new Date();
+      const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+      const toDate = formatD(today);
+      const fromDate = '01-09-2026';
+
+      const commonParams = `distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=&fromDate=${fromDate}&toDate=${toDate}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}&mode=fetch_raw`;
+
+      // Parallel fetch all 4 primary datasets + 2 F-Line datasets
+      const [nisdRuralRes, isdRuralRes, nisdNathamRes, isdNathamRes, flineRuralRes, flineNathamRes] = await Promise.all([
+        fetch(`/api/nisd-rural?landCategory=rural&flag=N&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message })),
+        fetch(`/api/nisd-rural?landCategory=rural&flag=I&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message })),
+        fetch(`/api/nisd-rural?landCategory=natham&flag=N&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message })),
+        fetch(`/api/nisd-rural?landCategory=natham&flag=I&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message })),
+        fetch(`/api/fline?landCategory=rural&reportType=FLINE&stmtFlag=Current&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message })),
+        fetch(`/api/fline?landCategory=natham&reportType=FLINE&stmtFlag=Current&${commonParams}`).then(r => r.json()).catch(e => ({ success: false, error: e.message }))
+      ]);
+
+      if (!window.store) window.store = {};
+      let summaryStats = [];
+
+      // 1. Process NISD Rural (VAO pending only, 12d / 10d / <10d)
+      if (nisdRuralRes.success && Array.isArray(nisdRuralRes.applications)) {
+        const rawApps = nisdRuralRes.applications;
+        const vaoApps = rawApps.filter(app => {
+          const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
+          return role === 'VAO' || role.includes('VAO');
+        });
+
+        const b12 = [], b10 = [], bBelow10 = [];
+        vaoApps.forEach(app => {
+          const days = calculatePendingDays(app);
+          if (days >= 12) b12.push(app);
+          else if (days >= 10) b10.push(app);
+          else bBelow10.push(app);
+        });
+
+        const r12 = groupAppsByVillage(b12);
+        const r10 = groupAppsByVillage(b10);
+        const rBelow10 = groupAppsByVillage(bBelow10);
+
+        const d12 = { name: `Auto 12 Days (${b12.length} VAO apps)`, rows: r12, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+        const d10 = { name: `Auto 10 Days (${b10.length} VAO apps)`, rows: r10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+        const dBelow10 = { name: `Auto <10 Days (${bBelow10.length} VAO apps)`, rows: rBelow10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+
+        window.store['nisd_0_0'] = d12; window.store['nisd0'] = d12;
+        window.store['nisd_0_1'] = d10; window.store['nisd1'] = d10;
+        window.store['nisd_0_2'] = dBelow10; window.store['nisd2'] = dBelow10;
+
+        if (!window.store.nisdFirka) {
+          const allV = Array.from(new Set([...r12.map(r => r.village), ...r10.map(r => r.village), ...rBelow10.map(r => r.village)])).filter(Boolean);
+          window.store.nisdFirka = { name: 'Auto Village Firka', rows: allV.map(v => ({ village: v, firka: 'General' })) };
+        }
+
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('nisd_0_0', new Blob([JSON.stringify(d12)], {type:'application/json'}), d12).catch(()=>{});
+          await window.saveToCloud('nisd_0_1', new Blob([JSON.stringify(d10)], {type:'application/json'}), d10).catch(()=>{});
+          await window.saveToCloud('nisd_0_2', new Blob([JSON.stringify(dBelow10)], {type:'application/json'}), dBelow10).catch(()=>{});
+        }
+        summaryStats.push(`NISD Rural: ${vaoApps.length} VAO apps`);
+      }
+
+      // 2. Process ISD Rural (Surveyor & VAO, 30d+ / 25-29d / <25d)
+      if (isdRuralRes.success && Array.isArray(isdRuralRes.applications)) {
+        const rawApps = isdRuralRes.applications;
+        const b30 = [], b25 = [], bBelow25 = [];
+        rawApps.forEach(app => {
+          const days = calculatePendingDays(app);
+          if (days >= 30) b30.push(app);
+          else if (days >= 25) b25.push(app);
+          else bBelow25.push(app);
+        });
+
+        const isd30 = groupAppsByVillageForISD(b30);
+        const isd25 = groupAppsByVillageForISD(b25);
+        const isdBelow25 = groupAppsByVillageForISD(bBelow25);
+
+        const dBelow25 = { name: `Auto <25 Days (${bBelow25.length} apps)`, rows: isdBelow25.rows, footer: isdBelow25.footer };
+        const d25 = { name: `Auto 25-29 Days (${b25.length} apps)`, rows: isd25.rows, footer: isd25.footer };
+        const d30 = { name: `Auto 30+ Days (${b30.length} apps)`, rows: isd30.rows, footer: isd30.footer };
+
+        window.store['opt0'] = dBelow25; window.store['opt_0_0'] = dBelow25;
+        window.store['opt1'] = d25; window.store['opt_0_1'] = d25;
+        window.store['opt2'] = d30; window.store['opt_0_2'] = d30;
+
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('opt0', new Blob([JSON.stringify(dBelow25)], {type:'application/json'}), dBelow25).catch(()=>{});
+          await window.saveToCloud('opt1', new Blob([JSON.stringify(d25)], {type:'application/json'}), d25).catch(()=>{});
+          await window.saveToCloud('opt2', new Blob([JSON.stringify(d30)], {type:'application/json'}), d30).catch(()=>{});
+        }
+        summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
+      }
+
+      // 3. Process NISD Natham (VAO pending only)
+      if (nisdNathamRes.success && Array.isArray(nisdNathamRes.applications)) {
+        const rawApps = nisdNathamRes.applications;
+        const vaoApps = rawApps.filter(app => {
+          const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
+          return role === 'VAO' || role.includes('VAO');
+        });
+        summaryStats.push(`NISD Natham: ${vaoApps.length} VAO apps`);
+      }
+
+      // 4. Process ISD Natham (Surveyor & VAO)
+      if (isdNathamRes.success && Array.isArray(isdNathamRes.applications)) {
+        const rawApps = isdNathamRes.applications;
+        const isdGroup = groupAppsByVillageForISD(rawApps);
+        const dataNatham = { name: `Auto ISD Natham (${rawApps.length} apps)`, rows: isdGroup.rows, footer: isdGroup.footer };
+        window.store['isdNatham'] = dataNatham;
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('isdNatham', new Blob([JSON.stringify(dataNatham)], {type:'application/json'}), dataNatham).catch(()=>{});
+        }
+        summaryStats.push(`ISD Natham: ${rawApps.length} apps`);
+      }
+
+      // 5. Process F-Line Rural
+      if (flineRuralRes.success && Array.isArray(flineRuralRes.applications)) {
+        const rawApps = flineRuralRes.applications;
+        const vMap = new Map();
+        rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
+        const dataFlr = { name: `Auto F-Line Rural (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
+        window.store['flineRural'] = dataFlr;
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('flineRural', new Blob([JSON.stringify(dataFlr)], {type:'application/json'}), dataFlr).catch(()=>{});
+        }
+        summaryStats.push(`F-Line Rural: ${rawApps.length} apps`);
+      }
+
+      // 6. Process F-Line Natham
+      if (flineNathamRes.success && Array.isArray(flineNathamRes.applications)) {
+        const rawApps = flineNathamRes.applications;
+        const vMap = new Map();
+        rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
+        const dataFln = { name: `Auto F-Line Natham (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
+        window.store['flineNatham'] = dataFln;
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('flineNatham', new Blob([JSON.stringify(dataFln)], {type:'application/json'}), dataFln).catch(()=>{});
+        }
+        summaryStats.push(`F-Line Natham: ${rawApps.length} apps`);
+      }
+
+      if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
+      if (typeof window.renderOptDrops === 'function') window.renderOptDrops();
+      if (typeof window.updateRail === 'function') window.updateRail();
+      if (typeof window.render === 'function') window.render();
+
+      showStatus(`✓ 1-Click Flash Fill Complete! ${summaryStats.join(' | ')}`, 'info');
+      if (typeof window.toast === 'function') {
+        window.toast('⚡ 1-Click Flash Fill Complete!', summaryStats.join('\n'), 'ok');
+      }
+
+    } catch (err) {
+      console.error('Flash fill error:', err);
+      showStatus(`Failed to flash fill data: ${err.message}`, 'error');
+      if (typeof window.toast === 'function') {
+        window.toast('Flash Fill Error', err.message, 'err');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ 1-Click Flash Fill All';
+      }
     }
   }
 

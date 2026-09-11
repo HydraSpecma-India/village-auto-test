@@ -33,7 +33,7 @@ function formatDateToYYYYMMDD(d) {
   return `${year}-${month}-${day}`;
 }
 
-function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 12000) {
+function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 35000) {
   return new Promise((resolve, reject) => {
     const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
