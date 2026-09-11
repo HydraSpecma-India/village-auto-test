@@ -1020,6 +1020,38 @@
     }
   }
 
+  function ensureVillageAndVaoDetails(allVillages) {
+    if (!window.store) window.store = {};
+    const list = Array.from(new Set(allVillages.map(v => String(v || '').trim()))).filter(Boolean);
+    if (!list.length) return;
+
+    if (!window.store.village) {
+      const vRows = list.map(v => ({ 'Village Name': v, 'Surveyor Name': 'Surveyor' }));
+      const data = {
+        name: 'Auto Village Details',
+        header: ['Village Name', 'Surveyor Name'],
+        objs: vRows
+      };
+      window.store.village = data;
+      if (typeof window.markLoaded === 'function') {
+        window.markLoaded('village', data.name, vRows.length, false);
+      }
+    }
+
+    if (!window.store.vaoDetails) {
+      const vaoRows = list.map(v => ({ 'Village Name': v, 'VAO Name': 'VAO' }));
+      const data = {
+        name: 'Auto VAO Details',
+        header: ['Village Name', 'VAO Name'],
+        objs: vaoRows
+      };
+      window.store.vaoDetails = data;
+      if (typeof window.markLoaded === 'function') {
+        window.markLoaded('vaoDetails', data.name, vaoRows.length, false);
+      }
+    }
+  }
+
   async function handleApplyToDashboard() {
     if (!currentReportData) {
       showStatus('Please click Submit to fetch the report first.', 'error');
@@ -1041,6 +1073,8 @@
 
     try {
       if (!window.store) window.store = {};
+      const allAppVillages = Array.from(new Set(rawApps.map(a => (a.village_name || a.village || '').trim()))).filter(Boolean);
+      ensureVillageAndVaoDetails(allAppVillages);
 
       if (serviceGroup === 'FLINE') {
         const reportType = currentReportData.reportType || 'FLINE';
@@ -1061,6 +1095,12 @@
 
         const flineData = {
           name: `Auto F-Line ${reportType} (${landCategory.toUpperCase()}) - ${rawApps.length} apps`,
+          header: ['Village Name', 'Application Date', 'Application Status'],
+          objs: rawApps.map(a => ({
+            'Village Name': (a.village_name || a.village || 'Unknown').trim(),
+            'Application Date': a.appl_date || a.appl_dt || '',
+            'Application Status': 'Pending'
+          })),
           rows,
           period,
           asOn
@@ -1246,6 +1286,19 @@
         window.store['nisd_0_2'] = dataBelow10;
         window.store['nisd2'] = dataBelow10;
 
+        const nisd1DetailObj = {
+          name: `Auto NISD Natham (${vaoApps.length} VAO apps)`,
+          header: ['Village Name', 'Application Date', 'Pending At', 'RTR-STR', 'Application Status'],
+          objs: vaoApps.map(app => ({
+            'Village Name': (app.village_name || app.village || 'Unknown').trim(),
+            'Application Date': app.appl_date || app.appl_dt || '',
+            'Pending At': app.role_name || app.pending_at || 'VAO',
+            'RTR-STR': 'STR',
+            'Application Status': 'Pending'
+          }))
+        };
+        window.store['nisd_1'] = nisd1DetailObj;
+
         if (!window.store.nisdFirka) {
           const allVillages = Array.from(new Set([
             ...rows12.map(r => r.village),
@@ -1269,6 +1322,7 @@
           window.markLoaded('nisd1', data10.name, rows10.length, false);
           window.markLoaded('nisd_0_2', dataBelow10.name, rowsBelow10.length, false);
           window.markLoaded('nisd2', dataBelow10.name, rowsBelow10.length, false);
+          window.markLoaded('nisd_1', nisd1DetailObj.name, nisd1DetailObj.objs.length, false);
         }
 
         if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
@@ -1363,6 +1417,17 @@
 
       if (!window.store) window.store = {};
       let summaryStats = [];
+
+      // Auto-populate village & vaoDetails mappings for ISD Rural table rendering
+      const allAppVillages = Array.from(new Set([
+        ...(nisdRuralRes.applications || []).map(a => a.village_name || a.village),
+        ...(isdRuralRes.applications || []).map(a => a.village_name || a.village),
+        ...(nisdNathamRes.applications || []).map(a => a.village_name || a.village),
+        ...(isdNathamRes.applications || []).map(a => a.village_name || a.village),
+        ...(flineRuralRes.applications || []).map(a => a.village_name || a.village),
+        ...(flineNathamRes.applications || []).map(a => a.village_name || a.village)
+      ])).filter(Boolean);
+      ensureVillageAndVaoDetails(allAppVillages);
 
       // 1. Process NISD Rural (VAO pending only, 12d / 10d / <10d)
       if (nisdRuralRes.success && Array.isArray(nisdRuralRes.applications)) {
@@ -1478,13 +1543,26 @@
         const d10 = { name: `Auto 10 Days Natham (${b10.length} VAO apps)`, rows: r10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
         const dBelow10 = { name: `Auto <10 Days Natham (${bBelow10.length} VAO apps)`, rows: rBelow10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
 
-        window.store['nisd_1_0'] = d12; window.store['nisd_1'] = d12;
+        window.store['nisd_1_0'] = d12;
         window.store['nisd_1_1'] = d10;
         window.store['nisd_1_2'] = dBelow10;
 
+        const nisd1DetailObj = {
+          name: `Auto NISD Natham (${vaoApps.length} VAO apps)`,
+          header: ['Village Name', 'Application Date', 'Pending At', 'RTR-STR', 'Application Status'],
+          objs: vaoApps.map(app => ({
+            'Village Name': (app.village_name || app.village || 'Unknown').trim(),
+            'Application Date': app.appl_date || app.appl_dt || '',
+            'Pending At': app.role_name || app.pending_at || 'VAO',
+            'RTR-STR': 'STR',
+            'Application Status': 'Pending'
+          }))
+        };
+        window.store['nisd_1'] = nisd1DetailObj;
+
         if (typeof window.markLoaded === 'function') {
           window.markLoaded('nisd_1_0', d12.name, r12.length, false);
-          window.markLoaded('nisd_1', d12.name, r12.length, false);
+          window.markLoaded('nisd_1', nisd1DetailObj.name, nisd1DetailObj.objs.length, false);
           window.markLoaded('nisd_1_1', d10.name, r10.length, false);
           window.markLoaded('nisd_1_2', dBelow10.name, rBelow10.length, false);
         }
@@ -1501,7 +1579,18 @@
       if (isdNathamRes.success && Array.isArray(isdNathamRes.applications)) {
         const rawApps = isdNathamRes.applications;
         const isdGroup = groupAppsByVillageForISD(rawApps);
-        const dataNatham = { name: `Auto ISD Natham (${rawApps.length} apps)`, rows: isdGroup.rows, footer: isdGroup.footer };
+        const dataNatham = {
+          name: `Auto ISD Natham (${rawApps.length} apps)`,
+          header: ['Village Name', 'Application Date', 'Pending At', 'Application Status'],
+          objs: rawApps.map(a => ({
+            'Village Name': (a.village_name || a.village || 'Unknown').trim(),
+            'Application Date': a.appl_date || a.appl_dt || '',
+            'Pending At': a.role_name || a.pending_at || 'Surveyor',
+            'Application Status': 'Pending'
+          })),
+          rows: isdGroup.rows,
+          footer: isdGroup.footer
+        };
         window.store['isdNatham'] = dataNatham;
         if (typeof window.markLoaded === 'function') {
           window.markLoaded('isdNatham', dataNatham.name, isdGroup.rows.length, false);
@@ -1517,7 +1606,16 @@
         const rawApps = flineRuralRes.applications;
         const vMap = new Map();
         rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
-        const dataFlr = { name: `Auto F-Line Rural (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
+        const dataFlr = {
+          name: `Auto F-Line Rural (${rawApps.length} apps)`,
+          header: ['Village Name', 'Application Date', 'Application Status'],
+          objs: rawApps.map(a => ({
+            'Village Name': (a.village_name || a.village || 'Unknown').trim(),
+            'Application Date': a.appl_date || a.appl_dt || '',
+            'Application Status': 'Pending'
+          })),
+          rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c }))
+        };
         window.store['flineRural'] = dataFlr;
         if (typeof window.markLoaded === 'function') {
           window.markLoaded('flineRural', dataFlr.name, dataFlr.rows.length, false);
@@ -1533,7 +1631,16 @@
         const rawApps = flineNathamRes.applications;
         const vMap = new Map();
         rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
-        const dataFln = { name: `Auto F-Line Natham (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
+        const dataFln = {
+          name: `Auto F-Line Natham (${rawApps.length} apps)`,
+          header: ['Village Name', 'Application Date', 'Application Status'],
+          objs: rawApps.map(a => ({
+            'Village Name': (a.village_name || a.village || 'Unknown').trim(),
+            'Application Date': a.appl_date || a.appl_dt || '',
+            'Application Status': 'Pending'
+          })),
+          rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c }))
+        };
         window.store['flineNatham'] = dataFln;
         if (typeof window.markLoaded === 'function') {
           window.markLoaded('flineNatham', dataFln.name, dataFln.rows.length, false);

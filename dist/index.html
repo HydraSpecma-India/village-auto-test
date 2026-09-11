@@ -1378,6 +1378,7 @@ function toDate(val){
    Workbook reading
    ============================================================ */
 function findKey(header, candidates){
+  if(!Array.isArray(header)) return null;
   const H = header.map(h=>[norm(h), h]);
   for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k===n); if(hit) return hit[1]; }
   for(const c of candidates){ const n=norm(c); const hit=H.find(([k])=>k&&(k.includes(n)||n.includes(k))); if(hit) return hit[1]; }
@@ -3544,6 +3545,7 @@ function talukSpread(key){
 /* Like findKey, but a header only matches when it *contains* the candidate —
    so a bare "Name" column is never mistaken for a different named column. */
 function findKeyStrict(header, candidates){
+  if(!Array.isArray(header)) return null;
   const H = header.map(h=>[norm(h), h]);
   for(const c of candidates){ const n = norm(c); const hit = H.find(([k])=>k === n); if(hit) return hit[1]; }
   for(const c of candidates){ const n = norm(c); const hit = H.find(([k])=>k && n.length > 2 && k.indexOf(n) >= 0); if(hit) return hit[1]; }
