@@ -262,8 +262,30 @@
 
     const talukLabel = document.querySelector('.topbar .inner .taluksel');
     if (talukLabel && !document.getElementById('tnFlashFillBtn')) {
-      const flashBtnHtml = `<button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="1-Click Auto Pull All 4 Requirement Datasets for Selected Taluk" style="margin-left:8px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>`;
-      talukLabel.insertAdjacentHTML('afterend', flashBtnHtml);
+      const today = new Date();
+      const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+      const toDateStr = formatD(today);
+      const flashControlsHtml = `
+        <div class="tn-flash-dates" style="display:inline-flex; align-items:center; gap:6px; margin-left:8px; margin-right:4px;">
+          <label style="font-size:11px; font-weight:600; color:var(--muted,#64748b); display:inline-flex; align-items:center; gap:4px; margin:0;">
+            <span>From:</span>
+            <input type="text" id="tnFlashFromDate" placeholder="DD-MM-YYYY" value="01-01-2025" style="width:88px; padding:4px 6px; font-size:11.5px; font-family:inherit; border-radius:5px; border:1px solid var(--border,#cbd5e1); background:var(--bg-input,#ffffff); color:var(--ink,#0f172a); text-align:center; font-weight:600;">
+          </label>
+          <label style="font-size:11px; font-weight:600; color:var(--muted,#64748b); display:inline-flex; align-items:center; gap:4px; margin:0;">
+            <span>To:</span>
+            <input type="text" id="tnFlashToDate" placeholder="DD-MM-YYYY" value="${toDateStr}" style="width:88px; padding:4px 6px; font-size:11.5px; font-family:inherit; border-radius:5px; border:1px solid var(--border,#cbd5e1); background:var(--bg-input,#ffffff); color:var(--ink,#0f172a); text-align:center; font-weight:600;">
+          </label>
+          <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="1-Click Auto Pull All Datasets for Selected Taluk &amp; Date Range" style="margin-left:2px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>
+        </div>
+      `;
+      talukLabel.insertAdjacentHTML('afterend', flashControlsHtml);
+    } else {
+      const flashToInput = document.getElementById('tnFlashToDate');
+      if (flashToInput && !flashToInput.value) {
+        const today = new Date();
+        const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+        flashToInput.value = formatD(today);
+      }
     }
 
     bindEvents();
@@ -1392,17 +1414,21 @@
       return;
     }
 
+    const today = new Date();
+    const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+
+    const flashFromVal = document.getElementById('tnFlashFromDate')?.value?.trim();
+    const flashToVal = document.getElementById('tnFlashToDate')?.value?.trim();
+
+    const fromDate = flashFromVal || '01-01-2025';
+    const toDate = flashToVal || formatD(today);
+
     if (typeof window.toast === 'function') {
-      window.toast('⚡ 1-Click Flash Fill Started', `Pulling NISD Rural, ISD Rural, NISD Natham & ISD Natham for ${talukName}...`, 'info');
+      window.toast('⚡ 1-Click Flash Fill Started', `Pulling NISD Rural, ISD Rural, NISD Natham & ISD Natham for ${talukName} (${fromDate} to ${toDate})...`, 'info');
     }
-    showStatus(`⚡ Flash Filling all 4 requirement datasets (NISD Rural, ISD Rural, NISD Natham, ISD Natham) for ${talukName}...`, 'info');
+    showStatus(`⚡ Flash Filling all requirement datasets for ${talukName} (${fromDate} to ${toDate})...`, 'info');
 
     try {
-      const today = new Date();
-      const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
-      const toDate = formatD(today);
-      const fromDate = '01-01-2025';
-
       const commonParams = `distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=&fromDate=${fromDate}&toDate=${toDate}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}&mode=fetch_raw`;
 
       // Parallel fetch all 4 primary datasets + 2 F-Line datasets

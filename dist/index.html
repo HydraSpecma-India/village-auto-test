@@ -880,7 +880,17 @@
       <span>Taluk</span>
       <select id="talukSel"><option value="">All taluks</option></select>
     </label>
-    <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="1-Click Auto Pull All 4 Requirement Datasets for Selected Taluk" style="margin-left:8px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>
+    <div class="tn-flash-dates" style="display:inline-flex; align-items:center; gap:6px; margin-left:8px; margin-right:4px;">
+      <label style="font-size:11px; font-weight:600; color:var(--muted,#64748b); display:inline-flex; align-items:center; gap:4px; margin:0;">
+        <span>From:</span>
+        <input type="text" id="tnFlashFromDate" placeholder="DD-MM-YYYY" value="01-01-2025" style="width:88px; padding:4px 6px; font-size:11.5px; font-family:inherit; border-radius:5px; border:1px solid var(--border,#cbd5e1); background:var(--bg-input,#ffffff); color:var(--ink,#0f172a); text-align:center; font-weight:600;">
+      </label>
+      <label style="font-size:11px; font-weight:600; color:var(--muted,#64748b); display:inline-flex; align-items:center; gap:4px; margin:0;">
+        <span>To:</span>
+        <input type="text" id="tnFlashToDate" placeholder="DD-MM-YYYY" value="" style="width:88px; padding:4px 6px; font-size:11.5px; font-family:inherit; border-radius:5px; border:1px solid var(--border,#cbd5e1); background:var(--bg-input,#ffffff); color:var(--ink,#0f172a); text-align:center; font-weight:600;">
+      </label>
+      <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="1-Click Auto Pull All Datasets for Selected Taluk &amp; Date Range" style="margin-left:2px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>
+    </div>
     <span class="whoami" id="whoami" style="display:none"></span>
     <span class="pill cloud" id="cloudPill" style="display:none">offline</span>
     <span class="pill" id="filePill">0 files</span>
