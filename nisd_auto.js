@@ -525,26 +525,6 @@
     const landNathamRadio = document.getElementById('tnLandNatham');
 
     const svcOptRadio = document.getElementById('tnSvcOpt');
-    const svcFlineRadio = document.getElementById('tnSvcFline');
-
-    function openModal() {
-      if (backdrop) backdrop.classList.add('open');
-    }
-    function closeModal() {
-      if (backdrop) backdrop.classList.remove('open');
-    }
-
-    if (triggerBtn) triggerBtn.addEventListener('click', openModal);
-    if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
-    if (flashFillBtn) flashFillBtn.addEventListener('click', handleFlashFillAll);
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-
-    if (backdrop) {
-      backdrop.addEventListener('click', e => {
-        if (e.target === backdrop) closeModal();
-      });
-    }
-
     if (distSel) distSel.addEventListener('change', onDistrictChange);
     if (talukSel) talukSel.addEventListener('change', onTalukChange);
 
@@ -1977,7 +1957,7 @@
   }
 
   async function handleFlashFillAll() {
-    return handleFlashFillExecute();
+    return openFFModal();
   }
 
   function showStatus(msg, type) {
