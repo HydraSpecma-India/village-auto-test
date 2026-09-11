@@ -495,6 +495,84 @@
   .pill.cloud.saved{border-color:var(--ok-border); background:var(--ok-soft); color:var(--ok)}
   .pill.cloud.off{border-color:var(--err-border); background:var(--err-soft); color:var(--err)}
 
+  /* ============ Full-Page Modal Overlay ============ */
+  #usersPanel.full-page {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    z-index: 10000 !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    animation: fullModalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes fullModalEnter {
+    from { opacity: 0; transform: scale(0.985); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .full-page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .full-page-head h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .full-page-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 12px 28px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .full-page-tabs button {
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .full-page-tabs button:hover {
+    color: var(--ink);
+    background: var(--surface);
+  }
+  .full-page-tabs button.on {
+    color: #ffffff !important;
+    background: var(--accent, #2563eb) !important;
+    border-color: var(--accent, #2563eb) !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  }
+  .full-page-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 28px;
+    background: var(--surface);
+  }
+
   /* ============ Admin: users & files ============ */
   .atab{display:flex; gap:6px; margin:0 20px 4px; border-bottom:1px solid var(--line)}
   .atab button{background:none; border:none; border-bottom:2px solid transparent; border-radius:0; padding:9px 12px;
@@ -729,16 +807,20 @@
 </aside>
 
 <div id="usersBack" class="drawer-back no-print" hidden></div>
-<aside id="usersPanel" class="drawer no-print" hidden aria-label="Users and files">
-  <div class="drawer-head">
-    <h2>Users &amp; stored files</h2>
-    <button class="iconbtn" id="usersClose" aria-label="Close">&#10005;</button>
+<aside id="usersPanel" class="drawer full-page no-print" hidden aria-label="Users, stored files and credentials">
+  <div class="full-page-head">
+    <h2>
+      <span style="background: linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; width:38px; height:38px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:20px;">👥</span>
+      <span>Users, Stored Files &amp; Credentials Hub</span>
+    </h2>
+    <button class="ghost" id="usersClose" aria-label="Close" style="font-weight:600; font-size:13.5px; padding:7px 16px; border:1px solid var(--line-2); border-radius:8px; cursor:pointer; background:var(--surface);">✕ Close Full Screen</button>
   </div>
-  <div class="atab" id="usersTabs">
-    <button data-tab="users" class="on">Users</button>
-    <button data-tab="files">Stored files</button>
+  <div class="full-page-tabs" id="usersTabs">
+    <button data-tab="users" class="on">👥 Authorized Users</button>
+    <button data-tab="files">📁 Stored Cloud Files</button>
+    <button data-tab="creds">🔑 Tamil Nilam Credentials</button>
   </div>
-  <div id="usersBody" style="flex:1 1 auto; overflow:auto; padding:8px 20px 20px"></div>
+  <div id="usersBody" class="full-page-body"></div>
 </aside>
 
 <div id="adminBack" class="drawer-back no-print" hidden></div>
@@ -3852,6 +3934,24 @@ function markLoaded(kind, name, rows, fromCloud){
    ============================================================ */
 let ADMIN_TAB = 'users';
 
+window.getTnCreds = function() {
+  try {
+    const raw = localStorage.getItem('village_test.tnCreds.v1');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
+};
+
+window.saveTnCreds = function(creds) {
+  try {
+    localStorage.setItem('village_test.tnCreds.v1', JSON.stringify(creds));
+    return true;
+  } catch (e) {
+    console.error('Failed to save TN creds:', e);
+    return false;
+  }
+};
+
 function openUsersPanel(){
   document.getElementById('usersPanel').hidden = false;
   document.getElementById('usersBack').hidden = false;
@@ -3863,7 +3963,9 @@ function closeUsersPanel(){
 }
 function renderAdminTabs(){
   document.querySelectorAll('#usersTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab === ADMIN_TAB));
-  if(ADMIN_TAB === 'users') renderUsers(); else renderFiles();
+  if(ADMIN_TAB === 'users') renderUsers();
+  else if(ADMIN_TAB === 'files') renderFiles();
+  else if(ADMIN_TAB === 'creds') renderTnCredsTab();
 }
 
 /* A person can be given any number of taluks. Nothing ticked means no limit. */
@@ -3993,36 +4095,219 @@ async function renderFiles(){
   (await sb.from('isd_users').select('id,email,full_name')).data?.forEach(u=> byId[u.id] = u.full_name || u.email);
 
   const kinds = ['village','vaoDetails','isdRuralPdf'].concat(OPT_KEYS, ['isdNatham','flineRural','flineNatham']);
-  let h = '<p class="fstate" style="margin:0 0 12px">Every upload is kept here. Uploading the same file again replaces it — ' +
-          'the dashboard always shows the latest.</p>';
-  h += '<table class="utable"><thead><tr><th>File</th><th>Taluk</th><th>Uploaded</th><th>By</th><th></th></tr></thead><tbody>';
+  let h = '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">' +
+            '<p class="fstate" style="margin:0">Every upload is stored securely in Supabase Cloud. Uploading again automatically replaces existing datasets for that taluk.</p>' +
+            '<div style="position:relative; width:260px;">' +
+              '<input type="text" id="fileSearchInput" placeholder="🔍 Search files or taluks..." style="width:100%; padding:7px 12px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface-2); font-size:12.5px; color:var(--ink);">' +
+            '</div>' +
+          '</div>';
+  h += '<table class="utable" id="storedFilesTable"><thead><tr><th>File</th><th>Taluk</th><th>Uploaded</th><th>By</th><th></th></tr></thead><tbody>';
   kinds.forEach(k=>{
     const rows = (data||[]).filter(r => r.kind === k);
     if(!rows.length){
-      h += '<tr class="off"><td class="who"><b>'+esc(FILE_NAMES[k] || k)+'</b><small>not uploaded yet</small></td>' +
+      h += '<tr class="off" data-search="'+esc(FILE_NAMES[k] || k)+'"><td class="who"><b>'+esc(FILE_NAMES[k] || k)+'</b><small>not uploaded yet</small></td>' +
            '<td>—</td><td>—</td><td>—</td><td></td></tr>';
       return;
     }
     rows.forEach(r=>{
-      h += '<tr data-kind="'+esc(r.kind)+'" data-taluk="'+esc(r.taluk)+'">' +
+      const searchKey = `${FILE_NAMES[k] || k} ${r.file_name || ''} ${r.taluk || 'all'}`.toLowerCase();
+      h += '<tr data-kind="'+esc(r.kind)+'" data-taluk="'+esc(r.taluk)+'" data-search="'+esc(searchKey)+'">' +
         '<td class="who"><b>'+esc(FILE_NAMES[k] || k)+'</b><small>'+esc(r.file_name||'')+' · '+(r.row_count||0)+' rows</small></td>' +
-        '<td>'+(r.taluk ? esc(r.taluk) : '<span class="fstate">all</span>')+'</td>' +
+        '<td>'+(r.taluk ? '<span class="pill" style="font-size:11px; padding:2px 8px;">'+esc(r.taluk)+'</span>' : '<span class="fstate">all</span>')+'</td>' +
         '<td class="fstate">'+new Date(r.uploaded_at).toLocaleString('en-GB')+'</td>' +
         '<td class="fstate">'+esc(byId[r.uploaded_by] || '—')+'</td>' +
-        '<td style="text-align:right"><button class="ghost" data-act="del">Delete</button></td></tr>';
+        '<td style="text-align:right"><button class="ghost" data-act="del" style="color:var(--err);">Delete</button></td></tr>';
     });
   });
   h += '</tbody></table>';
   box.innerHTML = h;
+
+  const searchInp = document.getElementById('fileSearchInput');
+  if(searchInp){
+    searchInp.addEventListener('input', e=>{
+      const term = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('#storedFilesTable tbody tr').forEach(tr=>{
+        const text = tr.dataset.search || tr.textContent.toLowerCase();
+        tr.style.display = (!term || text.includes(term)) ? '' : 'none';
+      });
+    });
+  }
+
   box.querySelectorAll('[data-act="del"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const tr = btn.closest('tr');
+      if(!confirm(`Delete stored file for ${tr.dataset.kind} (${tr.dataset.taluk || 'all'})?`)) return;
       const { error } = await sb.from('isd_test_datasets').delete()
         .eq('kind', tr.dataset.kind).eq('taluk', tr.dataset.taluk);
       if(error) toast('Could not delete', error.message, 'err');
       else { toast('Deleted', 'The stored file was removed.', 'ok'); renderFiles(); }
     });
   });
+}
+
+/* ---------- Tamil Nilam Credentials ---------- */
+function renderTnCredsTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  const creds = getTnCreds();
+
+  box.innerHTML = `
+    <div style="max-width: 820px; margin: 10px auto 30px; display: flex; flex-direction: column; gap: 24px;">
+      <div style="background: var(--surface-2); padding: 26px; border-radius: 16px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line-2);">
+          <div>
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px;">
+              <span>🔑 Tamil Nilam Portal Account Credentials</span>
+            </h3>
+            <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
+              Manage username, password & role ID used for automated report fetching (ISD, NISD & F-Line).
+            </p>
+          </div>
+          <span class="pill live" style="background: #10b98120; color: #10b981; border: 1px solid #10b98140; font-weight: 600; padding: 5px 12px; border-radius: 99px;">
+            <i class="d" style="background: #10b981;"></i> Active Sync
+          </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Username / Emp Value</label>
+            <input type="text" id="tnCredUser" value="${esc(creds.username || 'dlurpet')}" placeholder="e.g. dlurpet" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Password</label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="tnCredPass" value="${esc(creds.password || '16-03-1992')}" placeholder="Portal Password" style="width: 100%; padding: 10px 42px 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
+              <button type="button" id="tnTogglePass" title="Toggle password visibility" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted); padding: 4px;">👁️</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Role ID</label>
+            <input type="text" id="tnCredRole" value="${esc(creds.roleId || '7')}" placeholder="e.g. 7" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Target District</label>
+            <input type="text" value="Ranipet (37)" readonly style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13.5px; color: var(--muted); cursor: not-allowed;">
+          </div>
+        </div>
+
+        <div style="margin-top: 22px; display: flex; align-items: center; justify-content: space-between; padding-top: 18px; border-top: 1px solid var(--line-2);">
+          <div style="display: flex; gap: 12px;">
+            <button type="button" class="primary" id="tnSaveCredsBtn" style="padding: 10px 22px; font-size: 13.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              💾 Save Credentials
+            </button>
+            <button type="button" class="ghost" id="tnTestCredsBtn" style="padding: 10px 20px; font-size: 13.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              ⚡ Test Connection
+            </button>
+          </div>
+          <span id="tnCredsStatus" style="font-size: 13px; font-weight: 600; color: var(--muted);"></span>
+        </div>
+      </div>
+
+      <div style="background: var(--surface-2); padding: 22px 26px; border-radius: 16px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <b style="font-size: 14.5px; color: var(--ink); display: flex; align-items: center; gap: 6px;">⚡ Quick Actions: 1-Click Flash Fill</b>
+          <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">Automatically pull and populate all 4 requirement datasets for the current taluk using these credentials.</p>
+        </div>
+        <button type="button" class="tn-auto-btn flash-fill-btn" id="tnCredsFlashFillBtn" style="padding: 10px 20px; font-size: 13.5px; font-weight: 700;">
+          ⚡ Run 1-Click Flash Fill All Now
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Toggle Password Visibility
+  const passInp = document.getElementById('tnCredPass');
+  const toggleBtn = document.getElementById('tnTogglePass');
+  if (toggleBtn && passInp) {
+    toggleBtn.addEventListener('click', () => {
+      const isPass = passInp.type === 'password';
+      passInp.type = isPass ? 'text' : 'password';
+      toggleBtn.textContent = isPass ? '🙈' : '👁️';
+    });
+  }
+
+  // Save Credentials Click
+  const saveBtn = document.getElementById('tnSaveCredsBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const username = document.getElementById('tnCredUser').value.trim();
+      const password = document.getElementById('tnCredPass').value;
+      const roleId = document.getElementById('tnCredRole').value.trim();
+
+      if (!username || !password) {
+        toast('Missing Information', 'Username and Password cannot be empty.', 'warn');
+        return;
+      }
+
+      const newCreds = { username, password, roleId: roleId || '7' };
+      saveTnCreds(newCreds);
+
+      // Sync with admin drawer inputs if rendered
+      const tnU = document.getElementById('tnUsernameInput');
+      const tnP = document.getElementById('tnPasswordInput');
+      const tnR = document.getElementById('tnRoleIdInput');
+      if (tnU) tnU.value = username;
+      if (tnP) tnP.value = password;
+      if (tnR) tnR.value = roleId;
+
+      toast('Credentials Saved', 'Tamil Nilam credentials updated successfully!', 'ok');
+      const statusEl = document.getElementById('tnCredsStatus');
+      if (statusEl) {
+        statusEl.style.color = '#10b981';
+        statusEl.textContent = '✓ Saved successfully!';
+      }
+    });
+  }
+
+  // Test Connection Click
+  const testBtn = document.getElementById('tnTestCredsBtn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      const username = document.getElementById('tnCredUser').value.trim();
+      const password = document.getElementById('tnCredPass').value;
+      const roleId = document.getElementById('tnCredRole').value.trim();
+      const statusEl = document.getElementById('tnCredsStatus');
+
+      if (statusEl) {
+        statusEl.style.color = '#3b82f6';
+        statusEl.textContent = '⏳ Testing connection to Tamil Nilam portal...';
+      }
+
+      try {
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&roleId=${encodeURIComponent(roleId)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.taluks)) {
+          if (statusEl) {
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = `✓ Connection successful! Retrieved ${data.taluks.length} taluks from Tamil Nilam.`;
+          }
+          toast('Connection Successful', `Connected to Tamil Nilam portal as "${username}"`, 'ok');
+        } else {
+          throw new Error(data.error || 'Failed to authenticate with Tamil Nilam');
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = `✕ Connection failed: ${err.message}`;
+        }
+        toast('Connection Failed', err.message, 'err');
+      }
+    });
+  }
+
+  // Flash Fill Trigger Button Click
+  const ffBtn = document.getElementById('tnCredsFlashFillBtn');
+  if (ffBtn) {
+    ffBtn.addEventListener('click', () => {
+      closeUsersPanel();
+      const mainFFBtn = document.getElementById('tnFlashFillBtn');
+      if (mainFFBtn) mainFFBtn.click();
+    });
+  }
 }
 
 /* ============================================================
