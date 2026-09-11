@@ -3953,6 +3953,10 @@ window.saveTnCreds = function(creds) {
 };
 
 function openUsersPanel(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin || ADMIN_TAB === 'creds'){
+    ADMIN_TAB = 'users';
+  }
   document.getElementById('usersPanel').hidden = false;
   document.getElementById('usersBack').hidden = false;
   renderAdminTabs();
@@ -3962,6 +3966,14 @@ function closeUsersPanel(){
   document.getElementById('usersBack').hidden = true;
 }
 function renderAdminTabs(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const credsBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
+  if(credsBtn){
+    credsBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  }
+  if(!isAdmin && ADMIN_TAB === 'creds'){
+    ADMIN_TAB = 'users';
+  }
   document.querySelectorAll('#usersTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab === ADMIN_TAB));
   if(ADMIN_TAB === 'users') renderUsers();
   else if(ADMIN_TAB === 'files') renderFiles();
@@ -4149,6 +4161,18 @@ async function renderFiles(){
 function renderTnCredsTab() {
   const box = document.getElementById('usersBody');
   if (!box) return;
+
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if (!isAdmin) {
+    box.innerHTML = `
+      <div style="max-width: 550px; margin: 50px auto; padding: 28px; background: var(--surface-2); border-radius: 16px; border: 1px solid var(--line-2); text-align: center; box-shadow: var(--shadow);">
+        <span style="font-size: 44px; display: block; margin-bottom: 12px;">🔒</span>
+        <h3 style="margin: 0 0 8px; font-size: 19px; color: var(--ink); font-weight: 700;">Administrator Access Required</h3>
+        <p style="margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5;">Tamil Nilam portal credentials management is restricted to Administrator accounts only.<br>Please sign in with an Admin account to manage credentials.</p>
+      </div>
+    `;
+    return;
+  }
 
   const creds = getTnCreds();
 
@@ -5589,7 +5613,16 @@ document.getElementById('usersClose').addEventListener('click', closeUsersPanel)
 document.getElementById('usersBack').addEventListener('click', closeUsersPanel);
 document.getElementById('usersTabs').addEventListener('click', e=>{
   const b = e.target.closest('button[data-tab]');
-  if(b){ ADMIN_TAB = b.dataset.tab; renderAdminTabs(); }
+  if(b){
+    const tab = b.dataset.tab;
+    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if(tab === 'creds' && !isAdmin){
+      toast('Admin Permission Required', 'Tamil Nilam credentials management is restricted to Administrator accounts.', 'warn');
+      return;
+    }
+    ADMIN_TAB = tab;
+    renderAdminTabs();
+  }
 });
 
 /* reload the taluk-specific files when the taluk changes */
