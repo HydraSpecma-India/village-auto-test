@@ -80,6 +80,17 @@
   talukCache.set("37", INITIAL_RANIPET_TALUKS);
   villageCache.set("37_12", NEMILI_VILLAGES);
 
+  function getTnCreds() {
+    if (typeof window.getTnCreds === 'function') {
+      return window.getTnCreds();
+    }
+    try {
+      const raw = localStorage.getItem('village_test.tnCreds.v1');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
+  }
+
   function createModalHtml() {
     const distOptions = TN_DISTRICTS.map(d =>
       `<option value="${d.code}" ${d.code === '37' ? 'selected' : ''}>${d.name}</option>`
@@ -188,7 +199,7 @@
     const uploadsGrid = document.querySelector('.uploads');
     if (uploadsGrid && !document.getElementById('tnAutoTriggerBtn')) {
       const btnHtml = `
-        <div style="grid-column: 1 / -1; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; background: var(--surface-2); padding: 10px 14px; border-radius: 9px; border: 1px solid var(--line-2);">
+        <div style="grid-column: 1 / -1; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; background: var(--surface-2); padding: 10px 14px; border-radius: 99px; border: 1px solid var(--line-2);">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px;">⚡</span>
             <div>
@@ -335,7 +346,8 @@
     try {
       let taluks = talukCache.get(distCode);
       if (!taluks) {
-        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=${encodeURIComponent(distCode)}`);
+        const creds = getTnCreds();
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=${encodeURIComponent(distCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.taluks)) {
           taluks = data.taluks.map(t => ({
@@ -375,7 +387,8 @@
     try {
       let villages = villageCache.get(cacheKey);
       if (!villages) {
-        const res = await fetch(`/api/nisd-rural?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}`);
+        const creds = getTnCreds();
+        const res = await fetch(`/api/nisd-rural?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.villages)) {
           villages = [
@@ -501,6 +514,7 @@
     const toDate = document.getElementById('tnToDate').value.trim();
     const mode = document.getElementById('tnViewMode').value;
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const creds = getTnCreds();
     currentMode = mode;
 
     if (!fromDate || !toDate) {
@@ -518,7 +532,7 @@
     if (applyWrap) applyWrap.style.display = 'none';
 
     try {
-      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}`;
+      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
 
       const res = await fetch(url);
       const data = await res.json();
