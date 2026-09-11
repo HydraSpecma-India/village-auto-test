@@ -1040,7 +1040,7 @@ const CFG_DEFAULT = {
   flineRural:  {thresholds:[60,90,120],  labels:['60 Days below','60 Days above','90 Days above','120 Days above']},
   flineNatham: {thresholds:[60,90,120],  labels:['60 Days below','60 Days above','90 Days above','120 Days above']},
 };
-const CFG_STORE_KEY = 'nemili.dayRanges.v1';
+const CFG_STORE_KEY = 'village_test.dayRanges.v1';
 const BUCKET_COLORS = ['#4caf50','#ffc107','#ff9800','#fb8c00','#f4511e','#e53935'];
 
 function autoLabel(th, i){
@@ -1163,7 +1163,7 @@ const OPT = {status:'pending', userSource:'village', fuzzy:true};
 /* selected taluk. Every upload belongs to one taluk, so a taluk has to be
    chosen before any file can be loaded. '' means nothing chosen yet. */
 let TALUK = '';
-const TALUK_LIST_KEY = 'nemili.taluks.v1';
+const TALUK_LIST_KEY = 'village_test.taluks.v1';
 const TALUK_DEFAULT = ['Arakkonam','Arcot','Kalavai','Nemili','Sholinghur','Walajah'];
 let TALUK_LIST = (function(){
   try{
@@ -3737,11 +3737,11 @@ function rowCountOf(kind, parsed){
 async function saveToCloud(kind, file, parsed){
   if(!CLOUD_ON || !ME || RESTORING) return;
   const taluk = kindTaluk();
-  const path  = 'datasets/' + (taluk ? taluk.replace(/[^A-Za-z0-9]+/g,'_') : 'all') + '/' + kind + '/' + file.name;
+  const path  = 'test_datasets/' + (taluk ? taluk.replace(/[^A-Za-z0-9]+/g,'_') : 'all') + '/' + kind + '/' + file.name;
   cloudPill('syncing', 'saving…');
   try{
     await sb.storage.from(SB_BUCKET).upload(path, file, {upsert:true, contentType:file.type || 'application/octet-stream'});
-    const { error } = await sb.from('isd_datasets').upsert({
+    const { error } = await sb.from('isd_test_datasets').upsert({
       kind, taluk,
       file_name: file.name,
       storage_path: path,
@@ -3765,7 +3765,7 @@ async function restoreFromCloud(){
   RESTORING = true;
   cloudPill('syncing', 'loading…');
   try{
-    const { data, error } = await sb.from('isd_datasets').select('*');
+    const { data, error } = await sb.from('isd_test_datasets').select('*');
     if(error) throw error;
     CLOUD_TALUKS.clear();
     (data || []).forEach(row=>{ if(row.taluk) CLOUD_TALUKS.add(row.taluk); });
@@ -3947,7 +3947,7 @@ async function renderFiles(){
   const box = document.getElementById('usersBody');
   if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected.</div>'; return; }
   box.innerHTML = '<div class="empty">Loading…</div>';
-  const { data, error } = await sb.from('isd_datasets').select('*').order('kind');
+  const { data, error } = await sb.from('isd_test_datasets').select('*').order('kind');
   if(error){ box.innerHTML = '<div class="warn bad">'+esc(error.message)+'</div>'; return; }
   const byId = {};
   (await sb.from('isd_users').select('id,email,full_name')).data?.forEach(u=> byId[u.id] = u.full_name || u.email);
@@ -3977,7 +3977,7 @@ async function renderFiles(){
   box.querySelectorAll('[data-act="del"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const tr = btn.closest('tr');
-      const { error } = await sb.from('isd_datasets').delete()
+      const { error } = await sb.from('isd_test_datasets').delete()
         .eq('kind', tr.dataset.kind).eq('taluk', tr.dataset.taluk);
       if(error) toast('Could not delete', error.message, 'err');
       else { toast('Deleted', 'The stored file was removed.', 'ok'); renderFiles(); }
@@ -3997,7 +3997,7 @@ const NISD_SECTIONS = [
   {name:'Rural',  mode:'range'},
   {name:'Natham', mode:'detail'},
 ];
-const NISD_CFG_KEY  = 'nemili.nisdRanges.v3';
+const NISD_CFG_KEY  = 'village_test.nisdRanges.v3';
 const NISD_DEFAULT  = ['12 Days', '10 Days'];
 NISD_LABELS = (function(){
   try{
@@ -4649,7 +4649,7 @@ const PRINT_ITEMS = [
    els:()=>['nisdCard'],
    ready:()=>!!document.querySelector('#nisdRep table.nisd-t')},
 ];
-const PRINT_SEL_KEY = 'nemili.printPick.v1';
+const PRINT_SEL_KEY = 'village_test.printPick.v1';
 
 function printSel(){
   let picked = null;
