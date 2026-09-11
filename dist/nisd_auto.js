@@ -193,7 +193,7 @@
             <span style="font-size: 16px;">⚡</span>
             <div>
               <b style="font-size: 13px;">Automate NISD / ISD Data</b>
-              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal (NISD: VAO-only 12d/10d/&lt;10d | ISD: Surveyor & VAO 30d+/25-29d/&lt;25d)</span>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic Supabase Cloud replacement (NISD: VAO-only 12d/10d/&lt;10d | ISD: Surveyor & VAO 30d+/25-29d/&lt;25d)</span>
             </div>
           </div>
           <button type="button" class="tn-auto-btn" id="tnAutoTriggerBtn">⚡ Auto-Pull from Tamil Nilam</button>
@@ -888,9 +888,28 @@
         if (typeof window.updateRail === 'function') window.updateRail();
         if (typeof window.render === 'function') window.render();
 
-        showStatus(`✓ Auto-loaded ISD: ${bucket30Above.length} apps into 30+ Days, ${bucket25Above.length} apps into 25-29 Days, ${bucket25Below.length} apps into <25 Days!`, 'info');
+        // Auto-save to Supabase Cloud if available
+        if (typeof window.saveToCloud === 'function') {
+          try {
+            showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
+            const slots = [
+              { kind: 'opt0', data: dataBelow25, name: 'TamilNilam_Auto_ISD_Below25Days.json' },
+              { kind: 'opt1', data: data25Above, name: 'TamilNilam_Auto_ISD_25to29Days.json' },
+              { kind: 'opt2', data: data30Above, name: 'TamilNilam_Auto_ISD_30DaysAbove.json' }
+            ];
+            for (const s of slots) {
+              const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
+              blob.name = s.name;
+              await window.saveToCloud(s.kind, blob, s.data);
+            }
+          } catch (cloudErr) {
+            console.warn('Supabase cloud save note:', cloudErr);
+          }
+        }
+
+        showStatus(`✓ Auto-loaded & Saved to Supabase: ${bucket30Above.length} apps into 30+ Days, ${bucket25Above.length} apps into 25-29 Days, ${bucket25Below.length} apps into <25 Days!`, 'info');
         if (typeof window.toast === 'function') {
-          window.toast('ISD Dashboard Loaded', `≥30d: ${bucket30Above.length} | 25-29d: ${bucket25Above.length} | <25d: ${bucket25Below.length}`, 'ok');
+          window.toast('ISD Dashboard Loaded & Saved', `≥30d: ${bucket30Above.length} | 25-29d: ${bucket25Above.length} | <25d: ${bucket25Below.length}`, 'ok');
         }
 
       } else {
@@ -981,9 +1000,31 @@
         if (typeof window.updateRail === 'function') window.updateRail();
         if (typeof window.render === 'function') window.render();
 
-        showStatus(`✓ Auto-loaded NISD (VAO-only): ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
+        // Auto-save to Supabase Cloud if available
+        if (typeof window.saveToCloud === 'function') {
+          try {
+            showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
+            const slots = [
+              { kind: 'nisd_0_0', data: data12, name: 'TamilNilam_Auto_NISD_12DaysAbove.json' },
+              { kind: 'nisd_0_1', data: data10, name: 'TamilNilam_Auto_NISD_10to11Days.json' },
+              { kind: 'nisd_0_2', data: dataBelow10, name: 'TamilNilam_Auto_NISD_Below10Days.json' }
+            ];
+            if (window.store.nisdFirka) {
+              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: 'TamilNilam_Auto_NISD_Village_Firka.json' });
+            }
+            for (const s of slots) {
+              const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
+              blob.name = s.name;
+              await window.saveToCloud(s.kind, blob, s.data);
+            }
+          } catch (cloudErr) {
+            console.warn('Supabase cloud save note:', cloudErr);
+          }
+        }
+
+        showStatus(`✓ Auto-loaded & Saved to Supabase (VAO-only): ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
         if (typeof window.toast === 'function') {
-          window.toast('NISD Dashboard Loaded', `VAO ≥12d: ${bucket12.length} | 10-11d: ${bucket10.length} | <10d: ${bucketBelow10.length}`, 'ok');
+          window.toast('NISD Dashboard Loaded & Saved', `VAO ≥12d: ${bucket12.length} | 10-11d: ${bucket10.length} | <10d: ${bucketBelow10.length}`, 'ok');
         }
       }
 
