@@ -1347,7 +1347,7 @@
       const today = new Date();
       const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
       const toDate = formatD(today);
-      const fromDate = '01-09-2026';
+      const fromDate = '01-01-2025';
 
       const commonParams = `distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=&fromDate=${fromDate}&toDate=${toDate}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}&mode=fetch_raw`;
 
@@ -1397,6 +1397,18 @@
           window.store.nisdFirka = { name: 'Auto Village Firka', rows: allV.map(v => ({ village: v, firka: 'General' })) };
         }
 
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('nisd_0_0', d12.name, r12.length, false);
+          window.markLoaded('nisd0', d12.name, r12.length, false);
+          window.markLoaded('nisd_0_1', d10.name, r10.length, false);
+          window.markLoaded('nisd1', d10.name, r10.length, false);
+          window.markLoaded('nisd_0_2', dBelow10.name, rBelow10.length, false);
+          window.markLoaded('nisd2', dBelow10.name, rBelow10.length, false);
+          if (window.store.nisdFirka) {
+            window.markLoaded('nisdFirka', window.store.nisdFirka.name, window.store.nisdFirka.rows.length, false);
+          }
+        }
+
         if (typeof window.saveToCloud === 'function') {
           await window.saveToCloud('nisd_0_0', new Blob([JSON.stringify(d12)], {type:'application/json'}), d12).catch(()=>{});
           await window.saveToCloud('nisd_0_1', new Blob([JSON.stringify(d10)], {type:'application/json'}), d10).catch(()=>{});
@@ -1428,6 +1440,12 @@
         window.store['opt1'] = d25; window.store['opt_0_1'] = d25;
         window.store['opt2'] = d30; window.store['opt_0_2'] = d30;
 
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('opt0', dBelow25.name, isdBelow25.rows.length, false);
+          window.markLoaded('opt1', d25.name, isd25.rows.length, false);
+          window.markLoaded('opt2', d30.name, isd30.rows.length, false);
+        }
+
         if (typeof window.saveToCloud === 'function') {
           await window.saveToCloud('opt0', new Blob([JSON.stringify(dBelow25)], {type:'application/json'}), dBelow25).catch(()=>{});
           await window.saveToCloud('opt1', new Blob([JSON.stringify(d25)], {type:'application/json'}), d25).catch(()=>{});
@@ -1436,13 +1454,46 @@
         summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
       }
 
-      // 3. Process NISD Natham (VAO pending only)
+      // 3. Process NISD Natham (VAO pending only, 12d / 10d / <10d)
       if (nisdNathamRes.success && Array.isArray(nisdNathamRes.applications)) {
         const rawApps = nisdNathamRes.applications;
         const vaoApps = rawApps.filter(app => {
           const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
           return role === 'VAO' || role.includes('VAO');
         });
+
+        const b12 = [], b10 = [], bBelow10 = [];
+        vaoApps.forEach(app => {
+          const days = calculatePendingDays(app);
+          if (days >= 12) b12.push(app);
+          else if (days >= 10) b10.push(app);
+          else bBelow10.push(app);
+        });
+
+        const r12 = groupAppsByVillage(b12);
+        const r10 = groupAppsByVillage(b10);
+        const rBelow10 = groupAppsByVillage(bBelow10);
+
+        const d12 = { name: `Auto 12 Days Natham (${b12.length} VAO apps)`, rows: r12, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+        const d10 = { name: `Auto 10 Days Natham (${b10.length} VAO apps)`, rows: r10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+        const dBelow10 = { name: `Auto <10 Days Natham (${bBelow10.length} VAO apps)`, rows: rBelow10, period: `APPLICATION FROM: ${fromDate} TO: ${toDate}` };
+
+        window.store['nisd_1_0'] = d12; window.store['nisd_1'] = d12;
+        window.store['nisd_1_1'] = d10;
+        window.store['nisd_1_2'] = dBelow10;
+
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('nisd_1_0', d12.name, r12.length, false);
+          window.markLoaded('nisd_1', d12.name, r12.length, false);
+          window.markLoaded('nisd_1_1', d10.name, r10.length, false);
+          window.markLoaded('nisd_1_2', dBelow10.name, rBelow10.length, false);
+        }
+
+        if (typeof window.saveToCloud === 'function') {
+          await window.saveToCloud('nisd_1_0', new Blob([JSON.stringify(d12)], {type:'application/json'}), d12).catch(()=>{});
+          await window.saveToCloud('nisd_1_1', new Blob([JSON.stringify(d10)], {type:'application/json'}), d10).catch(()=>{});
+          await window.saveToCloud('nisd_1_2', new Blob([JSON.stringify(dBelow10)], {type:'application/json'}), dBelow10).catch(()=>{});
+        }
         summaryStats.push(`NISD Natham: ${vaoApps.length} VAO apps`);
       }
 
@@ -1452,6 +1503,9 @@
         const isdGroup = groupAppsByVillageForISD(rawApps);
         const dataNatham = { name: `Auto ISD Natham (${rawApps.length} apps)`, rows: isdGroup.rows, footer: isdGroup.footer };
         window.store['isdNatham'] = dataNatham;
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('isdNatham', dataNatham.name, isdGroup.rows.length, false);
+        }
         if (typeof window.saveToCloud === 'function') {
           await window.saveToCloud('isdNatham', new Blob([JSON.stringify(dataNatham)], {type:'application/json'}), dataNatham).catch(()=>{});
         }
@@ -1465,6 +1519,9 @@
         rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
         const dataFlr = { name: `Auto F-Line Rural (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
         window.store['flineRural'] = dataFlr;
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('flineRural', dataFlr.name, dataFlr.rows.length, false);
+        }
         if (typeof window.saveToCloud === 'function') {
           await window.saveToCloud('flineRural', new Blob([JSON.stringify(dataFlr)], {type:'application/json'}), dataFlr).catch(()=>{});
         }
@@ -1478,6 +1535,9 @@
         rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
         const dataFln = { name: `Auto F-Line Natham (${rawApps.length} apps)`, rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c })) };
         window.store['flineNatham'] = dataFln;
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('flineNatham', dataFln.name, dataFln.rows.length, false);
+        }
         if (typeof window.saveToCloud === 'function') {
           await window.saveToCloud('flineNatham', new Blob([JSON.stringify(dataFln)], {type:'application/json'}), dataFln).catch(()=>{});
         }
