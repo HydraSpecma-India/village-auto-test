@@ -508,13 +508,13 @@
       if (applyWrap) {
         applyWrap.style.display = 'inline-flex';
         const apps = data.applications || [];
-        const b12 = apps.filter(a => calculatePendingDays(a) > 12).length;
-        const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d > 10 && d <= 12; }).length;
-        const bBelow10 = apps.filter(a => calculatePendingDays(a) <= 10).length;
+        const b12 = apps.filter(a => calculatePendingDays(a) >= 12).length;
+        const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 10 && d < 12; }).length;
+        const bBelow10 = apps.filter(a => calculatePendingDays(a) < 10).length;
 
         if (bucketSummary) {
           bucketSummary.style.display = 'inline-flex';
-          bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &gt;12d &bull; <b>${b10}</b> 10-12d &bull; <b>${bBelow10}</b> &le;10d`;
+          bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &ge;12d &bull; <b>${b10}</b> 10-11d &bull; <b>${bBelow10}</b> &lt;10d`;
         }
       }
 
@@ -567,8 +567,8 @@
         const role = app.role_name || app.pending_at || 'VAO';
         const pendDays = calculatePendingDays(app);
         let badgeColor = '#10b981';
-        if (pendDays > 12) badgeColor = '#ef4444';
-        else if (pendDays > 10) badgeColor = '#f59e0b';
+        if (pendDays >= 12) badgeColor = '#ef4444';
+        else if (pendDays >= 10) badgeColor = '#f59e0b';
 
         html += `
           <tr>
@@ -704,9 +704,9 @@
 
       apps.forEach(app => {
         const days = calculatePendingDays(app);
-        if (days > 12) {
+        if (days >= 12) {
           bucket12.push(app);
-        } else if (days > 10) {
+        } else if (days >= 10) {
           bucket10.push(app);
         } else {
           bucketBelow10.push(app);
