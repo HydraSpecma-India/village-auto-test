@@ -193,7 +193,7 @@
             <span style="font-size: 16px;">⚡</span>
             <div>
               <b style="font-size: 13px;">Automate NISD / ISD Data</b>
-              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic date sorting (NISD: 12d/10d/&lt;10d | ISD: 30d+/25-29d/&lt;25d)</span>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal (NISD: VAO-only 12d/10d/&lt;10d | ISD: Surveyor & VAO 30d+/25-29d/&lt;25d)</span>
             </div>
           </div>
           <button type="button" class="tn-auto-btn" id="tnAutoTriggerBtn">⚡ Auto-Pull from Tamil Nilam</button>
@@ -541,9 +541,10 @@
 
       if (applyWrap) {
         applyWrap.style.display = 'inline-flex';
-        const apps = data.applications || [];
+        const rawApps = data.applications || [];
 
         if (optType === 'I') {
+          const apps = rawApps;
           const b30 = apps.filter(a => calculatePendingDays(a) >= 30).length;
           const b25 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 25 && d < 30; }).length;
           const bBelow25 = apps.filter(a => calculatePendingDays(a) < 25).length;
@@ -553,13 +554,18 @@
             bucketSummary.innerHTML = `Breakdown: <b>${b30}</b> &ge;30d &bull; <b>${b25}</b> 25-29d &bull; <b>${bBelow25}</b> &lt;25d`;
           }
         } else {
+          // NISD: filter VAO-only pending applications
+          const apps = rawApps.filter(a => {
+            const r = String(a.role_name || a.pending_at || '').trim().toUpperCase();
+            return r === 'VAO' || r.includes('VAO');
+          });
           const b12 = apps.filter(a => calculatePendingDays(a) >= 12).length;
           const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 10 && d < 12; }).length;
           const bBelow10 = apps.filter(a => calculatePendingDays(a) < 10).length;
 
           if (bucketSummary) {
             bucketSummary.style.display = 'inline-flex';
-            bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &ge;12d &bull; <b>${b10}</b> 10-11d &bull; <b>${bBelow10}</b> &lt;10d`;
+            bucketSummary.innerHTML = `VAO Pending Breakdown: <b>${b12}</b> &ge;12d &bull; <b>${b10}</b> 10-11d &bull; <b>${bBelow10}</b> &lt;10d`;
           }
         }
       }
@@ -807,8 +813,8 @@
       return;
     }
 
-    const apps = currentReportData.applications || [];
-    if (!apps.length) {
+    const rawApps = currentReportData.applications || [];
+    if (!rawApps.length) {
       showStatus('No individual applications found to distribute into date buckets. Make sure Report Format is set to "Detailed Applications".', 'error');
       return;
     }
@@ -829,7 +835,7 @@
         const bucket25Above = [];
         const bucket25Below = [];
 
-        apps.forEach(app => {
+        rawApps.forEach(app => {
           const days = calculatePendingDays(app);
           if (days >= 30) {
             bucket30Above.push(app);
@@ -888,13 +894,19 @@
         }
 
       } else {
-        showStatus('Calculating application pendency & sorting into 12d / 10d / <10d NISD buckets...', 'info');
+        showStatus('Filtering VAO pending applications & sorting into 12d / 10d / <10d NISD buckets...', 'info');
+
+        // NISD: Filter VAO-only pending applications, ignoring HQDT, ZDT, etc.
+        const vaoApps = rawApps.filter(app => {
+          const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
+          return role === 'VAO' || role.includes('VAO');
+        });
 
         const bucket12 = [];
         const bucket10 = [];
         const bucketBelow10 = [];
 
-        apps.forEach(app => {
+        vaoApps.forEach(app => {
           const days = calculatePendingDays(app);
           if (days >= 12) {
             bucket12.push(app);
@@ -910,21 +922,21 @@
         const rowsBelow10 = groupAppsByVillage(bucketBelow10);
 
         const data12 = {
-          name: `Auto 12 Days (${bucket12.length} apps)`,
+          name: `Auto 12 Days (${bucket12.length} VAO apps)`,
           rows: rows12,
           footer: null,
           period,
           asOn
         };
         const data10 = {
-          name: `Auto 10 Days (${bucket10.length} apps)`,
+          name: `Auto 10 Days (${bucket10.length} VAO apps)`,
           rows: rows10,
           footer: null,
           period,
           asOn
         };
         const dataBelow10 = {
-          name: `Auto <10 Days (${bucketBelow10.length} apps)`,
+          name: `Auto <10 Days (${bucketBelow10.length} VAO apps)`,
           rows: rowsBelow10,
           footer: null,
           period,
@@ -969,9 +981,9 @@
         if (typeof window.updateRail === 'function') window.updateRail();
         if (typeof window.render === 'function') window.render();
 
-        showStatus(`✓ Auto-loaded NISD: ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
+        showStatus(`✓ Auto-loaded NISD (VAO-only): ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
         if (typeof window.toast === 'function') {
-          window.toast('NISD Dashboard Loaded', `≥12d: ${bucket12.length} | 10-11d: ${bucket10.length} | <10d: ${bucketBelow10.length}`, 'ok');
+          window.toast('NISD Dashboard Loaded', `VAO ≥12d: ${bucket12.length} | 10-11d: ${bucket10.length} | <10d: ${bucketBelow10.length}`, 'ok');
         }
       }
 
