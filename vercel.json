@@ -1,0 +1,8 @@
+{
+  "regions": ["bom1"],
+  "functions": {
+    "api/nisd-rural.js": {
+      "maxDuration": 30
+    }
+  }
+}

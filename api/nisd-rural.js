@@ -33,7 +33,7 @@ function formatDateToYYYYMMDD(d) {
   return `${year}-${month}-${day}`;
 }
 
-function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7') {
+function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
@@ -76,8 +76,8 @@ function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992
     });
 
     req.on('error', reject);
-    req.setTimeout(25000, () => {
-      req.destroy(new Error('Request to Tamil Nilam timed out.'));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Tamil Nilam portal request timed out after ${timeoutMs}ms. Tamil Nilam server may be slow or firewall blocked.`));
     });
     req.write(inputVal);
     req.end();
@@ -102,9 +102,9 @@ module.exports = async (req, res) => {
     const distCode = params.distCode || '37'; // Ranipet
     const talukCode = params.talukCode || '12'; // Nemili
     const flag = params.flag || 'N'; // NISD
-    const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-08-31');
-    const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-10');
-    const mode = params.mode || 'details'; // 'summary', 'details', 'all-details', 'nisd-range'
+    const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-08-30');
+    const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-11');
+    const mode = params.mode || 'details';
     const villageCode = params.villageCode || '';
     const username = params.username || 'dlurpet';
     const password = params.password || '16-03-1992';
@@ -119,7 +119,7 @@ module.exports = async (req, res) => {
         toDate: toDate,
         flag: flag,
         cdn_flag: 'T'
-      }, username, password, roleId);
+      }, username, password, roleId, 15000);
 
       const period = `OPT APPLICATION RECEIVED FROM: ${formatDateToDDMMYYYY(fromDate)} TO: ${formatDateToDDMMYYYY(toDate)}`;
       const asOn = summaryData.datearray && summaryData.datearray[0] ? summaryData.datearray[0].todayDate : '';
@@ -164,7 +164,7 @@ module.exports = async (req, res) => {
     }
 
     // 2. Specific village details (cdn_flag: 'V')
-    if (mode === 'details' && villageCode) {
+    if (villageCode) {
       const detailData = await fetchTamilNilamRaw({
         DistCode: distCode,
         taluckcode: talukCode,
@@ -173,7 +173,7 @@ module.exports = async (req, res) => {
         toDate: toDate,
         flag: flag,
         cdn_flag: 'V'
-      }, username, password, roleId);
+      }, username, password, roleId, 15000);
 
       const period = `OPT APPLICATION RECEIVED FROM: ${formatDateToDDMMYYYY(fromDate)} TO: ${formatDateToDDMMYYYY(toDate)}`;
       const asOn = detailData.datearray && detailData.datearray[0] ? detailData.datearray[0].todayDate : '';
@@ -188,7 +188,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // 3. All village details in the taluk (all-details or default details without villageCode)
+    // 3. All village details in the taluk (when no specific villageCode is provided)
     const talukSummary = await fetchTamilNilamRaw({
       DistCode: distCode,
       taluckcode: talukCode,
@@ -196,7 +196,7 @@ module.exports = async (req, res) => {
       toDate: toDate,
       flag: flag,
       cdn_flag: 'T'
-    }, username, password, roleId);
+    }, username, password, roleId, 15000);
 
     const villages = talukSummary.distarr || [];
     const pendingVillages = villages.filter(v => {
@@ -207,8 +207,9 @@ module.exports = async (req, res) => {
     const period = `OPT APPLICATION RECEIVED FROM: ${formatDateToDDMMYYYY(fromDate)} TO: ${formatDateToDDMMYYYY(toDate)}`;
     const asOn = talukSummary.datearray && talukSummary.datearray[0] ? talukSummary.datearray[0].todayDate : '';
 
+    // Concurrently fetch village details in chunks of 10
     const allApplications = [];
-    const batchSize = 8;
+    const batchSize = 10;
     for (let i = 0; i < pendingVillages.length; i += batchSize) {
       const chunk = pendingVillages.slice(i, i + batchSize);
       const results = await Promise.all(
@@ -221,10 +222,10 @@ module.exports = async (req, res) => {
             toDate: toDate,
             flag: flag,
             cdn_flag: 'V'
-          }, username, password, roleId)
+          }, username, password, roleId, 10000)
             .then(res => res.distarr || [])
             .catch(err => {
-              console.error(`Error fetching village ${v.village_name}:`, err.message);
+              console.error(`Village ${v.village_name} fetch skipped:`, err.message);
               return [];
             })
         )

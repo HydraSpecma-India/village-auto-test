@@ -2,24 +2,85 @@
    Tamil Nilam NISD Rural Automation Controller
    ============================================================ */
 (function() {
-  // Ensure we don't initialize twice
   if (window.__tnAutoInitialized) return;
   window.__tnAutoInitialized = true;
 
-  // Default state
   let currentReportData = null;
   let currentMode = 'details';
 
-  // Helper to format Date to YYYY-MM-DD
-  function toISODate(d) {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  const NEMILI_VILLAGES = [
+    { code: "", name: "-- ALL VILLAGES (Combined) --" },
+    { code: "109", name: "Agavalam (109)" },
+    { code: "030", name: "Alappakkam (030)" },
+    { code: "121", name: "Asanellikuppam (121)" },
+    { code: "042", name: "Athipattu (042)" },
+    { code: "046", name: "Avalur (046)" },
+    { code: "038", name: "Ayarpadi (038)" },
+    { code: "032", name: "Cherri (032)" },
+    { code: "143", name: "Dharmaneedhi (143)" },
+    { code: "065", name: "Elathur (065)" },
+    { code: "036", name: "Eralacherry (036)" },
+    { code: "114", name: "Jagirthandalam (114)" },
+    { code: "047", name: "Kalathur (047)" },
+    { code: "123", name: "Kariakudal (123)" },
+    { code: "045", name: "Karivedu (045)" },
+    { code: "022", name: "Karnavur (022)" },
+    { code: "033", name: "Kattalai (033)" },
+    { code: "063", name: "Kattupakkam (063)" },
+    { code: "034", name: "Kaveripakkam (034)" },
+    { code: "101", name: "Keelandurai (101)" },
+    { code: "106", name: "Keelkalathur (106)" },
+    { code: "058", name: "Keelveedhi (058)" },
+    { code: "124", name: "Keelvenkatapuram (124)" },
+    { code: "116", name: "Keelvenpakkam (116)" },
+    { code: "060", name: "Kodampakkam (060)" },
+    { code: "041", name: "Kondapuram (041)" },
+    { code: "031", name: "Maganipattu (031)" },
+    { code: "061", name: "Mahendravadi (061)" },
+    { code: "044", name: "Mamandoor (044)" },
+    { code: "094", name: "Melanthurai (094)" },
+    { code: "051", name: "Melapulam (051)" },
+    { code: "059", name: "Melari (059)" },
+    { code: "064", name: "Melkalathur (064)" },
+    { code: "100", name: "Nagavedu (100)" },
+    { code: "052", name: "Nangamangalam (052)" },
+    { code: "054", name: "Nedumpuli (054)" },
+    { code: "119", name: "Nelvoy (119)" },
+    { code: "122", name: "Nemili (122)" },
+    { code: "105", name: "Ochalam (105)" },
+    { code: "039", name: "Ocheri (039)" },
+    { code: "053", name: "Panappakkam (053)" },
+    { code: "026", name: "Panniyur (026)" },
+    { code: "057", name: "Perapperi (057)" },
+    { code: "049", name: "Perumpulipakkam (049)" },
+    { code: "029", name: "Peruvalayam (029)" },
+    { code: "050", name: "Poigainallur (050)" },
+    { code: "027", name: "Puduppattu (027)" },
+    { code: "107", name: "Punnai (107)" },
+    { code: "111", name: "Reddivalam (111)" },
+    { code: "048", name: "Sangarampadi (048)" },
+    { code: "125", name: "Sayanavaram (125)" },
+    { code: "066", name: "Silamandai (066)" },
+    { code: "040", name: "Sirukarumpur (040)" },
+    { code: "104", name: "Sirunamalli (104)" },
+    { code: "028", name: "Siruvalayam (028)" },
+    { code: "120", name: "S.Kulathur (120)" },
+    { code: "112", name: "Thenmambakkam (112)" },
+    { code: "117", name: "Thirumalpoor (117)" },
+    { code: "035", name: "Thuraiperumpakkam (035)" },
+    { code: "055", name: "Thuraiyur (055)" },
+    { code: "056", name: "Uliyanallur (056)" },
+    { code: "037", name: "Uthirampattu (037)" },
+    { code: "043", name: "Vegamangalam (043)" },
+    { code: "062", name: "Velithangipuram (062)" },
+    { code: "113", name: "Veliyanallur (113)" },
+    { code: "108", name: "Vepperi (108)" },
+    { code: "110", name: "Vettankulam (110)" }
+  ];
 
-  // Create Modal HTML
   function createModalHtml() {
+    const villageOptions = NEMILI_VILLAGES.map(v => `<option value="${v.code}">${v.name}</option>`).join('');
+
     return `
       <div id="tnModalBackdrop" class="tn-modal-backdrop">
         <div class="tn-modal">
@@ -32,18 +93,15 @@
           </div>
 
           <div class="tn-modal-body">
-            <!-- Filter Section matching Tamil Nilam screen -->
             <div class="tn-filter-box">
               <div class="tn-filter-title">VILLAGE WISE OPT APPLICATIONS PENDING REPORT</div>
               
               <div class="tn-form-grid">
-                <!-- Radio NISD / ISD -->
                 <div class="tn-radio-group">
                   <label><input type="radio" name="tnOptType" id="tnRadioNisd" value="N" checked> NISD</label>
                   <label><input type="radio" name="tnOptType" id="tnRadioIsd" value="I"> ISD</label>
                 </div>
 
-                <!-- District Dropdown -->
                 <div class="tn-field">
                   <label for="tnDistSel">District</label>
                   <select id="tnDistSel">
@@ -56,7 +114,6 @@
                   </select>
                 </div>
 
-                <!-- Taluk Dropdown -->
                 <div class="tn-field">
                   <label for="tnTalukSel">Taluk</label>
                   <select id="tnTalukSel">
@@ -69,20 +126,13 @@
                   </select>
                 </div>
 
-                <!-- Village Dropdown -->
                 <div class="tn-field">
                   <label for="tnVillageSel">Village</label>
                   <select id="tnVillageSel">
-                    <option value="" selected>-- ALL VILLAGES --</option>
-                    <option value="109">Agavalam(109)</option>
-                    <option value="030">Alappakkam(030)</option>
-                    <option value="121">Asanellikuppam(121)</option>
-                    <option value="042">Athipattu(042)</option>
-                    <option value="046">Avalur(046)</option>
+                    ${villageOptions}
                   </select>
                 </div>
 
-                <!-- Report View Mode -->
                 <div class="tn-field">
                   <label for="tnViewMode">Report Format</label>
                   <select id="tnViewMode">
@@ -91,26 +141,23 @@
                   </select>
                 </div>
 
-                <!-- From Date -->
                 <div class="tn-field">
                   <label for="tnFromDate">From Date</label>
                   <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="31-08-2026">
                   <div class="tn-quick-dates">
+                    <button type="button" class="tn-quick-btn" data-range="screenshot">Screenshot dates</button>
                     <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="below10">&lt;10 Days</button>
-                    <button type="button" class="tn-quick-btn" data-range="sample">Screenshot dates</button>
                   </div>
                 </div>
 
-                <!-- To Date -->
                 <div class="tn-field">
                   <label for="tnToDate">To Date</label>
                   <input type="text" id="tnToDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="10-09-2026">
                 </div>
               </div>
 
-              <!-- Action Buttons -->
               <div class="tn-btn-bar">
                 <button type="button" class="tn-btn-submit" id="tnBtnSubmit">Submit</button>
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
@@ -118,10 +165,8 @@
               </div>
             </div>
 
-            <!-- Status banner -->
             <div id="tnStatusBanner" class="tn-status-banner"></div>
 
-            <!-- Report Results Table Container -->
             <div id="tnReportArea" style="display:none">
               <div class="tn-table-wrap" id="tnTableWrap"></div>
             </div>
@@ -131,14 +176,11 @@
     `;
   }
 
-  // Inject UI
   function injectUI() {
-    // 1. Inject modal backdrop into body
     if (!document.getElementById('tnModalBackdrop')) {
       document.body.insertAdjacentHTML('beforeend', createModalHtml());
     }
 
-    // 2. Add Trigger button near NISD card or in upload section
     const uploadsGrid = document.querySelector('.uploads');
     if (uploadsGrid && !document.getElementById('tnAutoTriggerBtn')) {
       const btnHtml = `
@@ -156,7 +198,6 @@
       uploadsGrid.insertAdjacentHTML('beforebegin', btnHtml);
     }
 
-    // Also add button inside the NISD card if available
     const nisdActions = document.getElementById('nisdActions');
     if (nisdActions && !document.getElementById('tnNisdCardBtn')) {
       const nisdBtn = document.createElement('button');
@@ -191,23 +232,22 @@
     if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
 
-    // Close on clicking outside modal
     if (backdrop) {
       backdrop.addEventListener('click', e => {
         if (e.target === backdrop) closeModal();
       });
     }
 
-    // Quick range presets
     document.querySelectorAll('.tn-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const range = btn.dataset.range;
         const to = new Date();
         let from = new Date();
 
-        if (range === 'sample') {
+        if (range === 'screenshot') {
           document.getElementById('tnFromDate').value = '31-08-2026';
           document.getElementById('tnToDate').value = '10-09-2026';
+          document.getElementById('tnVillageSel').value = '109'; // Agavalam
           return;
         } else if (range === '12') {
           from.setDate(to.getDate() - 12);
@@ -228,27 +268,14 @@
       });
     });
 
-    // Submit handler
-    if (submitBtn) {
-      submitBtn.addEventListener('click', handleFetch);
-    }
-
-    // Export to Excel handler
-    if (excelBtn) {
-      excelBtn.addEventListener('click', handleExportExcel);
-    }
-
-    // Apply to dashboard handler
-    if (applyBtn) {
-      applyBtn.addEventListener('click', handleApplyToDashboard);
-    }
+    if (submitBtn) submitBtn.addEventListener('click', handleFetch);
+    if (excelBtn) excelBtn.addEventListener('click', handleExportExcel);
+    if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
   }
 
-  // Fetch report data
   async function handleFetch() {
     const statusBanner = document.getElementById('tnStatusBanner');
     const reportArea = document.getElementById('tnReportArea');
-    const tableWrap = document.getElementById('tnTableWrap');
     const excelBtn = document.getElementById('tnBtnExcel');
     const applyBtn = document.getElementById('tnBtnApply');
 
@@ -265,7 +292,8 @@
       return;
     }
 
-    showStatus('Connecting to Tamil Nilam & fetching live report...', 'info');
+    const targetDesc = villageCode ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})` : 'all villages';
+    showStatus(`Connecting to Tamil Nilam & fetching live report for ${targetDesc}...`, 'info');
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
     applyBtn.style.display = 'none';
@@ -283,7 +311,6 @@
       currentReportData = data;
       hideStatus();
 
-      // Render table based on mode
       if (mode === 'details') {
         renderDetailsTable(data);
       } else {
@@ -296,11 +323,14 @@
 
     } catch (err) {
       console.error('Fetch error:', err);
-      showStatus(`Error fetching Tamil Nilam report: ${err.message}`, 'error');
+      let errorMsg = err.message;
+      if (errorMsg.includes('timed out') || errorMsg.includes('fetch')) {
+        errorMsg += ' — Note: Tamil Nadu Government (TNSDC) firewall blocks foreign IP addresses. If deployed on Vercel, ensure the Mumbai (bom1) serverless region is used, or run locally via `node local_server.js`.';
+      }
+      showStatus(`Error fetching Tamil Nilam report: ${errorMsg}`, 'error');
     }
   }
 
-  // Render Applications Details Table (Matches screenshot)
   function renderDetailsTable(data) {
     const tableWrap = document.getElementById('tnTableWrap');
     const apps = data.applications || [];
@@ -361,7 +391,6 @@
     tableWrap.innerHTML = html;
   }
 
-  // Render Village Summary Table (Taluk overview)
   function renderSummaryTable(data) {
     const tableWrap = document.getElementById('tnTableWrap');
     const villages = (data.data && data.data.distarr) || (data.summary && data.summary.distarr) || [];
@@ -429,7 +458,6 @@
     tableWrap.innerHTML = html;
   }
 
-  // Export to Excel using XLSX
   function handleExportExcel() {
     const table = document.getElementById('tnExportTable');
     if (!table) return;
@@ -439,7 +467,6 @@
       const filename = `TamilNilam_OPT_Pending_${document.getElementById('tnFromDate').value}_to_${document.getElementById('tnToDate').value}.xlsx`;
       XLSX.writeFile(wb, filename);
     } else {
-      // Fallback to table HTML blob
       const html = table.outerHTML;
       const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
       const a = document.createElement('a');
@@ -449,11 +476,8 @@
     }
   }
 
-  // Apply directly to dashboard NISD store
   async function handleApplyToDashboard() {
     if (!currentReportData) return;
-
-    // Check if store exists in window
     if (typeof window.store === 'undefined') {
       alert('Dashboard store not found on this page.');
       return;
@@ -462,7 +486,6 @@
     try {
       showStatus('Formatting and applying to dashboard NISD slot...', 'info');
 
-      // Fetch the formatted range matrix from API
       const distCode = document.getElementById('tnDistSel').value;
       const talukCode = document.getElementById('tnTalukSel').value;
       const fromDate = document.getElementById('tnFromDate').value.trim();
@@ -475,7 +498,6 @@
         throw new Error('Could not format data into NISD range rows.');
       }
 
-      // Populate into store.nisd0 (or first slot)
       const slotKey = (window.NISD_KEYS && window.NISD_KEYS[0]) || 'nisd0';
       window.store[slotKey] = {
         name: `TamilNilam Auto (${fromDate} to ${toDate})`,
@@ -485,7 +507,6 @@
         asOn: rangeData.asOn
       };
 
-      // Update UI badges & recalculate
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();
       if (typeof window.runDashboard === 'function') window.runDashboard();
@@ -519,7 +540,6 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // Initialize on DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectUI);
   } else {
