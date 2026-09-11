@@ -1,5 +1,5 @@
 /* ============================================================
-   Tamil Nilam NISD Rural Automation Controller
+   Tamil Nilam NISD & ISD Automation Controller
    ============================================================ */
 (function() {
   if (window.__tnAutoInitialized) return;
@@ -61,77 +61,23 @@
   const NEMILI_VILLAGES = [
     { code: "", name: "-- ALL VILLAGES (Combined) --" },
     { code: "109", name: "Agavalam (109)" },
-    { code: "030", name: "Alappakkam (030)" },
+    { code: "108", name: "Alappakkam (108)" },
+    { code: "115", name: "Attupakkam (115)" },
+    { code: "110", name: "Banavaram (110)" },
+    { code: "111", name: "Illuppaiyandandalam (111)" },
     { code: "121", name: "Asanellikuppam (121)" },
-    { code: "042", name: "Athipattu (042)" },
-    { code: "046", name: "Avalur (046)" },
-    { code: "038", name: "Ayarpadi (038)" },
-    { code: "032", name: "Cherri (032)" },
-    { code: "143", name: "Dharmaneedhi (143)" },
-    { code: "065", name: "Elathur (065)" },
-    { code: "036", name: "Eralacherry (036)" },
-    { code: "114", name: "Jagirthandalam (114)" },
-    { code: "047", name: "Kalathur (047)" },
     { code: "123", name: "Kariakudal (123)" },
-    { code: "045", name: "Karivedu (045)" },
-    { code: "022", name: "Karnavur (022)" },
-    { code: "033", name: "Kattalai (033)" },
-    { code: "063", name: "Kattupakkam (063)" },
-    { code: "034", name: "Kaveripakkam (034)" },
-    { code: "101", name: "Keelandurai (101)" },
-    { code: "106", name: "Keelkalathur (106)" },
-    { code: "058", name: "Keelveedhi (058)" },
     { code: "124", name: "Keelvenkatapuram (124)" },
-    { code: "116", name: "Keelvenpakkam (116)" },
-    { code: "060", name: "Kodampakkam (060)" },
-    { code: "041", name: "Kondapuram (041)" },
-    { code: "031", name: "Maganipattu (031)" },
-    { code: "061", name: "Mahendravadi (061)" },
-    { code: "044", name: "Mamandoor (044)" },
-    { code: "094", name: "Melanthurai (094)" },
-    { code: "051", name: "Melapulam (051)" },
-    { code: "059", name: "Melari (059)" },
-    { code: "064", name: "Melkalathur (064)" },
-    { code: "100", name: "Nagavedu (100)" },
-    { code: "052", name: "Nangamangalam (052)" },
-    { code: "054", name: "Nedumpuli (054)" },
-    { code: "119", name: "Nelvoy (119)" },
     { code: "122", name: "Nemili (122)" },
-    { code: "105", name: "Ochalam (105)" },
-    { code: "039", name: "Ocheri (039)" },
-    { code: "053", name: "Panappakkam (053)" },
-    { code: "026", name: "Panniyur (026)" },
-    { code: "057", name: "Perapperi (057)" },
-    { code: "049", name: "Perumpulipakkam (049)" },
-    { code: "029", name: "Peruvalayam (029)" },
-    { code: "050", name: "Poigainallur (050)" },
-    { code: "027", name: "Puduppattu (027)" },
-    { code: "107", name: "Punnai (107)" },
-    { code: "111", name: "Reddivalam (111)" },
-    { code: "048", name: "Sangarampadi (048)" },
     { code: "125", name: "Sayanavaram (125)" },
-    { code: "066", name: "Silamandai (066)" },
-    { code: "040", name: "Sirukarumpur (040)" },
-    { code: "104", name: "Sirunamalli (104)" },
-    { code: "028", name: "Siruvalayam (028)" },
     { code: "120", name: "S.Kulathur (120)" },
-    { code: "112", name: "Thenmambakkam (112)" },
-    { code: "117", name: "Thirumalpoor (117)" },
-    { code: "035", name: "Thuraiperumpakkam (035)" },
-    { code: "055", name: "Thuraiyur (055)" },
-    { code: "056", name: "Uliyanallur (056)" },
-    { code: "037", name: "Uthirampattu (037)" },
-    { code: "043", name: "Vegamangalam (043)" },
-    { code: "062", name: "Velithangipuram (062)" },
-    { code: "113", name: "Veliyanallur (113)" },
-    { code: "108", name: "Vepperi (108)" },
-    { code: "110", name: "Vettankulam (110)" }
+    { code: "112", name: "Thenmambakkam (112)" }
   ];
 
   const talukCache = new Map();
-  talukCache.set("37", INITIAL_RANIPET_TALUKS);
-
   const villageCache = new Map();
+
+  talukCache.set("37", INITIAL_RANIPET_TALUKS);
   villageCache.set("37_12", NEMILI_VILLAGES);
 
   function createModalHtml() {
@@ -200,7 +146,7 @@
                 <div class="tn-field">
                   <label for="tnFromDate">From Date</label>
                   <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="31-08-2026">
-                  <div class="tn-quick-dates">
+                  <div class="tn-quick-dates" id="tnQuickDatesContainer">
                     <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="below10">&lt;10 Days</button>
@@ -246,8 +192,8 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px;">⚡</span>
             <div>
-              <b style="font-size: 13px;">Automate NISD Rural Data</b>
-              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic 12d / 10d / &lt;10d date sorting</span>
+              <b style="font-size: 13px;">Automate NISD / ISD Data</b>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic date sorting (NISD: 12d/10d/&lt;10d | ISD: 30d+/25-29d/&lt;25d)</span>
             </div>
           </div>
           <button type="button" class="tn-auto-btn" id="tnAutoTriggerBtn">⚡ Auto-Pull from Tamil Nilam</button>
@@ -281,6 +227,8 @@
 
     const distSel = document.getElementById('tnDistSel');
     const talukSel = document.getElementById('tnTalukSel');
+    const nisdRadio = document.getElementById('tnRadioNisd');
+    const isdRadio = document.getElementById('tnRadioIsd');
 
     function openModal() {
       if (backdrop) backdrop.classList.add('open');
@@ -299,13 +247,52 @@
       });
     }
 
-    if (distSel) {
-      distSel.addEventListener('change', onDistrictChange);
-    }
-    if (talukSel) {
-      talukSel.addEventListener('change', onTalukChange);
-    }
+    if (distSel) distSel.addEventListener('change', onDistrictChange);
+    if (talukSel) talukSel.addEventListener('change', onTalukChange);
 
+    if (nisdRadio) nisdRadio.addEventListener('change', onOptTypeChange);
+    if (isdRadio) isdRadio.addEventListener('change', onOptTypeChange);
+
+    bindQuickDateEvents();
+
+    if (submitBtn) submitBtn.addEventListener('click', handleFetch);
+    if (excelBtn) excelBtn.addEventListener('click', handleExportExcel);
+    if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
+  }
+
+  function onOptTypeChange() {
+    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const quickContainer = document.getElementById('tnQuickDatesContainer');
+    const applyBtn = document.getElementById('tnBtnApply');
+
+    if (optType === 'I') {
+      if (quickContainer) {
+        quickContainer.innerHTML = `
+          <button type="button" class="tn-quick-btn" data-range="isd30">30 Days above</button>
+          <button type="button" class="tn-quick-btn" data-range="isd25">25 Days above</button>
+          <button type="button" class="tn-quick-btn" data-range="isdBelow25">25 Days below</button>
+        `;
+        bindQuickDateEvents();
+      }
+      if (applyBtn) {
+        applyBtn.innerHTML = '⚡ Auto-Load All into Dashboard (30d+ / 25-29d / &lt;25d)';
+      }
+    } else {
+      if (quickContainer) {
+        quickContainer.innerHTML = `
+          <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
+          <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
+          <button type="button" class="tn-quick-btn" data-range="below10">&lt;10 Days</button>
+        `;
+        bindQuickDateEvents();
+      }
+      if (applyBtn) {
+        applyBtn.innerHTML = '⚡ Auto-Load All into Dashboard (12d / 10d / &lt;10d)';
+      }
+    }
+  }
+
+  function bindQuickDateEvents() {
     document.querySelectorAll('.tn-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const range = btn.dataset.range;
@@ -318,6 +305,14 @@
           from.setDate(to.getDate() - 10);
         } else if (range === 'below10') {
           from.setDate(to.getDate() - 9);
+        } else if (range === 'isd30') {
+          from.setDate(to.getDate() - 60);
+          to.setDate(to.getDate() - 30);
+        } else if (range === 'isd25') {
+          from.setDate(to.getDate() - 29);
+          to.setDate(to.getDate() - 25);
+        } else if (range === 'isdBelow25') {
+          from.setDate(to.getDate() - 24);
         }
 
         const formatD = d => {
@@ -330,10 +325,6 @@
         document.getElementById('tnToDate').value = formatD(to);
       });
     });
-
-    if (submitBtn) submitBtn.addEventListener('click', handleFetch);
-    if (excelBtn) excelBtn.addEventListener('click', handleExportExcel);
-    if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
   }
 
   async function onDistrictChange() {
@@ -455,6 +446,47 @@
     return Array.from(map.values()).sort((a, b) => a.village.localeCompare(b.village));
   }
 
+  function groupAppsByVillageForISD(apps) {
+    const map = new Map();
+    apps.forEach(app => {
+      const vName = (app.village_name || 'Unknown').trim();
+      if (!map.has(vName)) {
+        map.set(vName, {
+          label: vName,
+          taluk: app.taluk_name || '',
+          surv: 0,
+          vao: 0,
+          lrd: 0,
+          dis: 0,
+          thl: 0,
+          all: 0
+        });
+      }
+      const item = map.get(vName);
+      const role = String(app.role_name || app.pending_at || '').toUpperCase();
+      if (role.includes('SURVEY') || role.includes('FS')) {
+        item.surv++;
+      } else {
+        item.vao++;
+      }
+      item.all = item.surv + item.vao;
+    });
+
+    const rows = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    const footer = {
+      label: 'TOTAL',
+      taluk: '',
+      surv: rows.reduce((sum, r) => sum + r.surv, 0),
+      vao: rows.reduce((sum, r) => sum + r.vao, 0),
+      lrd: 0,
+      dis: 0,
+      thl: 0,
+      all: rows.reduce((sum, r) => sum + r.all, 0)
+    };
+
+    return { rows, footer };
+  }
+
   async function handleFetch() {
     const statusBanner = document.getElementById('tnStatusBanner');
     const reportArea = document.getElementById('tnReportArea');
@@ -468,6 +500,7 @@
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
     const mode = document.getElementById('tnViewMode').value;
+    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
     currentMode = mode;
 
     if (!fromDate || !toDate) {
@@ -478,13 +511,14 @@
     const targetDesc = villageCode
       ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})`
       : 'all villages';
-    showStatus(`Connecting to Tamil Nilam & fetching live report for ${targetDesc}...`, 'info');
+    const typeLabel = optType === 'I' ? 'ISD' : 'NISD';
+    showStatus(`Connecting to Tamil Nilam & fetching live ${typeLabel} report for ${targetDesc}...`, 'info');
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
     if (applyWrap) applyWrap.style.display = 'none';
 
     try {
-      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}`;
+      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -497,9 +531,9 @@
       hideStatus();
 
       if (mode === 'details') {
-        renderDetailsTable(data);
+        renderDetailsTable(data, optType);
       } else {
-        renderSummaryTable(data);
+        renderSummaryTable(data, optType);
       }
 
       reportArea.style.display = 'block';
@@ -508,13 +542,25 @@
       if (applyWrap) {
         applyWrap.style.display = 'inline-flex';
         const apps = data.applications || [];
-        const b12 = apps.filter(a => calculatePendingDays(a) >= 12).length;
-        const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 10 && d < 12; }).length;
-        const bBelow10 = apps.filter(a => calculatePendingDays(a) < 10).length;
 
-        if (bucketSummary) {
-          bucketSummary.style.display = 'inline-flex';
-          bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &ge;12d &bull; <b>${b10}</b> 10-11d &bull; <b>${bBelow10}</b> &lt;10d`;
+        if (optType === 'I') {
+          const b30 = apps.filter(a => calculatePendingDays(a) >= 30).length;
+          const b25 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 25 && d < 30; }).length;
+          const bBelow25 = apps.filter(a => calculatePendingDays(a) < 25).length;
+
+          if (bucketSummary) {
+            bucketSummary.style.display = 'inline-flex';
+            bucketSummary.innerHTML = `Breakdown: <b>${b30}</b> &ge;30d &bull; <b>${b25}</b> 25-29d &bull; <b>${bBelow25}</b> &lt;25d`;
+          }
+        } else {
+          const b12 = apps.filter(a => calculatePendingDays(a) >= 12).length;
+          const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d >= 10 && d < 12; }).length;
+          const bBelow10 = apps.filter(a => calculatePendingDays(a) < 10).length;
+
+          if (bucketSummary) {
+            bucketSummary.style.display = 'inline-flex';
+            bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &ge;12d &bull; <b>${b10}</b> 10-11d &bull; <b>${bBelow10}</b> &lt;10d`;
+          }
         }
       }
 
@@ -528,7 +574,7 @@
     }
   }
 
-  function renderDetailsTable(data) {
+  function renderDetailsTable(data, optType) {
     const tableWrap = document.getElementById('tnTableWrap');
     const apps = data.applications || [];
     const period = data.period || 'OPT APPLICATION PENDING REPORT';
@@ -567,8 +613,14 @@
         const role = app.role_name || app.pending_at || 'VAO';
         const pendDays = calculatePendingDays(app);
         let badgeColor = '#10b981';
-        if (pendDays >= 12) badgeColor = '#ef4444';
-        else if (pendDays >= 10) badgeColor = '#f59e0b';
+
+        if (optType === 'I') {
+          if (pendDays >= 30) badgeColor = '#ef4444';
+          else if (pendDays >= 25) badgeColor = '#f59e0b';
+        } else {
+          if (pendDays >= 12) badgeColor = '#ef4444';
+          else if (pendDays >= 10) badgeColor = '#f59e0b';
+        }
 
         html += `
           <tr>
@@ -593,11 +645,82 @@
     tableWrap.innerHTML = html;
   }
 
-  function renderSummaryTable(data) {
+  function renderSummaryTable(data, optType) {
     const tableWrap = document.getElementById('tnTableWrap');
     const villages = (data.data && data.data.distarr) || (data.summary && data.summary.distarr) || [];
     const period = data.period || 'OPT APPLICATION PENDING REPORT';
     const asOn = data.asOn || '';
+
+    if (optType === 'I') {
+      let html = `
+        <table class="tn-report-table" id="tnExportTable">
+          <thead>
+            <tr>
+              <th colspan="22" class="tn-main-head">
+                ${esc(period)} ${asOn ? `<br>AND PENDING AS ON: ${esc(asOn)}` : ''}
+              </th>
+            </tr>
+            <tr>
+              <th rowspan="2" class="tn-col-head">S.No.</th>
+              <th rowspan="2" class="tn-col-head">District Name</th>
+              <th rowspan="2" class="tn-col-head">Taluk Name</th>
+              <th rowspan="2" class="tn-col-head">Village Name</th>
+              <th colspan="3" class="tn-col-head">TOTAL</th>
+              <th colspan="3" class="tn-col-head">SURVEYOR</th>
+              <th colspan="3" class="tn-col-head">LRD</th>
+              <th colspan="3" class="tn-col-head">DIS</th>
+              <th colspan="3" class="tn-col-head">THL</th>
+              <th colspan="3" class="tn-col-head">VAO</th>
+            </tr>
+            <tr>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+              <th class="tn-col-head">RTR</th><th class="tn-col-head">STR</th><th class="tn-col-head">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      if (!villages.length) {
+        html += `<tr><td colspan="22" style="text-align:center; padding: 20px; color: var(--muted);">No records found.</td></tr>`;
+      } else {
+        villages.forEach((v, idx) => {
+          html += `
+            <tr>
+              <td class="align-center">${idx + 1}</td>
+              <td>${esc(v.district_name || '')}</td>
+              <td>${esc(v.taluk_name || '')}</td>
+              <td><b>${esc(v.village_name || '')}</b></td>
+              <td class="align-right">${esc(v.total_rtr || '0')}</td>
+              <td class="align-right">${esc(v.total_str || '0')}</td>
+              <td class="align-right"><b>${esc(v.total || '0')}</b></td>
+              <td class="align-right">${esc(v.sur_rtr || '0')}</td>
+              <td class="align-right">${esc(v.sur_str || '0')}</td>
+              <td class="align-right"><b>${esc(v.total_sur || '0')}</b></td>
+              <td class="align-right">${esc(v.lrd_rtr || '0')}</td>
+              <td class="align-right">${esc(v.lrd_str || '0')}</td>
+              <td class="align-right">${esc(v.total_lrd || '0')}</td>
+              <td class="align-right">${esc(v.dis_rtr || '0')}</td>
+              <td class="align-right">${esc(v.dis_str || '0')}</td>
+              <td class="align-right">${esc(v.total_dis || '0')}</td>
+              <td class="align-right">${esc(v.tashildar_rtr || '0')}</td>
+              <td class="align-right">${esc(v.tashildar_str || '0')}</td>
+              <td class="align-right">${esc(v.total_thl || '0')}</td>
+              <td class="align-right">${esc(v.vao_rtr || '0')}</td>
+              <td class="align-right">${esc(v.vao_str || '0')}</td>
+              <td class="align-right"><b>${esc(v.total_vao || '0')}</b></td>
+            </tr>
+          `;
+        });
+      }
+
+      html += `</tbody></table>`;
+      tableWrap.innerHTML = html;
+      return;
+    }
 
     let html = `
       <table class="tn-report-table" id="tnExportTable">
@@ -692,98 +815,164 @@
 
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
+    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
     const period = currentReportData.period || `OPT APPLICATION FROM: ${fromDate} TO: ${toDate}`;
     const asOn = currentReportData.asOn ? `AND PENDING AS ON: ${currentReportData.asOn}` : '';
 
     try {
-      showStatus('Calculating application pendency & sorting into 12d / 10d / <10d buckets...', 'info');
+      if (!window.store) window.store = {};
 
-      const bucket12 = [];
-      const bucket10 = [];
-      const bucketBelow10 = [];
+      if (optType === 'I') {
+        showStatus('Calculating application pendency & sorting into 30d+ / 25-29d / <25d ISD buckets...', 'info');
 
-      apps.forEach(app => {
-        const days = calculatePendingDays(app);
-        if (days >= 12) {
-          bucket12.push(app);
-        } else if (days >= 10) {
-          bucket10.push(app);
-        } else {
-          bucketBelow10.push(app);
-        }
-      });
+        const bucket30Above = [];
+        const bucket25Above = [];
+        const bucket25Below = [];
 
-      const rows12 = groupAppsByVillage(bucket12);
-      const rows10 = groupAppsByVillage(bucket10);
-      const rowsBelow10 = groupAppsByVillage(bucketBelow10);
+        apps.forEach(app => {
+          const days = calculatePendingDays(app);
+          if (days >= 30) {
+            bucket30Above.push(app);
+          } else if (days >= 25) {
+            bucket25Above.push(app);
+          } else {
+            bucket25Below.push(app);
+          }
+        });
 
-      if (!window.store) {
-        window.store = {};
-      }
+        const isd30 = groupAppsByVillageForISD(bucket30Above);
+        const isd25 = groupAppsByVillageForISD(bucket25Above);
+        const isdBelow25 = groupAppsByVillageForISD(bucket25Below);
 
-      const data12 = {
-        name: `Auto 12 Days (${bucket12.length} apps)`,
-        rows: rows12,
-        footer: null,
-        period,
-        asOn
-      };
-      const data10 = {
-        name: `Auto 10 Days (${bucket10.length} apps)`,
-        rows: rows10,
-        footer: null,
-        period,
-        asOn
-      };
-      const dataBelow10 = {
-        name: `Auto <10 Days (${bucketBelow10.length} apps)`,
-        rows: rowsBelow10,
-        footer: null,
-        period,
-        asOn
-      };
-
-      window.store['nisd_0_0'] = data12;
-      window.store['nisd0'] = data12;
-
-      window.store['nisd_0_1'] = data10;
-      window.store['nisd1'] = data10;
-
-      window.store['nisd_0_2'] = dataBelow10;
-      window.store['nisd2'] = dataBelow10;
-
-      if (!window.store.nisdFirka) {
-        const allVillages = Array.from(new Set([
-          ...rows12.map(r => r.village),
-          ...rows10.map(r => r.village),
-          ...rowsBelow10.map(r => r.village)
-        ])).filter(Boolean);
-
-        window.store.nisdFirka = {
-          name: 'Auto Village Firka',
-          rows: allVillages.map(v => ({ village: v, firka: 'General' }))
+        const dataBelow25 = {
+          name: `Auto <25 Days (${bucket25Below.length} apps)`,
+          rows: isdBelow25.rows,
+          footer: isdBelow25.footer,
+          period,
+          asOn
         };
+        const data25Above = {
+          name: `Auto 25-29 Days (${bucket25Above.length} apps)`,
+          rows: isd25.rows,
+          footer: isd25.footer,
+          period,
+          asOn
+        };
+        const data30Above = {
+          name: `Auto 30+ Days (${bucket30Above.length} apps)`,
+          rows: isd30.rows,
+          footer: isd30.footer,
+          period,
+          asOn
+        };
+
+        window.store['opt0'] = dataBelow25;
+        window.store['opt_0_0'] = dataBelow25;
+        window.store['opt1'] = data25Above;
+        window.store['opt_0_1'] = data25Above;
+        window.store['opt2'] = data30Above;
+        window.store['opt_0_2'] = data30Above;
+
         if (typeof window.markLoaded === 'function') {
-          window.markLoaded('nisdFirka', window.store.nisdFirka.name, allVillages.length, false);
+          window.markLoaded('opt0', dataBelow25.name, isdBelow25.rows.length, false);
+          window.markLoaded('opt1', data25Above.name, isd25.rows.length, false);
+          window.markLoaded('opt2', data30Above.name, isd30.rows.length, false);
         }
-      }
 
-      if (typeof window.markLoaded === 'function') {
-        window.markLoaded('nisd_0_0', data12.name, rows12.length, false);
-        window.markLoaded('nisd0', data12.name, rows12.length, false);
-        window.markLoaded('nisd_0_1', data10.name, rows10.length, false);
-        window.markLoaded('nisd1', data10.name, rows10.length, false);
-        window.markLoaded('nisd_0_2', dataBelow10.name, rowsBelow10.length, false);
-        window.markLoaded('nisd2', dataBelow10.name, rowsBelow10.length, false);
-      }
+        if (typeof window.updateRail === 'function') window.updateRail();
+        if (typeof window.render === 'function') window.render();
 
-      if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
-      if (typeof window.updateRail === 'function') window.updateRail();
-      if (typeof window.render === 'function') window.render();
+        showStatus(`✓ Auto-loaded ISD: ${bucket30Above.length} apps into 30+ Days, ${bucket25Above.length} apps into 25-29 Days, ${bucket25Below.length} apps into <25 Days!`, 'info');
+        if (typeof window.toast === 'function') {
+          window.toast('ISD Dashboard Loaded', `≥30d: ${bucket30Above.length} | 25-29d: ${bucket25Above.length} | <25d: ${bucket25Below.length}`, 'ok');
+        }
 
-      showStatus(`✓ Auto-loaded: ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
-      if (typeof window.toast === 'function') {
-        window.toast('Dashboard Loaded', `>12d: ${bucket12.length} | 10-12d: ${bucket10.length} | ≤10d: ${bucketBelow10.length}`, 'ok');
+      } else {
+        showStatus('Calculating application pendency & sorting into 12d / 10d / <10d NISD buckets...', 'info');
+
+        const bucket12 = [];
+        const bucket10 = [];
+        const bucketBelow10 = [];
+
+        apps.forEach(app => {
+          const days = calculatePendingDays(app);
+          if (days >= 12) {
+            bucket12.push(app);
+          } else if (days >= 10) {
+            bucket10.push(app);
+          } else {
+            bucketBelow10.push(app);
+          }
+        });
+
+        const rows12 = groupAppsByVillage(bucket12);
+        const rows10 = groupAppsByVillage(bucket10);
+        const rowsBelow10 = groupAppsByVillage(bucketBelow10);
+
+        const data12 = {
+          name: `Auto 12 Days (${bucket12.length} apps)`,
+          rows: rows12,
+          footer: null,
+          period,
+          asOn
+        };
+        const data10 = {
+          name: `Auto 10 Days (${bucket10.length} apps)`,
+          rows: rows10,
+          footer: null,
+          period,
+          asOn
+        };
+        const dataBelow10 = {
+          name: `Auto <10 Days (${bucketBelow10.length} apps)`,
+          rows: rowsBelow10,
+          footer: null,
+          period,
+          asOn
+        };
+
+        window.store['nisd_0_0'] = data12;
+        window.store['nisd0'] = data12;
+
+        window.store['nisd_0_1'] = data10;
+        window.store['nisd1'] = data10;
+
+        window.store['nisd_0_2'] = dataBelow10;
+        window.store['nisd2'] = dataBelow10;
+
+        if (!window.store.nisdFirka) {
+          const allVillages = Array.from(new Set([
+            ...rows12.map(r => r.village),
+            ...rows10.map(r => r.village),
+            ...rowsBelow10.map(r => r.village)
+          ])).filter(Boolean);
+
+          window.store.nisdFirka = {
+            name: 'Auto Village Firka',
+            rows: allVillages.map(v => ({ village: v, firka: 'General' }))
+          };
+          if (typeof window.markLoaded === 'function') {
+            window.markLoaded('nisdFirka', window.store.nisdFirka.name, allVillages.length, false);
+          }
+        }
+
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('nisd_0_0', data12.name, rows12.length, false);
+          window.markLoaded('nisd0', data12.name, rows12.length, false);
+          window.markLoaded('nisd_0_1', data10.name, rows10.length, false);
+          window.markLoaded('nisd1', data10.name, rows10.length, false);
+          window.markLoaded('nisd_0_2', dataBelow10.name, rowsBelow10.length, false);
+          window.markLoaded('nisd2', dataBelow10.name, rowsBelow10.length, false);
+        }
+
+        if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
+        if (typeof window.updateRail === 'function') window.updateRail();
+        if (typeof window.render === 'function') window.render();
+
+        showStatus(`✓ Auto-loaded NISD: ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
+        if (typeof window.toast === 'function') {
+          window.toast('NISD Dashboard Loaded', `≥12d: ${bucket12.length} | 10-11d: ${bucket10.length} | <10d: ${bucketBelow10.length}`, 'ok');
+        }
       }
 
       setTimeout(() => {

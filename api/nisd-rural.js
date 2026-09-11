@@ -207,6 +207,7 @@ module.exports = async (req, res) => {
         frmDate: fromDate,
         toDate: toDate,
         flag: flag,
+        villType: flag === 'I' ? (params.villType || 'B') : undefined,
         cdn_flag: 'T'
       }, username, password, roleId, 15000);
 
@@ -261,6 +262,7 @@ module.exports = async (req, res) => {
         frmDate: fromDate,
         toDate: toDate,
         flag: flag,
+        villType: flag === 'I' ? (params.villType || 'B') : undefined,
         cdn_flag: 'V'
       }, username, password, roleId, 15000);
 
@@ -284,6 +286,7 @@ module.exports = async (req, res) => {
       frmDate: fromDate,
       toDate: toDate,
       flag: flag,
+      villType: flag === 'I' ? (params.villType || 'B') : undefined,
       cdn_flag: 'T'
     }, username, password, roleId, 15000);
 
@@ -310,6 +313,7 @@ module.exports = async (req, res) => {
             frmDate: fromDate,
             toDate: toDate,
             flag: flag,
+            villType: flag === 'I' ? (params.villType || 'B') : undefined,
             cdn_flag: 'V'
           }, username, password, roleId, 10000)
             .then(res => res.distarr || [])
