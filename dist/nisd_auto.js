@@ -1,5 +1,6 @@
 /* ============================================================
-   Tamil Nilam NISD & ISD Automation Controller (Rural & Natham)
+   Tamil Nilam NISD, ISD & F-Line Automation Controller
+   (OPT Rural/Natham & F-Line/F-Line Appeal Rural/Natham)
    ============================================================ */
 (function() {
   if (window.__tnAutoInitialized) return;
@@ -109,17 +110,25 @@
         <div class="tn-modal">
           <div class="tn-modal-header">
             <h2>
-              <span>🏛️ Tamil Nilam OPT Applications Pending</span>
-              <span class="tn-badge">Automated Report</span>
+              <span>🏛️ Tamil Nilam Automation Center</span>
+              <span class="tn-badge">OPT / F-Line</span>
             </h2>
             <button type="button" class="iconbtn" id="tnCloseModal" title="Close">&#10005;</button>
           </div>
 
           <div class="tn-modal-body">
             <div class="tn-filter-box">
-              <div class="tn-filter-title">VILLAGE WISE OPT APPLICATIONS PENDING REPORT</div>
+              <div class="tn-filter-title">VILLAGE WISE APPLICATIONS PENDING REPORT</div>
               
               <div class="tn-form-grid">
+                <div class="tn-field" style="grid-column: 1 / -1; background: var(--surface-2); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-2);">
+                  <label style="font-weight: 700; color: var(--accent); margin-bottom: 6px;">SERVICE TO AUTOMATE</label>
+                  <div class="tn-radio-group" style="gap: 20px;">
+                    <label style="font-weight: 600;"><input type="radio" name="tnServiceGroup" id="tnSvcOpt" value="OPT" checked> 🏛️ OPT Applications (NISD / ISD)</label>
+                    <label style="font-weight: 600;"><input type="radio" name="tnServiceGroup" id="tnSvcFline" value="FLINE"> 📐 F-Line / F-Line Appeal</label>
+                  </div>
+                </div>
+
                 <div class="tn-field">
                   <label>Land Category</label>
                   <div class="tn-radio-group">
@@ -128,11 +137,27 @@
                   </div>
                 </div>
 
-                <div class="tn-field">
+                <div class="tn-field" id="tnOptRow">
                   <label>Transaction Type</label>
                   <div class="tn-radio-group">
                     <label><input type="radio" name="tnOptType" id="tnRadioNisd" value="N" checked> NISD</label>
                     <label><input type="radio" name="tnOptType" id="tnRadioIsd" value="I"> ISD</label>
+                  </div>
+                </div>
+
+                <div class="tn-field" id="tnFlineReportRow" style="display:none;">
+                  <label>F-Line Type</label>
+                  <div class="tn-radio-group">
+                    <label><input type="radio" name="tnFlineReportType" id="tnFlineMain" value="FLINE" checked> F-Line</label>
+                    <label><input type="radio" name="tnFlineReportType" id="tnFlineAppeal" value="APPEAL"> F-Line Appeal</label>
+                  </div>
+                </div>
+
+                <div class="tn-field" id="tnFlineDateModeRow" style="display:none;">
+                  <label>Date Status Mode</label>
+                  <div class="tn-radio-group">
+                    <label><input type="radio" name="tnStmtFlag" id="tnStmtCurr" value="Current" checked> Current Date</label>
+                    <label><input type="radio" name="tnStmtFlag" id="tnStmtOpt" value="OPT"> Closing Date</label>
                   </div>
                 </div>
 
@@ -161,13 +186,13 @@
                   <label for="tnViewMode">Report Format</label>
                   <select id="tnViewMode">
                     <option value="details" selected>Detailed Applications (as in Image)</option>
-                    <option value="summary">Village Summary (VAO/Firka counts)</option>
+                    <option value="summary">Village Summary</option>
                   </select>
                 </div>
 
                 <div class="tn-field">
                   <label for="tnFromDate">From Date</label>
-                  <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="31-08-2026">
+                  <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="01-09-2026">
                   <div class="tn-quick-dates" id="tnQuickDatesContainer">
                     <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
@@ -186,7 +211,7 @@
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
                 <div id="tnApplyWrap" style="display:none; align-items:center; gap:10px;">
                   <span id="tnBucketSummary" class="tn-bucket-tag" style="display:none;"></span>
-                  <button type="button" class="tn-btn-apply" id="tnBtnApply">⚡ Auto-Load All into Dashboard (12d / 10d / &lt;10d)</button>
+                  <button type="button" class="tn-btn-apply" id="tnBtnApply">⚡ Auto-Load All into Dashboard</button>
                 </div>
               </div>
             </div>
@@ -214,8 +239,8 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px;">⚡</span>
             <div>
-              <b style="font-size: 13px;">Automate NISD / ISD Data (Rural & Natham)</b>
-              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic Supabase Cloud replacement (NISD: VAO-only 12d/10d/&lt;10d | ISD: Surveyor & VAO 30d+/25-29d/&lt;25d)</span>
+              <b style="font-size: 13px;">Automate NISD / ISD / F-Line Data (Rural & Natham)</b>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic Supabase Cloud replacement</span>
             </div>
           </div>
           <button type="button" class="tn-auto-btn" id="tnAutoTriggerBtn">⚡ Auto-Pull from Tamil Nilam</button>
@@ -254,6 +279,9 @@
     const landRuralRadio = document.getElementById('tnLandRural');
     const landNathamRadio = document.getElementById('tnLandNatham');
 
+    const svcOptRadio = document.getElementById('tnSvcOpt');
+    const svcFlineRadio = document.getElementById('tnSvcFline');
+
     function openModal() {
       if (backdrop) backdrop.classList.add('open');
     }
@@ -279,6 +307,9 @@
     if (landRuralRadio) landRuralRadio.addEventListener('change', onOptTypeChange);
     if (landNathamRadio) landNathamRadio.addEventListener('change', onOptTypeChange);
 
+    if (svcOptRadio) svcOptRadio.addEventListener('change', onServiceGroupChange);
+    if (svcFlineRadio) svcFlineRadio.addEventListener('change', onServiceGroupChange);
+
     bindQuickDateEvents();
 
     if (submitBtn) submitBtn.addEventListener('click', handleFetch);
@@ -286,7 +317,30 @@
     if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
   }
 
+  function onServiceGroupChange() {
+    const serviceGroup = document.querySelector('input[name="tnServiceGroup"]:checked')?.value || 'OPT';
+    const optRow = document.getElementById('tnOptRow');
+    const flineRow = document.getElementById('tnFlineReportRow');
+    const dateModeRow = document.getElementById('tnFlineDateModeRow');
+    const applyBtn = document.getElementById('tnBtnApply');
+
+    if (serviceGroup === 'FLINE') {
+      if (optRow) optRow.style.display = 'none';
+      if (flineRow) flineRow.style.display = 'block';
+      if (dateModeRow) dateModeRow.style.display = 'block';
+      if (applyBtn) applyBtn.innerHTML = '⚡ Auto-Load F-Line Data into Dashboard';
+    } else {
+      if (optRow) optRow.style.display = 'block';
+      if (flineRow) flineRow.style.display = 'none';
+      if (dateModeRow) dateModeRow.style.display = 'none';
+      onOptTypeChange();
+    }
+  }
+
   function onOptTypeChange() {
+    const serviceGroup = document.querySelector('input[name="tnServiceGroup"]:checked')?.value || 'OPT';
+    if (serviceGroup === 'FLINE') return;
+
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
     const quickContainer = document.getElementById('tnQuickDatesContainer');
     const applyBtn = document.getElementById('tnBtnApply');
@@ -429,8 +483,9 @@
   }
 
   function calculatePendingDays(app) {
-    if (app.appl_date) {
-      const parts = String(app.appl_date).trim().split('-');
+    if (app.appl_date || app.appl_dt) {
+      const dateStr = String(app.appl_date || app.appl_dt).trim();
+      const parts = dateStr.split('-');
       if (parts.length === 3) {
         let d, m, y;
         if (parts[0].length === 4) [y, m, d] = parts.map(Number);
@@ -443,8 +498,8 @@
         if (!isNaN(diffDays) && diffDays >= 0) return diffDays;
       }
     }
-    if (app.total_pending != null) {
-      const tp = parseInt(String(app.total_pending).replace(/[^\d]/g, ''), 10);
+    if (app.pending_days != null || app.total_pending != null) {
+      const tp = parseInt(String(app.pending_days || app.total_pending).replace(/[^\d]/g, ''), 10);
       if (!isNaN(tp) && tp >= 0) return tp;
     }
     return 0;
@@ -547,13 +602,13 @@
     const applyWrap = document.getElementById('tnApplyWrap');
     const bucketSummary = document.getElementById('tnBucketSummary');
 
+    const serviceGroup = document.querySelector('input[name="tnServiceGroup"]:checked')?.value || 'OPT';
     const distCode = document.getElementById('tnDistSel').value;
     const talukCode = document.getElementById('tnTalukSel').value;
     const villageCode = document.getElementById('tnVillageSel').value;
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
     const mode = document.getElementById('tnViewMode').value;
-    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
     const landCategory = document.querySelector('input[name="tnLandCat"]:checked')?.value || 'rural';
     const creds = getTnCreds();
     currentMode = mode;
@@ -566,23 +621,55 @@
     const targetDesc = villageCode
       ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})`
       : 'all villages';
-    const typeLabel = (landCategory === 'natham' ? 'Natham ' : 'Rural ') + (optType === 'I' ? 'ISD' : 'NISD');
-    showStatus(`Connecting to Tamil Nilam & fetching live ${typeLabel} report for ${targetDesc}...`, 'info');
+
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
     if (applyWrap) applyWrap.style.display = 'none';
 
     try {
+      if (serviceGroup === 'FLINE') {
+        const reportType = document.querySelector('input[name="tnFlineReportType"]:checked')?.value || 'FLINE';
+        const stmtFlag = document.querySelector('input[name="tnStmtFlag"]:checked')?.value || 'Current';
+        const typeLabel = `F-Line ${reportType === 'APPEAL' ? 'Appeal ' : ''}(${landCategory.toUpperCase()})`;
+        
+        showStatus(`Connecting to Tamil Nilam & fetching live ${typeLabel} report for ${targetDesc}...`, 'info');
+
+        const url = `/api/fline?reportType=${encodeURIComponent(reportType)}&landCategory=${encodeURIComponent(landCategory)}&stmtFlag=${encodeURIComponent(stmtFlag)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to fetch F-Line report');
+
+        currentReportData = { ...data, serviceGroup: 'FLINE' };
+        hideStatus();
+
+        renderFlineDetailsTable(data);
+        reportArea.style.display = 'block';
+        excelBtn.style.display = 'inline-block';
+
+        if (applyWrap) {
+          applyWrap.style.display = 'inline-flex';
+          const apps = data.applications || [];
+          if (bucketSummary) {
+            bucketSummary.style.display = 'inline-flex';
+            bucketSummary.innerHTML = `F-Line Applications: <b>${apps.length}</b> total pending`;
+          }
+        }
+        return;
+      }
+
+      // OPT SERVICE GROUP
+      const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+      const typeLabel = (landCategory === 'natham' ? 'Natham ' : 'Rural ') + (optType === 'I' ? 'ISD' : 'NISD');
+      showStatus(`Connecting to Tamil Nilam & fetching live ${typeLabel} report for ${targetDesc}...`, 'info');
+
       const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}&landCategory=${encodeURIComponent(landCategory)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
 
       const res = await fetch(url);
       const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to fetch report');
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch report');
-      }
-
-      currentReportData = data;
+      currentReportData = { ...data, serviceGroup: 'OPT' };
       hideStatus();
 
       if (mode === 'details') {
@@ -633,6 +720,69 @@
       }
       showStatus(`Error fetching Tamil Nilam report: ${errorMsg}`, 'error');
     }
+  }
+
+  function renderFlineDetailsTable(data) {
+    const tableWrap = document.getElementById('tnTableWrap');
+    const apps = data.applications || [];
+    const period = data.period || 'F-LINE REPORT';
+    const asOn = data.asOn || '';
+
+    let html = `
+      <table class="tn-report-table" id="tnExportTable">
+        <thead>
+          <tr>
+            <th colspan="11" class="tn-main-head">
+              ${esc(period)} ${asOn ? `<br>${esc(asOn)}` : ''}
+            </th>
+          </tr>
+          <tr>
+            <th class="tn-col-head">S.No.</th>
+            <th class="tn-col-head">District Name</th>
+            <th class="tn-col-head">Taluk Name</th>
+            <th class="tn-col-head">Village Name</th>
+            <th class="tn-col-head">Application Id</th>
+            <th class="tn-col-head">SurveyNo - SubdivNo</th>
+            <th class="tn-col-head">Application Date</th>
+            <th class="tn-col-head">Pending Days</th>
+            <th class="tn-col-head">Pending at</th>
+            <th class="tn-col-head">Application Status</th>
+            <th class="tn-col-head">Update Date</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    if (!apps.length) {
+      html += `<tr><td colspan="11" style="text-align:center; padding: 20px; color: var(--muted);">No F-Line pending applications found for the selected criteria.</td></tr>`;
+    } else {
+      apps.forEach((app, idx) => {
+        const role = app.pending_at || 'Surveyor';
+        const pendDays = calculatePendingDays(app);
+        let badgeColor = '#10b981';
+        if (pendDays >= 30) badgeColor = '#ef4444';
+        else if (pendDays >= 15) badgeColor = '#f59e0b';
+
+        html += `
+          <tr>
+            <td class="align-center">${idx + 1}</td>
+            <td>${esc(app.district_name || '')}</td>
+            <td>${esc(app.taluk_name || '')}</td>
+            <td><b>${esc(app.village_name || '')}</b></td>
+            <td style="font-family: monospace; font-weight: 600;">${esc(app.appl_id || '')}</td>
+            <td class="align-center"><b>${esc(app.survey_no || '-')}</b></td>
+            <td class="align-center">${esc(app.appl_date || '')}</td>
+            <td class="align-right"><b style="color:${badgeColor}">${pendDays} days</b></td>
+            <td class="align-center"><span class="tn-badge-role vao">${esc(role)}</span></td>
+            <td class="align-center">${esc(app.appl_status || 'Pending')}</td>
+            <td class="align-center">${esc(app.update_dt || '-')}</td>
+          </tr>
+        `;
+      });
+    }
+
+    html += `</tbody></table>`;
+    tableWrap.innerHTML = html;
   }
 
   function renderDetailsTable(data, optType) {
@@ -849,15 +999,15 @@
     if (!table) return;
 
     if (typeof window.XLSX !== 'undefined') {
-      const wb = XLSX.utils.table_to_book(table, { sheet: 'OPT Pending Report' });
-      const filename = `TamilNilam_OPT_Pending_${document.getElementById('tnFromDate').value}_to_${document.getElementById('tnToDate').value}.xlsx`;
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'Pending Report' });
+      const filename = `TamilNilam_Report_${document.getElementById('tnFromDate').value}_to_${document.getElementById('tnToDate').value}.xlsx`;
       XLSX.writeFile(wb, filename);
     } else {
       const html = table.outerHTML;
       const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `TamilNilam_OPT_Pending.xls`;
+      a.download = `TamilNilam_Report.xls`;
       a.click();
     }
   }
@@ -876,13 +1026,74 @@
 
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
-    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
-    const landCategory = document.querySelector('input[name="tnLandCat"]:checked')?.value || 'rural';
-    const period = currentReportData.period || `OPT APPLICATION FROM: ${fromDate} TO: ${toDate}`;
+    const serviceGroup = currentReportData.serviceGroup || 'OPT';
+    const landCategory = currentReportData.landCategory || 'rural';
+    const period = currentReportData.period || `APPLICATION FROM: ${fromDate} TO: ${toDate}`;
     const asOn = currentReportData.asOn ? `AND PENDING AS ON: ${currentReportData.asOn}` : '';
 
     try {
       if (!window.store) window.store = {};
+
+      if (serviceGroup === 'FLINE') {
+        const reportType = currentReportData.reportType || 'FLINE';
+        showStatus(`Processing ${rawApps.length} F-Line applications & syncing to dashboard...`, 'info');
+
+        const villageMap = new Map();
+        rawApps.forEach(app => {
+          const v = (app.village_name || 'Unknown').trim();
+          villageMap.set(v, (villageMap.get(v) || 0) + 1);
+        });
+
+        const rows = Array.from(villageMap.entries()).map(([village, count]) => ({
+          village,
+          rtr: 0,
+          str: count,
+          total: count
+        }));
+
+        const flineData = {
+          name: `Auto F-Line ${reportType} (${landCategory.toUpperCase()}) - ${rawApps.length} apps`,
+          rows,
+          period,
+          asOn
+        };
+
+        const storeKey = landCategory === 'natham' ? 'flineNatham' : 'flineRural';
+        window.store[storeKey] = flineData;
+
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded(storeKey, flineData.name, rows.length, false);
+        }
+
+        if (typeof window.updateRail === 'function') window.updateRail();
+        if (typeof window.render === 'function') window.render();
+
+        // Auto-save to Supabase Cloud
+        if (typeof window.saveToCloud === 'function') {
+          try {
+            showStatus('Syncing & replacing F-Line dataset in Supabase Cloud...', 'info');
+            const blob = new Blob([JSON.stringify(flineData)], { type: 'application/json' });
+            blob.name = `TamilNilam_Auto_FLINE_${landCategory}_${reportType}.json`;
+            await window.saveToCloud(storeKey, blob, flineData);
+          } catch (cloudErr) {
+            console.warn('Supabase cloud save note:', cloudErr);
+          }
+        }
+
+        showStatus(`✓ Auto-loaded & Saved to Supabase: ${rawApps.length} F-Line (${landCategory.toUpperCase()}) applications across ${rows.length} villages!`, 'info');
+        if (typeof window.toast === 'function') {
+          window.toast('F-Line Dashboard Loaded & Saved', `${rawApps.length} apps across ${rows.length} villages`, 'ok');
+        }
+
+        setTimeout(() => {
+          const backdrop = document.getElementById('tnModalBackdrop');
+          if (backdrop) backdrop.classList.remove('open');
+        }, 1600);
+        return;
+      }
+
+      // OPT SERVICE GROUP
+      const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
 
       if (optType === 'I') {
         showStatus('Calculating application pendency & sorting into 30d+ / 25-29d / <25d ISD buckets...', 'info');
