@@ -436,8 +436,16 @@
         if (topTalukSel && ffTalukSel && topTalukSel.value) {
           ffTalukSel.value = topTalukSel.value;
         }
-        // Ensure all 6 checkboxes are checked by default for 1-click pull
+        // Ensure all 6 checkboxes are checked by default
         document.querySelectorAll('input[type="checkbox"][id^="ff_chk_"]').forEach(c => c.checked = true);
+        
+        // Ensure button is ready for confirmation click
+        const btn = document.getElementById('tnFFRunBtn');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '⚡ Pull Selected Reports (Confirm)';
+        }
+
         ffBackdrop.classList.add('open');
       }
     }
@@ -454,12 +462,7 @@
 
     if (triggerBtn) triggerBtn.addEventListener('click', openModal);
     if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
-    if (flashFillBtn) {
-      flashFillBtn.addEventListener('click', () => {
-        openFFModal();
-        handleFlashFillExecute();
-      });
-    }
+    if (flashFillBtn) flashFillBtn.addEventListener('click', openFFModal);
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (ffCloseBtn) ffCloseBtn.addEventListener('click', closeFFModal);
 
