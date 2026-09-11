@@ -1,5 +1,5 @@
 /* ============================================================
-   Tamil Nilam NISD & ISD Automation Controller
+   Tamil Nilam NISD & ISD Automation Controller (Rural & Natham)
    ============================================================ */
 (function() {
   if (window.__tnAutoInitialized) return;
@@ -120,9 +120,20 @@
               <div class="tn-filter-title">VILLAGE WISE OPT APPLICATIONS PENDING REPORT</div>
               
               <div class="tn-form-grid">
-                <div class="tn-radio-group">
-                  <label><input type="radio" name="tnOptType" id="tnRadioNisd" value="N" checked> NISD</label>
-                  <label><input type="radio" name="tnOptType" id="tnRadioIsd" value="I"> ISD</label>
+                <div class="tn-field">
+                  <label>Land Category</label>
+                  <div class="tn-radio-group">
+                    <label><input type="radio" name="tnLandCat" id="tnLandRural" value="rural" checked> Rural</label>
+                    <label><input type="radio" name="tnLandCat" id="tnLandNatham" value="natham"> Natham</label>
+                  </div>
+                </div>
+
+                <div class="tn-field">
+                  <label>Transaction Type</label>
+                  <div class="tn-radio-group">
+                    <label><input type="radio" name="tnOptType" id="tnRadioNisd" value="N" checked> NISD</label>
+                    <label><input type="radio" name="tnOptType" id="tnRadioIsd" value="I"> ISD</label>
+                  </div>
                 </div>
 
                 <div class="tn-field">
@@ -203,7 +214,7 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 16px;">⚡</span>
             <div>
-              <b style="font-size: 13px;">Automate NISD / ISD Data</b>
+              <b style="font-size: 13px;">Automate NISD / ISD Data (Rural & Natham)</b>
               <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic Supabase Cloud replacement (NISD: VAO-only 12d/10d/&lt;10d | ISD: Surveyor & VAO 30d+/25-29d/&lt;25d)</span>
             </div>
           </div>
@@ -240,6 +251,8 @@
     const talukSel = document.getElementById('tnTalukSel');
     const nisdRadio = document.getElementById('tnRadioNisd');
     const isdRadio = document.getElementById('tnRadioIsd');
+    const landRuralRadio = document.getElementById('tnLandRural');
+    const landNathamRadio = document.getElementById('tnLandNatham');
 
     function openModal() {
       if (backdrop) backdrop.classList.add('open');
@@ -263,6 +276,8 @@
 
     if (nisdRadio) nisdRadio.addEventListener('change', onOptTypeChange);
     if (isdRadio) isdRadio.addEventListener('change', onOptTypeChange);
+    if (landRuralRadio) landRuralRadio.addEventListener('change', onOptTypeChange);
+    if (landNathamRadio) landNathamRadio.addEventListener('change', onOptTypeChange);
 
     bindQuickDateEvents();
 
@@ -448,15 +463,12 @@
         });
       }
       const item = map.get(vName);
-      const rtrStr = String(app.rtr_str || '').trim().toUpperCase();
-      if (rtrStr.startsWith('S')) {
-        item.str++;
-      } else {
-        item.rtr++;
-      }
+      const isRtr = (app.rtr_str || '').toUpperCase() === 'R';
+      if (isRtr) item.rtr++;
+      else item.str++;
       item.total++;
     });
-    return Array.from(map.values()).sort((a, b) => a.village.localeCompare(b.village));
+    return Array.from(map.values());
   }
 
   function groupAppsByVillageForISD(apps) {
@@ -465,38 +477,66 @@
       const vName = (app.village_name || 'Unknown').trim();
       if (!map.has(vName)) {
         map.set(vName, {
-          label: vName,
-          taluk: app.taluk_name || '',
-          surv: 0,
-          vao: 0,
-          lrd: 0,
-          dis: 0,
-          thl: 0,
-          all: 0
+          village: vName,
+          rtr: 0, str: 0, total: 0,
+          sur_rtr: 0, sur_str: 0, total_sur: 0,
+          lrd_rtr: 0, lrd_str: 0, total_lrd: 0,
+          dis_rtr: 0, dis_str: 0, total_dis: 0,
+          thl_rtr: 0, thl_str: 0, total_thl: 0,
+          vao_rtr: 0, vao_str: 0, total_vao: 0
         });
       }
       const item = map.get(vName);
-      const role = String(app.role_name || app.pending_at || '').toUpperCase();
-      if (role.includes('SURVEY') || role.includes('FS')) {
-        item.surv++;
+      const isRtr = (app.rtr_str || '').toUpperCase() === 'R';
+      const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
+
+      if (isRtr) item.rtr++;
+      else item.str++;
+      item.total++;
+
+      if (role.includes('SURVEYOR') || role.includes('SUR')) {
+        if (isRtr) item.sur_rtr++; else item.sur_str++;
+        item.total_sur++;
+      } else if (role.includes('LRD')) {
+        if (isRtr) item.lrd_rtr++; else item.lrd_str++;
+        item.total_lrd++;
+      } else if (role.includes('DIS') || role.includes('DISTRICT')) {
+        if (isRtr) item.dis_rtr++; else item.dis_str++;
+        item.total_dis++;
+      } else if (role.includes('THL') || role.includes('TAHSILDAR') || role.includes('TASHILDAR')) {
+        if (isRtr) item.thl_rtr++; else item.thl_str++;
+        item.total_thl++;
       } else {
-        item.vao++;
+        if (isRtr) item.vao_rtr++; else item.vao_str++;
+        item.total_vao++;
       }
-      item.all = item.surv + item.vao;
     });
 
-    const rows = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-    const footer = {
-      label: 'TOTAL',
-      taluk: '',
-      surv: rows.reduce((sum, r) => sum + r.surv, 0),
-      vao: rows.reduce((sum, r) => sum + r.vao, 0),
-      lrd: 0,
-      dis: 0,
-      thl: 0,
-      all: rows.reduce((sum, r) => sum + r.all, 0)
-    };
-
+    const rows = Array.from(map.values());
+    let footer = null;
+    if (rows.length > 0) {
+      footer = {
+        village: 'Total',
+        rtr: rows.reduce((s, r) => s + r.rtr, 0),
+        str: rows.reduce((s, r) => s + r.str, 0),
+        total: rows.reduce((s, r) => s + r.total, 0),
+        sur_rtr: rows.reduce((s, r) => s + r.sur_rtr, 0),
+        sur_str: rows.reduce((s, r) => s + r.sur_str, 0),
+        total_sur: rows.reduce((s, r) => s + r.total_sur, 0),
+        lrd_rtr: rows.reduce((s, r) => s + r.lrd_rtr, 0),
+        lrd_str: rows.reduce((s, r) => s + r.lrd_str, 0),
+        total_lrd: rows.reduce((s, r) => s + r.total_lrd, 0),
+        dis_rtr: rows.reduce((s, r) => s + r.dis_rtr, 0),
+        dis_str: rows.reduce((s, r) => s + r.dis_str, 0),
+        total_dis: rows.reduce((s, r) => s + r.total_dis, 0),
+        thl_rtr: rows.reduce((s, r) => s + r.thl_rtr, 0),
+        thl_str: rows.reduce((s, r) => s + r.thl_str, 0),
+        total_thl: rows.reduce((s, r) => s + r.total_thl, 0),
+        vao_rtr: rows.reduce((s, r) => s + r.vao_rtr, 0),
+        vao_str: rows.reduce((s, r) => s + r.vao_str, 0),
+        total_vao: rows.reduce((s, r) => s + r.total_vao, 0)
+      };
+    }
     return { rows, footer };
   }
 
@@ -514,6 +554,7 @@
     const toDate = document.getElementById('tnToDate').value.trim();
     const mode = document.getElementById('tnViewMode').value;
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const landCategory = document.querySelector('input[name="tnLandCat"]:checked')?.value || 'rural';
     const creds = getTnCreds();
     currentMode = mode;
 
@@ -525,14 +566,14 @@
     const targetDesc = villageCode
       ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})`
       : 'all villages';
-    const typeLabel = optType === 'I' ? 'ISD' : 'NISD';
+    const typeLabel = (landCategory === 'natham' ? 'Natham ' : 'Rural ') + (optType === 'I' ? 'ISD' : 'NISD');
     showStatus(`Connecting to Tamil Nilam & fetching live ${typeLabel} report for ${targetDesc}...`, 'info');
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
     if (applyWrap) applyWrap.style.display = 'none';
 
     try {
-      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+      const url = `/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=${encodeURIComponent(mode)}&flag=${encodeURIComponent(optType)}&landCategory=${encodeURIComponent(landCategory)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -649,13 +690,13 @@
             <td>${esc(app.taluk_name || '')}</td>
             <td><b>${esc(app.village_name || '')}</b></td>
             <td style="font-family: monospace; font-weight: 600;">${esc(app.appl_id || '')}</td>
-            <td class="align-center">${esc(app.survey_no_dis || app.survey_no || '')}</td>
-            <td style="font-size: 11px;">${esc(app.survey_subdivno || '')}</td>
+            <td class="align-center">${esc(app.survey_no_dis || app.survey_no || '-')}</td>
+            <td style="font-size: 11px;">${esc(app.survey_subdivno || '-')}</td>
             <td class="align-center"><span class="tn-badge-role vao">${esc(role)}</span></td>
             <td class="align-center"><b>${esc(app.rtr_str || '')}</b></td>
             <td class="align-center">${esc(app.appl_date || '')}</td>
             <td class="align-right"><b style="color:${badgeColor}">${pendDays} days</b></td>
-            <td class="align-right">${esc(app.pending_at_days || '')}</td>
+            <td class="align-right">${esc(app.pending_at_days || app.pending_days || '')}</td>
           </tr>
         `;
       });
@@ -836,6 +877,7 @@
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const landCategory = document.querySelector('input[name="tnLandCat"]:checked')?.value || 'rural';
     const period = currentReportData.period || `OPT APPLICATION FROM: ${fromDate} TO: ${toDate}`;
     const asOn = currentReportData.asOn ? `AND PENDING AS ON: ${currentReportData.asOn}` : '';
 
@@ -907,9 +949,9 @@
           try {
             showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
             const slots = [
-              { kind: 'opt0', data: dataBelow25, name: 'TamilNilam_Auto_ISD_Below25Days.json' },
-              { kind: 'opt1', data: data25Above, name: 'TamilNilam_Auto_ISD_25to29Days.json' },
-              { kind: 'opt2', data: data30Above, name: 'TamilNilam_Auto_ISD_30DaysAbove.json' }
+              { kind: 'opt0', data: dataBelow25, name: `TamilNilam_Auto_ISD_${landCategory}_Below25Days.json` },
+              { kind: 'opt1', data: data25Above, name: `TamilNilam_Auto_ISD_${landCategory}_25to29Days.json` },
+              { kind: 'opt2', data: data30Above, name: `TamilNilam_Auto_ISD_${landCategory}_30DaysAbove.json` }
             ];
             for (const s of slots) {
               const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
@@ -1019,12 +1061,12 @@
           try {
             showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
             const slots = [
-              { kind: 'nisd_0_0', data: data12, name: 'TamilNilam_Auto_NISD_12DaysAbove.json' },
-              { kind: 'nisd_0_1', data: data10, name: 'TamilNilam_Auto_NISD_10to11Days.json' },
-              { kind: 'nisd_0_2', data: dataBelow10, name: 'TamilNilam_Auto_NISD_Below10Days.json' }
+              { kind: 'nisd_0_0', data: data12, name: `TamilNilam_Auto_NISD_${landCategory}_12DaysAbove.json` },
+              { kind: 'nisd_0_1', data: data10, name: `TamilNilam_Auto_NISD_${landCategory}_10to11Days.json` },
+              { kind: 'nisd_0_2', data: dataBelow10, name: `TamilNilam_Auto_NISD_${landCategory}_Below10Days.json` }
             ];
             if (window.store.nisdFirka) {
-              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: 'TamilNilam_Auto_NISD_Village_Firka.json' });
+              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_${landCategory}_Village_Firka.json` });
             }
             for (const s of slots) {
               const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });

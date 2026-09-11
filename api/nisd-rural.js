@@ -1,5 +1,5 @@
 // Vercel Serverless Function: /api/nisd-rural
-// Fetches OPT Pending Report directly from Tamil Nilam portal
+// Fetches OPT Pending Report directly from Tamil Nilam portal (Rural & Natham)
 const crypto = require('crypto');
 const https = require('https');
 
@@ -84,6 +84,57 @@ function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992
   });
 }
 
+function fetchNathamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 35000) {
+  return new Promise((resolve, reject) => {
+    const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
+    const t = Date.now().toString();
+    const inputStr = JSON.stringify(inputObj);
+    // Natham API uses HMAC(sha1(password), userId + timestamp)
+    const hash = crypto.createHmac('sha256', sha1Password).update(userId + t).digest('hex');
+
+    const options = {
+      hostname: 'tamilnilam.tn.gov.in',
+      port: 443,
+      path: '/Tnilam_Service_N/Report_Service/GetNathamOptDetails?jsoncallback=cb',
+      method: 'POST',
+      headers: {
+        'emp_value': userId,
+        'signature': hash,
+        'timestamp': t,
+        'roleId': roleId,
+        'Content-Type': 'application/json',
+        'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html',
+        'Origin': 'https://tamilnilam.tn.gov.in',
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'Content-Length': Buffer.byteLength(inputStr)
+      },
+      rejectUnauthorized: false
+    };
+
+    const req = https.request(options, res => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const jsonStr = body.replace(/^cb\(/, '').replace(/\);?$/, '');
+          const data = JSON.parse(jsonStr);
+          resolve(data);
+        } catch (err) {
+          reject(new Error(`Failed to parse Natham response: ${body.substring(0, 300)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Natham portal request timed out after ${timeoutMs}ms.`));
+    });
+    req.write(inputStr);
+    req.end();
+  });
+}
+
 function fetchMasterRaw(path, inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
@@ -151,7 +202,8 @@ module.exports = async (req, res) => {
 
     const distCode = params.distCode || '37'; // Ranipet
     const talukCode = params.talukCode || '12'; // Nemili
-    const flag = params.flag || 'N'; // NISD
+    const flag = params.flag || 'N'; // NISD vs ISD
+    const landCategory = (params.landCategory || 'rural').toLowerCase(); // 'rural' vs 'natham'
     const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-08-30');
     const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-11');
     const mode = params.mode || 'details';
@@ -199,6 +251,71 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // NATHAM REPORT HANDLING
+    if (landCategory === 'natham' || mode === 'natham') {
+      const nathamPayload = {
+        FlagVal: 'Detail',
+        TransVal: flag === 'I' ? 'I' : 'N',
+        frmDate: fromDate,
+        toDate: toDate,
+        DCOde: distCode,
+        TCOde: `'${talukCode}'`
+      };
+
+      const nathamData = await fetchNathamRaw(nathamPayload, username, password, roleId, 35000);
+      const rawList = nathamData.NathamOPTportal || [];
+
+      // Filter and normalize applications
+      const normalizedApps = [];
+      rawList.forEach(item => {
+        const status = (item.appl_status || '').trim();
+        const pendingAt = (item.pending_at || '').trim();
+
+        // Check if application is pending
+        const isPending = status === 'Pending' || (pendingAt && pendingAt !== '-');
+        if (!isPending) return;
+
+        // Role filtering
+        if (flag === 'N') {
+          // NISD Natham: pending at VAO only
+          if (pendingAt.toUpperCase() !== 'VAO') return;
+        } else {
+          // ISD Natham: pending at VAO or Surveyor
+          const pUpper = pendingAt.toUpperCase();
+          if (!pUpper.includes('VAO') && !pUpper.includes('SURVEYOR')) return;
+        }
+
+        normalizedApps.push({
+          appl_id: item.appl_id || '',
+          appl_date: item.appl_dt || item.appl_date || '',
+          district_name: item.district_name || '',
+          taluk_name: item.taluk_name || '',
+          village_name: item.village_name || '',
+          zone_name: item.zone_name || '',
+          rtr_str: item.rtr_str || '',
+          pending_at: pendingAt,
+          appl_status: status,
+          pending_days: item.pending_days || item.current_role || '0',
+          total_pending: item.pending_days || item.current_role || '0',
+          update_dt: item.update_dt || ''
+        });
+      });
+
+      const period = `NATHAM OPT APPLICATION RECEIVED FROM: ${formatDateToDDMMYYYY(fromDate)} TO: ${formatDateToDDMMYYYY(toDate)}`;
+
+      res.status(200).json({
+        success: true,
+        isNatham: true,
+        landCategory: 'natham',
+        period,
+        asOn: `AND PENDING AS ON: ${formatDateToDDMMYYYY(toDate)}`,
+        applications: normalizedApps,
+        totalApplications: normalizedApps.length
+      });
+      return;
+    }
+
+    // RURAL REPORT HANDLING
     // 1. Fetch taluk summary (cdn_flag: 'T')
     if (mode === 'summary' || mode === 'nisd-range') {
       const summaryData = await fetchTamilNilamRaw({
