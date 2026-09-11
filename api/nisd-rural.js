@@ -84,6 +84,56 @@ function fetchTamilNilamRaw(inputObj, userId = 'dlurpet', password = '16-03-1992
   });
 }
 
+function fetchMasterRaw(path, inputObj, userId = 'dlurpet', password = '16-03-1992', roleId = '7', timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
+    const t = Date.now().toString();
+    const inputVal = inputObj ? JSON.stringify(inputObj) : '';
+    const finalVal = userId + t + inputVal;
+    const hash = crypto.createHmac('sha256', sha1Password).update(finalVal).digest('hex');
+
+    const headers = {
+      'emp_value': userId,
+      'signature': hash,
+      'timestamp': t,
+      'roleId': roleId,
+      'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html',
+      'Origin': 'https://tamilnilam.tn.gov.in',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+    if (inputVal) headers['inputVal'] = inputVal;
+
+    const options = {
+      hostname: 'tamilnilam.tn.gov.in',
+      port: 443,
+      path: '/Tnilam_Service_N' + path + '?jsoncallback=cb',
+      method: 'GET',
+      headers: headers,
+      rejectUnauthorized: false
+    };
+
+    const req = https.request(options, res => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const jsonStr = body.replace(/^cb\(/, '').replace(/\);?$/, '');
+          resolve(JSON.parse(jsonStr));
+        } catch (err) {
+          reject(new Error(`Failed to parse response: ${body.substring(0, 300)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Timed out after ${timeoutMs}ms`));
+    });
+    req.end();
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -109,6 +159,45 @@ module.exports = async (req, res) => {
     const username = params.username || 'dlurpet';
     const password = params.password || '16-03-1992';
     const roleId = params.roleId || '7';
+
+    // 0. Cascading helper: Taluks for a district
+    if (mode === 'taluks') {
+      const taluks = await fetchMasterRaw('/Master/getTaluk', { DistrictCode: distCode }, username, password, roleId, 10000);
+      const list = (Array.isArray(taluks) ? taluks : []).map(t => ({
+        talukCode: String(t.tId || '').padStart(2, '0'),
+        talukName: t.tName || ''
+      })).filter(t => t.talukCode && t.talukName);
+
+      res.status(200).json({
+        success: true,
+        distCode,
+        taluks: list
+      });
+      return;
+    }
+
+    // 0. Cascading helper: Villages for a taluk
+    if (mode === 'villages') {
+      const result = await fetchMasterRaw('/Master/getVillage', { DistrictCode: distCode, talukCode }, username, password, roleId, 10000);
+      let list = [];
+      try {
+        const rawArr = JSON.parse(result.villageArray || '[]');
+        list = rawArr.map(v => ({
+          villageCode: String(v.vId || '').padStart(3, '0'),
+          villageName: v.vName || ''
+        })).filter(v => v.villageCode && v.villageName);
+      } catch (e) {
+        console.error('Error parsing villageArray:', e);
+      }
+
+      res.status(200).json({
+        success: true,
+        distCode,
+        talukCode,
+        villages: list
+      });
+      return;
+    }
 
     // 1. Fetch taluk summary (cdn_flag: 'T')
     if (mode === 'summary' || mode === 'nisd-range') {

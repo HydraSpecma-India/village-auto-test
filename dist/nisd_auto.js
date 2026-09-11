@@ -8,6 +8,56 @@
   let currentReportData = null;
   let currentMode = 'details';
 
+  const TN_DISTRICTS = [
+    { code: "37", name: "Ranipet (37)" },
+    { code: "04", name: "Vellore (04)" },
+    { code: "36", name: "Tirupathur (36)" },
+    { code: "03", name: "Kancheepuram (03)" },
+    { code: "01", name: "Tiruvallur (01)" },
+    { code: "35", name: "Chengalpattu (35)" },
+    { code: "02", name: "Chennai (02)" },
+    { code: "06", name: "Tiruvannamalai (06)" },
+    { code: "07", name: "Viluppuram (07)" },
+    { code: "33", name: "Kallakurichi (33)" },
+    { code: "08", name: "Salem (08)" },
+    { code: "10", name: "Erode (10)" },
+    { code: "12", name: "Coimbatore (12)" },
+    { code: "32", name: "Tiruppur (32)" },
+    { code: "05", name: "Dharmapuri (05)" },
+    { code: "31", name: "Krishnagiri (31)" },
+    { code: "09", name: "Namakkal (09)" },
+    { code: "14", name: "Karur (14)" },
+    { code: "13", name: "Dindigul (13)" },
+    { code: "15", name: "Tiruchirappalli (15)" },
+    { code: "16", name: "Perambalur (16)" },
+    { code: "17", name: "Ariyalur (17)" },
+    { code: "18", name: "Cuddalore (18)" },
+    { code: "19", name: "Nagapattinam (19)" },
+    { code: "38", name: "Mayiladuthurai (38)" },
+    { code: "20", name: "Thiruvarur (20)" },
+    { code: "21", name: "Thanjavur (21)" },
+    { code: "22", name: "Pudukkottai (22)" },
+    { code: "23", name: "Sivagangai (23)" },
+    { code: "24", name: "Madurai (24)" },
+    { code: "25", name: "Theni (25)" },
+    { code: "26", name: "Virudhunagar (26)" },
+    { code: "27", name: "Ramanathapuram (27)" },
+    { code: "34", name: "Tenkasi (34)" },
+    { code: "28", name: "Thoothukkudi (28)" },
+    { code: "29", name: "Tirunelveli (29)" },
+    { code: "30", name: "Kanniyakumari (30)" },
+    { code: "11", name: "The Nilgiris (11)" }
+  ];
+
+  const INITIAL_RANIPET_TALUKS = [
+    { code: "12", name: "Nemili (12)" },
+    { code: "03", name: "Arakkonam (03)" },
+    { code: "02", name: "Arcot (02)" },
+    { code: "13", name: "Kalavai (13)" },
+    { code: "14", name: "Sholinghur (14)" },
+    { code: "04", name: "Walajah (04)" }
+  ];
+
   const NEMILI_VILLAGES = [
     { code: "", name: "-- ALL VILLAGES (Combined) --" },
     { code: "109", name: "Agavalam (109)" },
@@ -78,8 +128,24 @@
     { code: "110", name: "Vettankulam (110)" }
   ];
 
+  const talukCache = new Map();
+  talukCache.set("37", INITIAL_RANIPET_TALUKS);
+
+  const villageCache = new Map();
+  villageCache.set("37_12", NEMILI_VILLAGES);
+
   function createModalHtml() {
-    const villageOptions = NEMILI_VILLAGES.map(v => `<option value="${v.code}">${v.name}</option>`).join('');
+    const distOptions = TN_DISTRICTS.map(d =>
+      `<option value="${d.code}" ${d.code === '37' ? 'selected' : ''}>${d.name}</option>`
+    ).join('');
+
+    const talukOptions = INITIAL_RANIPET_TALUKS.map(t =>
+      `<option value="${t.code}" ${t.code === '12' ? 'selected' : ''}>${t.name}</option>`
+    ).join('');
+
+    const villageOptions = NEMILI_VILLAGES.map(v =>
+      `<option value="${v.code}">${v.name}</option>`
+    ).join('');
 
     return `
       <div id="tnModalBackdrop" class="tn-modal-backdrop">
@@ -105,24 +171,14 @@
                 <div class="tn-field">
                   <label for="tnDistSel">District</label>
                   <select id="tnDistSel">
-                    <option value="37" selected>Ranipet(37)</option>
-                    <option value="03">Kancheepuram(03)</option>
-                    <option value="04">Vellore(04)</option>
-                    <option value="06">Tiruvannamalai(06)</option>
-                    <option value="36">Tirupathur(36)</option>
-                    <option value="01">Tiruvallur(01)</option>
+                    ${distOptions}
                   </select>
                 </div>
 
                 <div class="tn-field">
                   <label for="tnTalukSel">Taluk</label>
                   <select id="tnTalukSel">
-                    <option value="12" selected>Nemili(12)</option>
-                    <option value="03">Arakkonam(03)</option>
-                    <option value="02">Arcot(02)</option>
-                    <option value="13">Kalavai(13)</option>
-                    <option value="14">Sholinghur(14)</option>
-                    <option value="04">Walajah(04)</option>
+                    ${talukOptions}
                   </select>
                 </div>
 
@@ -145,7 +201,6 @@
                   <label for="tnFromDate">From Date</label>
                   <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="31-08-2026">
                   <div class="tn-quick-dates">
-                    <button type="button" class="tn-quick-btn" data-range="screenshot">Screenshot dates</button>
                     <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="below10">&lt;10 Days</button>
@@ -161,13 +216,9 @@
               <div class="tn-btn-bar">
                 <button type="button" class="tn-btn-submit" id="tnBtnSubmit">Submit</button>
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
-                <div id="tnApplyWrap" style="display:none; align-items:center; gap:8px;">
-                  <select id="tnSlotSel" style="font-size:12px; padding:6px 10px; border-radius:7px; border:1px solid #a855f7;">
-                    <option value="nisd0">NISD Range 1 (12 Days)</option>
-                    <option value="nisd1">NISD Range 2 (10 Days)</option>
-                    <option value="nisd2">NISD Range 3 (&lt;10 Days)</option>
-                  </select>
-                  <button type="button" class="tn-btn-apply" id="tnBtnApply">⚡ Load into Dashboard</button>
+                <div id="tnApplyWrap" style="display:none; align-items:center; gap:10px;">
+                  <span id="tnBucketSummary" class="tn-bucket-tag" style="display:none;"></span>
+                  <button type="button" class="tn-btn-apply" id="tnBtnApply">⚡ Auto-Load All into Dashboard (12d / 10d / &lt;10d)</button>
                 </div>
               </div>
             </div>
@@ -196,7 +247,7 @@
             <span style="font-size: 16px;">⚡</span>
             <div>
               <b style="font-size: 13px;">Automate NISD Rural Data</b>
-              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal without manual downloads</span>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 6px;">Pull directly from Tamil Nilam portal with automatic 12d / 10d / &lt;10d date sorting</span>
             </div>
           </div>
           <button type="button" class="tn-auto-btn" id="tnAutoTriggerBtn">⚡ Auto-Pull from Tamil Nilam</button>
@@ -228,9 +279,11 @@
     const excelBtn = document.getElementById('tnBtnExcel');
     const applyBtn = document.getElementById('tnBtnApply');
 
+    const distSel = document.getElementById('tnDistSel');
+    const talukSel = document.getElementById('tnTalukSel');
+
     function openModal() {
       if (backdrop) backdrop.classList.add('open');
-      populateSlots();
     }
     function closeModal() {
       if (backdrop) backdrop.classList.remove('open');
@@ -246,18 +299,20 @@
       });
     }
 
+    if (distSel) {
+      distSel.addEventListener('change', onDistrictChange);
+    }
+    if (talukSel) {
+      talukSel.addEventListener('change', onTalukChange);
+    }
+
     document.querySelectorAll('.tn-quick-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const range = btn.dataset.range;
         const to = new Date();
         let from = new Date();
 
-        if (range === 'screenshot') {
-          document.getElementById('tnFromDate').value = '31-08-2026';
-          document.getElementById('tnToDate').value = '10-09-2026';
-          document.getElementById('tnVillageSel').value = '109';
-          return;
-        } else if (range === '12') {
+        if (range === '12') {
           from.setDate(to.getDate() - 12);
         } else if (range === '10') {
           from.setDate(to.getDate() - 10);
@@ -281,13 +336,123 @@
     if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
   }
 
-  function populateSlots() {
-    const slotSel = document.getElementById('tnSlotSel');
-    if (!slotSel) return;
-    const slots = window.NISD_SLOTS || [];
-    if (slots.length) {
-      slotSel.innerHTML = slots.map((s, i) => `<option value="${s.key}">Slot ${i + 1} (${s.label || s.key})</option>`).join('');
+  async function onDistrictChange() {
+    const distCode = document.getElementById('tnDistSel').value;
+    const talukSel = document.getElementById('tnTalukSel');
+    talukSel.innerHTML = '<option value="">Loading Taluks...</option>';
+
+    try {
+      let taluks = talukCache.get(distCode);
+      if (!taluks) {
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=${encodeURIComponent(distCode)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.taluks)) {
+          taluks = data.taluks.map(t => ({
+            code: t.talukCode,
+            name: `${t.talukName} (${t.talukCode})`
+          }));
+          talukCache.set(distCode, taluks);
+        }
+      }
+
+      if (taluks && taluks.length) {
+        talukSel.innerHTML = taluks.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
+      } else {
+        talukSel.innerHTML = '<option value="">-- No Taluks Found --</option>';
+      }
+    } catch (err) {
+      console.error('Failed to load taluks:', err);
+      talukSel.innerHTML = '<option value="">Failed to load taluks</option>';
     }
+
+    onTalukChange();
+  }
+
+  async function onTalukChange() {
+    const distCode = document.getElementById('tnDistSel').value;
+    const talukCode = document.getElementById('tnTalukSel').value;
+    const villageSel = document.getElementById('tnVillageSel');
+
+    if (!talukCode) {
+      villageSel.innerHTML = '<option value="">-- ALL VILLAGES (Combined) --</option>';
+      return;
+    }
+
+    const cacheKey = `${distCode}_${talukCode}`;
+    villageSel.innerHTML = '<option value="">Loading Villages...</option>';
+
+    try {
+      let villages = villageCache.get(cacheKey);
+      if (!villages) {
+        const res = await fetch(`/api/nisd-rural?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.villages)) {
+          villages = [
+            { code: "", name: "-- ALL VILLAGES (Combined) --" },
+            ...data.villages.map(v => ({
+              code: v.villageCode,
+              name: `${v.villageName} (${v.villageCode})`
+            }))
+          ];
+          villageCache.set(cacheKey, villages);
+        }
+      }
+
+      if (villages && villages.length) {
+        villageSel.innerHTML = villages.map(v => `<option value="${v.code}">${v.name}</option>`).join('');
+      } else {
+        villageSel.innerHTML = '<option value="">-- ALL VILLAGES (Combined) --</option>';
+      }
+    } catch (err) {
+      console.error('Failed to load villages:', err);
+      villageSel.innerHTML = '<option value="">-- ALL VILLAGES (Combined) --</option>';
+    }
+  }
+
+  function calculatePendingDays(app) {
+    if (app.appl_date) {
+      const parts = String(app.appl_date).trim().split('-');
+      if (parts.length === 3) {
+        let d, m, y;
+        if (parts[0].length === 4) [y, m, d] = parts.map(Number);
+        else [d, m, y] = parts.map(Number);
+        const appDate = new Date(y, m - 1, d);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        appDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((now.getTime() - appDate.getTime()) / 86400000);
+        if (!isNaN(diffDays) && diffDays >= 0) return diffDays;
+      }
+    }
+    if (app.total_pending != null) {
+      const tp = parseInt(String(app.total_pending).replace(/[^\d]/g, ''), 10);
+      if (!isNaN(tp) && tp >= 0) return tp;
+    }
+    return 0;
+  }
+
+  function groupAppsByVillage(apps) {
+    const map = new Map();
+    apps.forEach(app => {
+      const vName = (app.village_name || 'Unknown').trim();
+      if (!map.has(vName)) {
+        map.set(vName, {
+          village: vName,
+          rtr: 0,
+          str: 0,
+          total: 0
+        });
+      }
+      const item = map.get(vName);
+      const rtrStr = String(app.rtr_str || '').trim().toUpperCase();
+      if (rtrStr.startsWith('S')) {
+        item.str++;
+      } else {
+        item.rtr++;
+      }
+      item.total++;
+    });
+    return Array.from(map.values()).sort((a, b) => a.village.localeCompare(b.village));
   }
 
   async function handleFetch() {
@@ -295,6 +460,7 @@
     const reportArea = document.getElementById('tnReportArea');
     const excelBtn = document.getElementById('tnBtnExcel');
     const applyWrap = document.getElementById('tnApplyWrap');
+    const bucketSummary = document.getElementById('tnBucketSummary');
 
     const distCode = document.getElementById('tnDistSel').value;
     const talukCode = document.getElementById('tnTalukSel').value;
@@ -309,7 +475,9 @@
       return;
     }
 
-    const targetDesc = villageCode ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})` : 'all villages';
+    const targetDesc = villageCode
+      ? `village (${document.getElementById('tnVillageSel').selectedOptions[0].text})`
+      : 'all villages';
     showStatus(`Connecting to Tamil Nilam & fetching live report for ${targetDesc}...`, 'info');
     reportArea.style.display = 'none';
     excelBtn.style.display = 'none';
@@ -336,9 +504,18 @@
 
       reportArea.style.display = 'block';
       excelBtn.style.display = 'inline-block';
+
       if (applyWrap) {
         applyWrap.style.display = 'inline-flex';
-        populateSlots();
+        const apps = data.applications || [];
+        const b12 = apps.filter(a => calculatePendingDays(a) > 12).length;
+        const b10 = apps.filter(a => { const d = calculatePendingDays(a); return d > 10 && d <= 12; }).length;
+        const bBelow10 = apps.filter(a => calculatePendingDays(a) <= 10).length;
+
+        if (bucketSummary) {
+          bucketSummary.style.display = 'inline-flex';
+          bucketSummary.innerHTML = `Breakdown: <b>${b12}</b> &gt;12d &bull; <b>${b10}</b> 10-12d &bull; <b>${bBelow10}</b> &le;10d`;
+        }
       }
 
     } catch (err) {
@@ -388,11 +565,16 @@
     } else {
       apps.forEach((app, idx) => {
         const role = app.role_name || app.pending_at || 'VAO';
+        const pendDays = calculatePendingDays(app);
+        let badgeColor = '#10b981';
+        if (pendDays > 12) badgeColor = '#ef4444';
+        else if (pendDays > 10) badgeColor = '#f59e0b';
+
         html += `
           <tr>
             <td class="align-center">${idx + 1}</td>
-            <td>${esc(app.district_name || 'Ranipet')}</td>
-            <td>${esc(app.taluk_name || 'Nemili')}</td>
+            <td>${esc(app.district_name || '')}</td>
+            <td>${esc(app.taluk_name || '')}</td>
             <td><b>${esc(app.village_name || '')}</b></td>
             <td style="font-family: monospace; font-weight: 600;">${esc(app.appl_id || '')}</td>
             <td class="align-center">${esc(app.survey_no_dis || app.survey_no || '')}</td>
@@ -400,7 +582,7 @@
             <td class="align-center"><span class="tn-badge-role vao">${esc(role)}</span></td>
             <td class="align-center"><b>${esc(app.rtr_str || '')}</b></td>
             <td class="align-center">${esc(app.appl_date || '')}</td>
-            <td class="align-right"><b>${esc(app.total_pending || '')}</b></td>
+            <td class="align-right"><b style="color:${badgeColor}">${pendDays} days</b></td>
             <td class="align-right">${esc(app.pending_at_days || '')}</td>
           </tr>
         `;
@@ -502,54 +684,112 @@
       return;
     }
 
-    const distCode = document.getElementById('tnDistSel').value;
-    const talukCode = document.getElementById('tnTalukSel').value;
+    const apps = currentReportData.applications || [];
+    if (!apps.length) {
+      showStatus('No individual applications found to distribute into date buckets. Make sure Report Format is set to "Detailed Applications".', 'error');
+      return;
+    }
+
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
-    const slotSel = document.getElementById('tnSlotSel');
-    const slotKey = (slotSel && slotSel.value) || (window.NISD_KEYS && window.NISD_KEYS[0]) || 'nisd0';
+    const period = currentReportData.period || `OPT APPLICATION FROM: ${fromDate} TO: ${toDate}`;
+    const asOn = currentReportData.asOn ? `AND PENDING AS ON: ${currentReportData.asOn}` : '';
 
     try {
-      showStatus(`Fetching NISD range dataset for slot ${slotKey}...`, 'info');
+      showStatus('Calculating application pendency & sorting into 12d / 10d / <10d buckets...', 'info');
 
-      const res = await fetch(`/api/nisd-rural?distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}&mode=nisd-range`);
-      const rangeData = await res.json();
+      const bucket12 = [];
+      const bucket10 = [];
+      const bucketBelow10 = [];
 
-      if (!rangeData.success || !rangeData.rows) {
-        throw new Error('Could not format data into NISD range rows.');
-      }
+      apps.forEach(app => {
+        const days = calculatePendingDays(app);
+        if (days > 12) {
+          bucket12.push(app);
+        } else if (days > 10) {
+          bucket10.push(app);
+        } else {
+          bucketBelow10.push(app);
+        }
+      });
 
-      // Ensure store exists
+      const rows12 = groupAppsByVillage(bucket12);
+      const rows10 = groupAppsByVillage(bucket10);
+      const rowsBelow10 = groupAppsByVillage(bucketBelow10);
+
       if (!window.store) {
         window.store = {};
       }
 
-      const parsedData = {
-        name: `Tamil Nilam Auto (${fromDate} to ${toDate})`,
-        rows: rangeData.rows,
+      const data12 = {
+        name: `Auto 12 Days (${bucket12.length} apps)`,
+        rows: rows12,
         footer: null,
-        period: rangeData.period,
-        asOn: rangeData.asOn
+        period,
+        asOn
+      };
+      const data10 = {
+        name: `Auto 10 Days (${bucket10.length} apps)`,
+        rows: rows10,
+        footer: null,
+        period,
+        asOn
+      };
+      const dataBelow10 = {
+        name: `Auto <10 Days (${bucketBelow10.length} apps)`,
+        rows: rowsBelow10,
+        footer: null,
+        period,
+        asOn
       };
 
-      window.store[slotKey] = parsedData;
+      window.store['nisd_0_0'] = data12;
+      window.store['nisd0'] = data12;
+
+      window.store['nisd_0_1'] = data10;
+      window.store['nisd1'] = data10;
+
+      window.store['nisd_0_2'] = dataBelow10;
+      window.store['nisd2'] = dataBelow10;
+
+      if (!window.store.nisdFirka) {
+        const allVillages = Array.from(new Set([
+          ...rows12.map(r => r.village),
+          ...rows10.map(r => r.village),
+          ...rowsBelow10.map(r => r.village)
+        ])).filter(Boolean);
+
+        window.store.nisdFirka = {
+          name: 'Auto Village Firka',
+          rows: allVillages.map(v => ({ village: v, firka: 'General' }))
+        };
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('nisdFirka', window.store.nisdFirka.name, allVillages.length, false);
+        }
+      }
 
       if (typeof window.markLoaded === 'function') {
-        window.markLoaded(slotKey, parsedData.name, parsedData.rows.length, false);
+        window.markLoaded('nisd_0_0', data12.name, rows12.length, false);
+        window.markLoaded('nisd0', data12.name, rows12.length, false);
+        window.markLoaded('nisd_0_1', data10.name, rows10.length, false);
+        window.markLoaded('nisd1', data10.name, rows10.length, false);
+        window.markLoaded('nisd_0_2', dataBelow10.name, rowsBelow10.length, false);
+        window.markLoaded('nisd2', dataBelow10.name, rowsBelow10.length, false);
       }
+
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();
       if (typeof window.render === 'function') window.render();
 
-      showStatus(`✓ Successfully loaded ${rangeData.rows.length} villages into Dashboard (${slotKey})!`, 'info');
+      showStatus(`✓ Auto-loaded: ${bucket12.length} apps into 12 Days, ${bucket10.length} apps into 10 Days, ${bucketBelow10.length} apps into <10 Days!`, 'info');
       if (typeof window.toast === 'function') {
-        window.toast('Loaded into Dashboard', `${rangeData.rows.length} villages assigned to ${slotKey}`, 'ok');
+        window.toast('Dashboard Loaded', `>12d: ${bucket12.length} | 10-12d: ${bucket10.length} | ≤10d: ${bucketBelow10.length}`, 'ok');
       }
 
       setTimeout(() => {
         const backdrop = document.getElementById('tnModalBackdrop');
         if (backdrop) backdrop.classList.remove('open');
-      }, 1500);
+      }, 1600);
 
     } catch (err) {
       console.error('Apply error:', err);
