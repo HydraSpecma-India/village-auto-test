@@ -433,9 +433,11 @@
     function openFFModal() {
       if (ffBackdrop) {
         const topTalukSel = document.getElementById('talukSel') || document.getElementById('tnTalukSel');
-        if (topTalukSel && ffTalukSel) {
-          ffTalukSel.value = topTalukSel.value || '12';
+        if (topTalukSel && ffTalukSel && topTalukSel.value) {
+          ffTalukSel.value = topTalukSel.value;
         }
+        // Ensure all 6 checkboxes are checked by default for 1-click pull
+        document.querySelectorAll('input[type="checkbox"][id^="ff_chk_"]').forEach(c => c.checked = true);
         ffBackdrop.classList.add('open');
       }
     }
@@ -443,9 +445,21 @@
       if (ffBackdrop) ffBackdrop.classList.remove('open');
     }
 
+    function openModal() {
+      if (backdrop) backdrop.classList.add('open');
+    }
+    function closeModal() {
+      if (backdrop) backdrop.classList.remove('open');
+    }
+
     if (triggerBtn) triggerBtn.addEventListener('click', openModal);
     if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
-    if (flashFillBtn) flashFillBtn.addEventListener('click', openFFModal);
+    if (flashFillBtn) {
+      flashFillBtn.addEventListener('click', () => {
+        openFFModal();
+        handleFlashFillExecute();
+      });
+    }
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (ffCloseBtn) ffCloseBtn.addEventListener('click', closeFFModal);
 
@@ -475,6 +489,33 @@
 
     const distSel = document.getElementById('tnDistSel');
     const talukSel = document.getElementById('tnTalukSel');
+    const headerTalukSel = document.getElementById('talukSel');
+
+    // 3-Way Taluk Synchronization across Topbar, Automation Center Modal, and Flash Fill Modal
+    if (headerTalukSel) {
+      headerTalukSel.addEventListener('change', () => {
+        const val = headerTalukSel.value;
+        if (talukSel && talukSel.value !== val) talukSel.value = val;
+        if (ffTalukSel && ffTalukSel.value !== val) ffTalukSel.value = val;
+        if (typeof onTalukChange === 'function') onTalukChange();
+      });
+    }
+    if (ffTalukSel) {
+      ffTalukSel.addEventListener('change', () => {
+        const val = ffTalukSel.value;
+        if (headerTalukSel && headerTalukSel.value !== val) headerTalukSel.value = val;
+        if (talukSel && talukSel.value !== val) talukSel.value = val;
+        if (typeof onTalukChange === 'function') onTalukChange();
+      });
+    }
+    if (talukSel) {
+      talukSel.addEventListener('change', () => {
+        onTalukChange();
+        const val = talukSel.value;
+        if (headerTalukSel && headerTalukSel.value !== val) headerTalukSel.value = val;
+        if (ffTalukSel && ffTalukSel.value !== val) ffTalukSel.value = val;
+      });
+    }
     const nisdRadio = document.getElementById('tnRadioNisd');
     const isdRadio = document.getElementById('tnRadioIsd');
     const landRuralRadio = document.getElementById('tnLandRural');
@@ -842,7 +883,14 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to fetch F-Line report');
 
-        currentReportData = { ...data, serviceGroup: 'FLINE' };
+        // Apply strict Taluk scoping to filter out any non-target taluk applications
+        const talukOption = document.getElementById('tnTalukSel')?.selectedOptions[0];
+        const talukName = talukOption ? talukOption.text : '';
+        if (Array.isArray(data.applications)) {
+          data.applications = filterAppsByTaluk(data.applications, talukCode, talukName);
+        }
+
+        currentReportData = { ...data, serviceGroup: 'FLINE', landCategory, reportType };
         hideStatus();
 
         renderFlineDetailsTable(data);
@@ -871,7 +919,14 @@
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch report');
 
-      currentReportData = { ...data, serviceGroup: 'OPT' };
+      // Apply strict Taluk scoping to filter out any non-target taluk applications
+      const talukOption = document.getElementById('tnTalukSel')?.selectedOptions[0];
+      const talukName = talukOption ? talukOption.text : '';
+      if (Array.isArray(data.applications)) {
+        data.applications = filterAppsByTaluk(data.applications, talukCode, talukName);
+      }
+
+      currentReportData = { ...data, serviceGroup: 'OPT', landCategory };
       hideStatus();
 
       if (mode === 'details') {
@@ -1252,9 +1307,16 @@
       return;
     }
 
-    const rawApps = currentReportData.applications || [];
+    const talukSel = document.getElementById('tnTalukSel') || document.getElementById('talukSel') || document.getElementById('tnFFTalukSel');
+    const talukCode = talukSel ? talukSel.value : '';
+    const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
+    const talukName = talukOption ? talukOption.text : '';
+
+    let rawApps = currentReportData.applications || [];
+    rawApps = filterAppsByTaluk(rawApps, talukCode, talukName);
+
     if (!rawApps.length) {
-      showStatus('No individual applications found to distribute into date buckets. Make sure Report Format is set to "Detailed Applications".', 'error');
+      showStatus('No individual applications found for the selected Taluk to distribute into date buckets. Make sure Report Format is set to "Detailed Applications".', 'error');
       return;
     }
 
@@ -1562,15 +1624,25 @@
     }
   }
 
+  function norm(str) {
+    return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   function filterAppsByTaluk(applications, talukCode, talukName) {
     if (!Array.isArray(applications)) return [];
     const targetCode = String(talukCode || '').trim();
-    const targetNameNorm = norm(talukName || '');
+    let targetNameClean = String(talukName || '').replace(/\(\d+\)/g, '').trim();
+    let targetNameNorm = norm(targetNameClean);
+    if (targetNameNorm.includes('all')) targetNameNorm = '';
+
+    if (!targetCode && !targetNameNorm) return applications;
 
     return applications.filter(app => {
-      const appTalukCode = String(app.taluk_code || app.talukcode || app.talukCode || app.taluk_no || '').trim();
+      const appTalukCode = String(
+        app.taluk_code || app.talukcode || app.talukCode || app.taluk_no || app.taluk_id || app.talukno || ''
+      ).trim();
       if (appTalukCode && targetCode) {
-        if (appTalukCode !== targetCode) return false;
+        if (parseInt(appTalukCode, 10) !== parseInt(targetCode, 10)) return false;
       }
       const appTalukNameNorm = norm(app.taluk_name || app.talukname || app.talukName || app.taluk || '');
       if (appTalukNameNorm && targetNameNorm) {
