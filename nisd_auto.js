@@ -405,6 +405,8 @@
     bindEvents();
   }
 
+  let _openFFModal = null; // module-scoped reference for handleFlashFillAll
+
   function bindEvents() {
     const backdrop = document.getElementById('tnModalBackdrop');
     const closeBtn = document.getElementById('tnCloseModal');
@@ -438,14 +440,14 @@
         }
         // Ensure all 6 checkboxes are checked by default
         document.querySelectorAll('input[type="checkbox"][id^="ff_chk_"]').forEach(c => c.checked = true);
-        
+        // Reset all status badges to Ready
+        document.querySelectorAll('.tn-ff-status-badge').forEach(b => { b.textContent = 'Ready'; b.className = 'tn-ff-status-badge'; });
         // Ensure button is ready for confirmation click
         const btn = document.getElementById('tnFFRunBtn');
         if (btn) {
           btn.disabled = false;
           btn.innerHTML = '⚡ Pull Selected Reports (Confirm)';
         }
-
         ffBackdrop.classList.add('open');
       }
     }
@@ -453,13 +455,10 @@
       if (ffBackdrop) ffBackdrop.classList.remove('open');
     }
 
-    function openModal() {
-      if (backdrop) backdrop.classList.add('open');
-    }
-    function closeModal() {
-      if (backdrop) backdrop.classList.remove('open');
-    }
+    // Expose openFFModal to module scope for handleFlashFillAll
+    _openFFModal = openFFModal;
 
+    // --- Modal open/close listeners ---
     if (triggerBtn) triggerBtn.addEventListener('click', openModal);
     if (nisdCardBtn) nisdCardBtn.addEventListener('click', openModal);
     if (flashFillBtn) flashFillBtn.addEventListener('click', openFFModal);
@@ -469,6 +468,7 @@
     if (backdrop) backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
     if (ffBackdrop) ffBackdrop.addEventListener('click', e => { if (e.target === ffBackdrop) closeFFModal(); });
 
+    // --- Flash Fill modal action buttons ---
     if (ffSetAllFromBtn) {
       ffSetAllFromBtn.addEventListener('click', () => {
         document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = '01-01-2025');
@@ -490,11 +490,12 @@
 
     if (ffRunBtn) ffRunBtn.addEventListener('click', handleFlashFillExecute);
 
+    // --- Automation Center modal controls ---
     const distSel = document.getElementById('tnDistSel');
     const talukSel = document.getElementById('tnTalukSel');
     const headerTalukSel = document.getElementById('talukSel');
 
-    // 3-Way Taluk Synchronization across Topbar, Automation Center Modal, and Flash Fill Modal
+    // 3-Way Taluk Synchronization
     if (headerTalukSel) {
       headerTalukSel.addEventListener('change', () => {
         const val = headerTalukSel.value;
@@ -511,6 +512,15 @@
         if (typeof onTalukChange === 'function') onTalukChange();
       });
     }
+
+    const nisdRadio = document.getElementById('tnRadioNisd');
+    const isdRadio = document.getElementById('tnRadioIsd');
+    const landRuralRadio = document.getElementById('tnLandRural');
+    const landNathamRadio = document.getElementById('tnLandNatham');
+    const svcOptRadio = document.getElementById('tnSvcOpt');
+    const svcFlineRadio = document.getElementById('tnSvcFline');
+
+    if (distSel) distSel.addEventListener('change', onDistrictChange);
     if (talukSel) {
       talukSel.addEventListener('change', () => {
         onTalukChange();
@@ -519,14 +529,6 @@
         if (ffTalukSel && ffTalukSel.value !== val) ffTalukSel.value = val;
       });
     }
-    const nisdRadio = document.getElementById('tnRadioNisd');
-    const isdRadio = document.getElementById('tnRadioIsd');
-    const landRuralRadio = document.getElementById('tnLandRural');
-    const landNathamRadio = document.getElementById('tnLandNatham');
-
-    const svcOptRadio = document.getElementById('tnSvcOpt');
-    if (distSel) distSel.addEventListener('change', onDistrictChange);
-    if (talukSel) talukSel.addEventListener('change', onTalukChange);
 
     if (nisdRadio) nisdRadio.addEventListener('change', onOptTypeChange);
     if (isdRadio) isdRadio.addEventListener('change', onOptTypeChange);
@@ -538,6 +540,7 @@
 
     bindQuickDateEvents();
 
+    // --- Critical: Submit / Excel / Apply listeners ---
     if (submitBtn) submitBtn.addEventListener('click', handleFetch);
     if (excelBtn) excelBtn.addEventListener('click', handleExportExcel);
     if (applyBtn) applyBtn.addEventListener('click', handleApplyToDashboard);
@@ -1957,7 +1960,7 @@
   }
 
   async function handleFlashFillAll() {
-    return openFFModal();
+    if (typeof _openFFModal === 'function') _openFFModal();
   }
 
   function showStatus(msg, type) {
