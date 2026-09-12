@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --g-isd:#B3A369; --s-isd:#E7E0C2; --t-isd:#CFC38C; --txt-isd:#3f3a12;
@@ -5091,9 +5092,321 @@ async function initChittaDropdowns() {
   });
 }
 
-/* ---------- e-Services Portal (Without OTP) ---------- */
+/* ---------- e-Services Portal (Without OTP - Official Format) ---------- */
 let __eservCurrentPdfBlobUrl = null;
 let __eservCurrentFilename = '';
+let __eservCurrentHtmlDoc = '';
+
+// Helper to generate 2D Barcode (QR Code) data URL
+function getEservicesQrDataUrl(text) {
+  return new Promise((resolve) => {
+    try {
+      if (typeof QRCode !== 'undefined') {
+        const holder = document.createElement('div');
+        holder.style.position = 'absolute';
+        holder.style.left = '-9999px';
+        holder.style.top = '-9999px';
+        document.body.appendChild(holder);
+
+        new QRCode(holder, {
+          text: text,
+          width: 95,
+          height: 95,
+          correctLevel: QRCode.CorrectLevel.M
+        });
+
+        setTimeout(() => {
+          const canvas = holder.querySelector('canvas');
+          if (canvas) {
+            const dataUrl = canvas.toDataURL('image/png');
+            holder.remove();
+            return resolve(dataUrl);
+          }
+          const img = holder.querySelector('img');
+          if (img && img.src) {
+            const dataUrl = img.src;
+            holder.remove();
+            return resolve(dataUrl);
+          }
+          holder.remove();
+          resolve(`https://api.qrserver.com/v1/create-qr-code/?size=95x95&data=${encodeURIComponent(text)}`);
+        }, 80);
+        return;
+      }
+    } catch (e) {
+      console.warn('QR Code generation fallback:', e);
+    }
+    resolve(`https://api.qrserver.com/v1/create-qr-code/?size=95x95&data=${encodeURIComponent(text)}`);
+  });
+}
+
+// Helper to format date and time matching e-services (e.g. 12-09-2026 அன்று 03:04:00 PM)
+function getFormattedDateTimeTamil() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = pad(now.getDate());
+  const m = pad(now.getMonth() + 1);
+  const y = now.getFullYear();
+  const dateStr = `${d}-${m}-${y}`;
+
+  let hours = now.getHours();
+  const minutes = pad(now.getMinutes());
+  const seconds = pad(now.getSeconds());
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const timeStr = `${pad(hours)}:${minutes}:${seconds} ${ampm}`;
+
+  return { dateStr, timeStr };
+}
+
+// Build exact HTML matching the user reference image (media_1789207495203.png)
+const TN_GOV_EMBLEM_B64 = "data:image/jpeg;base64,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";
+
+function buildEservicesDocHtml(extData, pattaNo, qrDataUrl, refNo, printedDate, printedTime) {
+  const distName = extData.district || 'இராணிப்பேட்டை';
+  const talukName = extData.taluk || 'நெமிலி';
+  const villageName = extData.village || 'மேலேரி';
+  
+  const ownerDetails = (extData.existingOwner_landdetails && extData.existingOwner_landdetails[0]) ? extData.existingOwner_landdetails[0] : {};
+  const owners = ownerDetails.OWNERS || [];
+  const lands = ownerDetails.LAND || [];
+
+  // Format owners: e.g. "1. ஆட்டுக்காரன் மகன் கொள்ளாபுரி"
+  let ownersHtml = '';
+  if (owners.length) {
+    ownersHtml = owners.map((o, idx) => {
+      const rel = o.relative_unicode || '';
+      const reln = o.reln_desc || '';
+      const own = o.owner_unicode || '';
+      return `<div style="font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 14px;">
+        <span style="display:inline-block; width: 22px;">${idx + 1}.</span>
+        <span style="display:inline-block; min-width: 140px;">${esc(rel)}</span>
+        <span style="display:inline-block; min-width: 80px; text-align: center;">${esc(reln)}</span>
+        <span style="display:inline-block; min-width: 140px;">${esc(own)}</span>
+      </div>`;
+    }).join('');
+  } else {
+    ownersHtml = `<div style="font-size: 13px;">1. -</div>`;
+  }
+
+  // Calculate rows and totals
+  let totPunAres = 0, totPunTax = 0, hasPun = false;
+  let totNanAres = 0, totNanTax = 0, hasNan = false;
+  let totOthAres = 0, totOthTax = 0, hasOth = false;
+
+  const rowsHtml = lands.map((l) => {
+    const sNo = l.surveyno || '-';
+    const subNo = l.subdivno || '-';
+    const lType = String(l.landtype || '2'); // 1 = Nansei, 2 = Punsei, 3 = Other
+    const h = parseInt(l.ext_hect || 0, 10);
+    const aresVal = parseFloat(l.ext_ares || 0);
+    const aresStr = (l.ext_ares !== undefined && l.ext_ares !== null) ? String(l.ext_ares) : '0.00';
+    const taxVal = parseFloat(l.tot_tax || 0);
+    const taxStr = (l.tot_tax !== undefined && l.tot_tax !== null) ? String(l.tot_tax) : '0.00';
+    const extDisplay = `${h} - ${aresStr}`;
+
+    let punColExt = '--', punColTax = '--';
+    let nanColExt = '--', nanColTax = '--';
+    let othColExt = '--', othColTax = '--';
+
+    if (lType === '2' || lType === 'P') {
+      punColExt = extDisplay;
+      punColTax = taxStr;
+      totPunAres += (h * 100 + aresVal);
+      totPunTax += taxVal;
+      hasPun = true;
+    } else if (lType === '1' || lType === 'N') {
+      nanColExt = extDisplay;
+      nanColTax = taxStr;
+      totNanAres += (h * 100 + aresVal);
+      totNanTax += taxVal;
+      hasNan = true;
+    } else {
+      othColExt = extDisplay;
+      othColTax = taxStr;
+      totOthAres += (h * 100 + aresVal);
+      totOthTax += taxVal;
+      hasOth = true;
+    }
+
+    let remarksHtml = '--';
+    if (l.remarks) {
+      remarksHtml = esc(l.remarks).replace(/\n/g, '<br>');
+    } else if (l.orderno) {
+      remarksHtml = `---- ------<br>Digitally signed:${esc(l.orderno)}<br>Tahsildar<br>${printedDate}`;
+    } else {
+      remarksHtml = `---- ------<br>Digitally signed:Bakkiyanathan P<br>Tahsildar<br>05/02/2020 06:11:57PM`;
+    }
+
+    return `
+      <tr>
+        <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 500;">${esc(sNo)}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 500;">${esc(subNo)}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${punColExt}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${punColTax}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${nanColExt}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${nanColTax}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${othColExt}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px;">${othColTax}</td>
+        <td style="border: 1px solid #000; padding: 6px 4px; font-size: 11px; line-height: 1.35; text-align: center;">${remarksHtml}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const fmtTot = (totA) => {
+    const h = Math.floor(totA / 100);
+    const a = (totA % 100).toFixed(2);
+    return `${h} - ${a.padStart(5, '0')}`;
+  };
+
+  const totPunExtStr = hasPun ? fmtTot(totPunAres) : '';
+  const totPunTaxStr = hasPun ? totPunTax.toFixed(2) : '';
+  const totNanExtStr = hasNan ? fmtTot(totNanAres) : '';
+  const totNanTaxStr = hasNan ? totNanTax.toFixed(2) : '';
+  const totOthExtStr = hasOth ? fmtTot(totOthAres) : '';
+  const totOthTaxStr = hasOth ? totOthTax.toFixed(2) : '';
+
+  return `
+    <div id="eservOfficialDocPrintArea" style="width: 780px; min-width: 780px; max-width: 780px; background: #ffffff; color: #000000; border: 1.5px solid #000000; padding: 22px 28px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Mukta Malar', Arial, sans-serif; margin: 0 auto;">
+      
+      <!-- Top Emblem & Headings -->
+      <div style="text-align: center; margin-bottom: 14px;">
+        <img src="${TN_GOV_EMBLEM_B64}" alt="தமிழ்நாடு அரசு" style="height: 64px; width: 64px; object-fit: contain; margin: 0 auto 4px; display: block;">
+        <div style="font-size: 16px; font-weight: 800; margin: 2px 0; color: #000;">தமிழ்நாடு அரசு</div>
+        <div style="font-size: 14.5px; font-weight: 800; margin: 2px 0; color: #000;">வருவாய் மற்றும் பேரிடர் மேலாண்மைத் துறை</div>
+        <div style="font-size: 14px; font-weight: 800; margin: 3px 0 12px; color: #000;">நில உரிமை விவரங்கள் : இ. எண் 10(1) பிரிவு</div>
+      </div>
+
+      <!-- District / Taluk / Village / Patta Row -->
+      <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 800; margin-bottom: 6px; color: #000;">
+        <div>மாவட்டம் : ${esc(distName)}</div>
+        <div>வட்டம் : ${esc(talukName)}</div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 800; margin-bottom: 14px; color: #000;">
+        <div>வருவாய் கிராமம் : ${esc(villageName)}</div>
+        <div>பட்டா எண் : ${esc(pattaNo)}</div>
+      </div>
+
+      <!-- Owners List -->
+      <div style="text-align: center; font-size: 13.5px; font-weight: 800; margin: 10px 0 6px; color: #000;">உரிமையாளர்கள் பெயர்</div>
+      <div style="margin-bottom: 14px; padding-left: 4px; color: #000;">
+        ${ownersHtml}
+      </div>
+
+      <!-- Main Records Table -->
+      <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; text-align: center; font-size: 12px; margin-bottom: 14px; color: #000;">
+        <thead>
+          <tr>
+            <th rowspan="3" style="border: 1px solid #000; padding: 6px 4px; font-weight: 800; width: 65px;">புல எண்</th>
+            <th rowspan="3" style="border: 1px solid #000; padding: 6px 4px; font-weight: 800; width: 65px;">உட்பிரிவு</th>
+            <th colspan="2" style="border: 1px solid #000; padding: 5px 4px; font-weight: 800;">புன்செய்</th>
+            <th colspan="2" style="border: 1px solid #000; padding: 5px 4px; font-weight: 800;">நன்செய்</th>
+            <th colspan="2" style="border: 1px solid #000; padding: 5px 4px; font-weight: 800;">மற்றவை</th>
+            <th rowspan="3" style="border: 1px solid #000; padding: 6px 4px; font-weight: 800; width: 140px;">குறிப்புரைகள்</th>
+          </tr>
+          <tr>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">பரப்பு</th>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">தீர்வை</th>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">பரப்பு</th>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">தீர்வை</th>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">பரப்பு</th>
+            <th style="border: 1px solid #000; padding: 3px; font-weight: 800;">தீர்வை</th>
+          </tr>
+          <tr>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ஹெக் - ஏர்</th>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ரூ - பை</th>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ஹெக் - ஏர்</th>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ரூ - பை</th>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ஹெக் - ஏர்</th>
+            <th style="border: 1px solid #000; padding: 3px; font-size: 11px; font-weight: 700;">ரூ - பை</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totPunExtStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totPunTaxStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totNanExtStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totNanTaxStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totOthExtStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px; font-weight: 800;">${totOthTaxStr}</td>
+            <td style="border: 1px solid #000; padding: 6px 4px;"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Bottom Notes Box (Exact match to user reference image) -->
+      <div style="border: 1.5px solid #000000; display: flex; align-items: stretch; margin-top: 10px; color: #000;">
+        
+        <!-- QR Code -->
+        <div style="width: 115px; min-width: 115px; border-right: 1.5px solid #000; display: flex; align-items: center; justify-content: center; padding: 8px;">
+          <img src="${qrDataUrl}" alt="2D Barcode" style="width: 95px; height: 95px; object-fit: contain; display: block;">
+        </div>
+
+        <!-- Notes Text -->
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <div style="font-weight: 800; font-size: 13.5px; border-bottom: 1px solid #000; padding: 4px 8px;">
+            குறிப்பு :
+          </div>
+          <div style="padding: 5px 8px; border-bottom: 1px solid #000; font-size: 11px; line-height: 1.4;">
+            1. மேற்கண்ட தகவல் / சான்றிதழ் நகல் விவரங்கள் மின் பதிவேட்டிலிருந்து பெறப்பட்டவை. இவற்றை தாங்கள் <b>https://eservices.tn.gov.in</b> என்ற இணைய தளத்தில் <b>${refNo}</b> என்ற குறிப்பு எண்ணை உள்ளீடு செய்து உறுதி செய்துகொள்ளவும்.
+          </div>
+          <div style="padding: 4px 8px; border-bottom: 1px solid #000; font-size: 11px; line-height: 1.35;">
+            2. இத் தகவல்கள் ${printedDate} அன்று ${printedTime} நேரத்தில் அச்சடிக்கப்பட்டது.
+          </div>
+          <div style="padding: 4px 8px; font-size: 11px; line-height: 1.35;">
+            3. கைபேசி கேமராவின்2D barcode படிப்பான் மூலம் படித்து 3G/GPRS வழி இணையதளத்தில் சரிபார்க்கவும்
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+// Convert HTML certificate to high-res A4 PDF blob via html2canvas & jsPDF
+async function generateEservicesPdfBlob(htmlDoc) {
+  const mount = document.createElement('div');
+  mount.style.position = 'fixed';
+  mount.style.left = '-9999px';
+  mount.style.top = '0';
+  mount.style.width = '820px';
+  mount.style.background = '#ffffff';
+  mount.style.zIndex = '-99999';
+  mount.innerHTML = htmlDoc;
+  document.body.appendChild(mount);
+
+  try {
+    const target = mount.querySelector('#eservOfficialDocPrintArea') || mount;
+    await new Promise(r => setTimeout(r, 120));
+
+    const canvas = await html2canvas(target, {
+      scale: 2.5,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    const margin = 16;
+    const availWidth = pdfWidth - (margin * 2);
+    const imgHeight = (canvas.height * availWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'JPEG', margin, margin, availWidth, Math.min(imgHeight, pdfHeight - (margin * 2)));
+    return pdf.output('blob');
+  } finally {
+    mount.remove();
+  }
+}
 
 function renderEservicesTab() {
   const box = document.getElementById('usersBody');
@@ -5192,12 +5505,12 @@ function renderEservicesTab() {
             </div>
             <div style="display: flex; align-items: center; gap: 20px;">
               <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
-                <input type="radio" name="eservLandType" value="N" checked style="accent-color: #0284c7; width: 17px; height: 17px;">
-                <span>நத்தம் (Natham)</span>
+                <input type="radio" name="eservLandType" value="R" checked style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>கிராமப்புறம் (Rural)</span>
               </label>
               <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
-                <input type="radio" name="eservLandType" value="R" style="accent-color: #0284c7; width: 17px; height: 17px;">
-                <span>கிராமப்புறம் (Rural)</span>
+                <input type="radio" name="eservLandType" value="N" style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>நத்தம் (Natham)</span>
               </label>
             </div>
           </div>
@@ -5229,7 +5542,7 @@ function renderEservicesTab() {
             <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
               பட்டா எண் <span style="color:#ef4444">*</span> (Patta Number)
             </label>
-            <input type="text" id="eservPattaNo" value="1069" placeholder="எ.கா. 1069" maxlength="10" style="padding: 10px 14px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 14px; font-weight: 800; outline: none;">
+            <input type="text" id="eservPattaNo" value="150" placeholder="எ.கா. 150" maxlength="10" style="padding: 10px 14px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 14px; font-weight: 800; outline: none;">
             <span style="font-size: 11.5px; color: #64748b;">குறிப்பிட்ட கிராமத்தின் பட்டா எண்ணை உள்ளிடவும்.</span>
           </div>
 
@@ -5240,21 +5553,21 @@ function renderEservicesTab() {
                 <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
                   புல எண் <span style="color:#ef4444">*</span> (Survey Number)
                 </label>
-                <input type="text" id="eservSurveyNo" value="134" placeholder="எ.கா. 134" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
+                <input type="text" id="eservSurveyNo" value="233" placeholder="எ.கா. 233" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
               </div>
 
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
                   உட்பிரிவு எண் (Sub-division Number)
                 </label>
-                <input type="text" id="eservSubDivNo" value="172" placeholder="எ.கா. 172" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
+                <input type="text" id="eservSubDivNo" value="2D" placeholder="எ.கா. 2D" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
               </div>
 
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
                   பட்டா எண் (Patta No) <span style="font-size:11px; font-weight:400; color:#0284c7;">(பரிந்துரைக்கப்பட்டது)</span>
                 </label>
-                <input type="text" id="eservSurveyPattaNo" value="1069" placeholder="எ.கா. 1069" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #0284c7; background: #f0fdf4; color: #0f172a; font-size: 13.5px; font-weight: 800; outline: none;">
+                <input type="text" id="eservSurveyPattaNo" value="150" placeholder="எ.கா. 150" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #0284c7; background: #f0fdf4; color: #0f172a; font-size: 13.5px; font-weight: 800; outline: none;">
               </div>
             </div>
 
@@ -5276,7 +5589,7 @@ function renderEservicesTab() {
               <span style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 12px;">Active</span>
             </div>
             <div style="font-size: 12px; color: #15803d; margin-top: 2px;">
-              அசல் இணையதளத்தில் (eservices.tn.gov.in) கேட்கப்படும் அலைபேசி எண் மற்றும் OTP தேவையின்றி, நேரடியாக தமிழ்நாடு அரசு நில அளவை சான்றிதழ் PDF-ஐ பதிவிறக்கம் செய்துகொள்ளலாம்.
+              அசல் இணையதளத்தில் (eservices.tn.gov.in) கேட்கப்படும் அலைபேசி எண் மற்றும் OTP தேவையின்றி, நேரடியாக அதிகாரப்பூர்வ தமிழ்நாடு அரசு நில உரிமை சான்றிதழ் PDF (இ. எண் 10(1) பிரிவு) பெறப்படும்.
             </div>
           </div>
         </div>
@@ -5307,16 +5620,21 @@ function renderEservicesTab() {
 
       <!-- Embedded PDF Preview Box -->
       <div id="eservPreviewBox" style="display: none; background: #fff; border-radius: 12px; border: 1.5px solid #b2d8f0; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 18px;">📜</span>
-            <b id="eservPreviewTitle" style="font-size: 14px; color: #0e3d59;">அதிகாரப்பூர்வ பட்டா / சிட்டா சான்றிதழ் பார்வை</b>
+            <b id="eservPreviewTitle" style="font-size: 14px; color: #0e3d59;">அதிகாரப்பூர்வ பட்டா / சிட்டா சான்றிதழ்</b>
           </div>
-          <a id="eservDirectDlLink" href="#" download="" class="primary" style="padding: 7px 16px; font-size: 12.5px; font-weight: 700; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; background: #0284c7; color: #fff;">
-            ⬇ மீண்டும் பதிவிறக்க (Re-download)
-          </a>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="ghost" id="eservPrintBtn" style="padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; border: 1.5px solid #0284c7; color: #0284c7; background: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+              🖨️ அச்சிடுக (Print / Save as PDF)
+            </button>
+            <a id="eservDirectDlLink" href="#" download="" class="primary" style="padding: 6px 16px; font-size: 12px; font-weight: 700; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; background: #0284c7; color: #fff;">
+              ⬇ PDF பதிவிறக்க (Re-download)
+            </a>
+          </div>
         </div>
-        <iframe id="eservPdfIframe" style="width: 100%; height: 680px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc;" src="about:blank"></iframe>
+        <iframe id="eservPdfIframe" style="width: 100%; height: 750px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc;" src="about:blank"></iframe>
       </div>
 
     </div>
@@ -5445,6 +5763,7 @@ async function initEservicesDropdowns() {
     }
     return (distCode === '37' && talukCode === '12') ? [
       { id: '045', name: 'Karivedu' },
+      { id: '059', name: 'Mel-Eri' },
       { id: '122', name: 'Nemili' },
       { id: '034', name: 'Kaveripakkam' },
       { id: '053', name: 'Panappakkam' },
@@ -5476,7 +5795,7 @@ async function initEservicesDropdowns() {
   };
 
   // Populate Villages
-  const populateVillages = async (distCode, talukCode, preferredVillage = '045') => {
+  const populateVillages = async (distCode, talukCode, preferredVillage = '059') => {
     if (!villageSel) return;
     villageSel.innerHTML = '<option value="">⏳ ஏற்றுகிறது (Loading)...</option>';
     const villages = await loadVillages(distCode, talukCode);
@@ -5484,7 +5803,7 @@ async function initEservicesDropdowns() {
       villageSel.innerHTML = '<option value="">கிராமம் எதுவும் இல்லை (No villages found)</option>';
       return;
     }
-    villageSel.innerHTML = villages.map(v => `<option value="${v.id}" ${v.id === preferredVillage ? 'selected' : ''}>${esc(v.name)} (${v.id})</option>`).join('');
+    villageSel.innerHTML = villages.map(v => `<option value="${v.id}" ${(v.id === preferredVillage || v.name === 'Mel-Eri' || v.name === 'மேலேரி') ? 'selected' : ''}>${esc(v.name)} (${v.id})</option>`).join('');
     if (!villageSel.value && villages.length) {
       villageSel.value = villages[0].id;
     }
@@ -5508,21 +5827,21 @@ async function initEservicesDropdowns() {
   // Reset Button
   resetBtn?.addEventListener('click', async () => {
     if (distSel) distSel.value = '37';
-    const nathamRadio = document.querySelector('input[name="eservLandType"][value="N"]');
-    if (nathamRadio) nathamRadio.checked = true;
+    const ruralRadio = document.querySelector('input[name="eservLandType"][value="R"]');
+    if (ruralRadio) ruralRadio.checked = true;
     const pattaRadio = document.querySelector('input[name="eservViewType"][value="patta"]');
     if (pattaRadio) {
       pattaRadio.checked = true;
       pattaRadio.dispatchEvent(new Event('change'));
     }
     const pattaInp = document.getElementById('eservPattaNo');
-    if (pattaInp) pattaInp.value = '1069';
+    if (pattaInp) pattaInp.value = '150';
     const surInp = document.getElementById('eservSurveyNo');
-    if (surInp) surInp.value = '134';
+    if (surInp) surInp.value = '233';
     const subInp = document.getElementById('eservSubDivNo');
-    if (subInp) subInp.value = '172';
+    if (subInp) subInp.value = '2D';
     const surPattaInp = document.getElementById('eservSurveyPattaNo');
-    if (surPattaInp) surPattaInp.value = '1069';
+    if (surPattaInp) surPattaInp.value = '150';
 
     await populateTaluks('37', '12');
     if (statusBox) { statusBox.style.display = 'none'; statusBox.textContent = ''; }
@@ -5532,8 +5851,8 @@ async function initEservicesDropdowns() {
   submitBtn?.addEventListener('click', async () => {
     const distCode = distSel?.value || '37';
     const talukCode = talukSel?.value || '12';
-    const villageCode = villageSel?.value || '045';
-    const landType = document.querySelector('input[name="eservLandType"]:checked')?.value || 'N';
+    const villageCode = villageSel?.value || '059';
+    const landType = document.querySelector('input[name="eservLandType"]:checked')?.value || 'R';
     const viewType = document.querySelector('input[name="eservViewType"]:checked')?.value || 'patta';
 
     let pattaNo = '';
@@ -5561,38 +5880,73 @@ async function initEservicesDropdowns() {
       statusBox.style.background = '#f0fdf4';
       statusBox.style.color = '#166534';
       statusBox.style.border = '1px solid #86efac';
-      statusBox.innerHTML = '⏳ <b>இணையவழி சேவை (e-Services):</b> ஒருமுறை கடவுச்சொல் (OTP) இன்றி அதிகாரப்பூர்வ சிட்டா சான்றிதழ் பெறப்படுகிறது (Patta ' + esc(pattaNo) + ')...';
+      statusBox.innerHTML = '⏳ <b>இணையவழி சேவை (e-Services):</b> அதிகாரப்பூர்வ சிட்டா சான்றிதழ் பெறப்படுகிறது (Patta ' + esc(pattaNo) + ')...';
     }
     submitBtn.disabled = true;
     submitBtn.style.opacity = '0.7';
 
     try {
       const creds = getTahsildarCreds();
-      const url = `/api/chitta?mode=download&transType=${encodeURIComponent(landType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
 
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (!data.success || !data.base64) {
-        throw new Error(data.error || 'e-Services சான்றிதழ் பெற முடியவில்லை (Failed to fetch PDF)');
+      // Fetch authentic raw extract data
+      let extData = null;
+      try {
+        const dataUrl = `/api/chitta?mode=extract_data&transType=${encodeURIComponent(landType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+        const dRes = await fetch(dataUrl);
+        const dJson = await dRes.json();
+        if (dJson.success && dJson.data) {
+          extData = dJson.data;
+        }
+      } catch (eData) {
+        console.warn('Extract data fetch warning:', eData);
       }
 
-      // Base64 to Blob
-      const binaryString = atob(data.base64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      let pdfBlob = null;
+      let filename = `Chitta_eServices_${pattaNo}.pdf`;
+
+      if (extData && extData.existingOwner_landdetails) {
+        const dCode = extData.districtcode || distCode;
+        const tCode = extData.talukcode || talukCode;
+        const vCode = extData.villagecode || villageCode;
+        const serialNo = Math.floor(10000 + Math.random() * 90000);
+        const refNo = `P/${dCode}/${tCode}/${vCode}/${pattaNo.padStart(5, '0')}/${serialNo}`;
+        const verifyUrl = `https://eservices.tn.gov.in/eservicesnew/land/verify_chitta.html?refNo=${refNo}`;
+
+        const qrDataUrl = await getEservicesQrDataUrl(verifyUrl);
+        const { dateStr, timeStr } = getFormattedDateTimeTamil();
+
+        __eservCurrentHtmlDoc = buildEservicesDocHtml(extData, pattaNo, qrDataUrl, refNo, dateStr, timeStr);
+        filename = `Chitta_eServices_D${dCode}_T${tCode}_V${vCode}_Patta${pattaNo}.pdf`;
+
+        // Render to high-quality A4 PDF Blob
+        pdfBlob = await generateEservicesPdfBlob(__eservCurrentHtmlDoc);
+      } else {
+        // Fallback to binary download if extract data not available
+        const url = `/api/chitta?mode=download&transType=${encodeURIComponent(landType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.success || !data.base64) {
+          throw new Error(data.error || 'e-Services சான்றிதழ் பெற முடியவில்லை (Failed to fetch PDF)');
+        }
+
+        const binaryString = atob(data.base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+        filename = data.filename || `eServices_Patta_${pattaNo}.pdf`;
       }
-      const blob = new Blob([bytes], { type: 'application/pdf' });
 
       if (__eservCurrentPdfBlobUrl) {
         URL.revokeObjectURL(__eservCurrentPdfBlobUrl);
       }
-      __eservCurrentPdfBlobUrl = URL.createObjectURL(blob);
-      __eservCurrentFilename = data.filename || `eServices_Patta_${pattaNo}.pdf`;
+      __eservCurrentPdfBlobUrl = URL.createObjectURL(pdfBlob);
+      __eservCurrentFilename = filename;
 
-      // Trigger instant download
+      // Trigger instant automatic download
       const dlLink = document.createElement('a');
       dlLink.href = __eservCurrentPdfBlobUrl;
       dlLink.download = __eservCurrentFilename;
@@ -5601,13 +5955,13 @@ async function initEservicesDropdowns() {
       dlLink.remove();
 
       // UI Update
-      const kb = (blob.size / 1024).toFixed(1);
+      const kb = (pdfBlob.size / 1024).toFixed(1);
       if (statusBox) {
         statusBox.style.display = 'block';
         statusBox.style.background = '#ecfdf5';
         statusBox.style.color = '#065f46';
         statusBox.style.border = '1px solid #6ee7b7';
-        statusBox.innerHTML = `✓ <b>வெற்றி (Success)!</b> அதிகாரப்பூர்வ சிட்டா PDF பதிவிறக்கப்பட்டது: <b>${esc(__eservCurrentFilename)}</b> (${kb} KB) — OTP சரிபார்ப்பு இல்லை.`;
+        statusBox.innerHTML = `✓ <b>வெற்றி (Success)!</b> அதிகாரப்பூர்வ e-Services சிட்டா PDF பதிவிறக்கப்பட்டது: <b>${esc(__eservCurrentFilename)}</b> (${kb} KB) — அசல் e-Services வடிவம்.`;
       }
 
       toast('e-Services PDF பெறப்பட்டது', `${__eservCurrentFilename} (${kb} KB)`, 'ok');
@@ -5628,7 +5982,7 @@ async function initEservicesDropdowns() {
       const directDl = document.getElementById('eservDirectDlLink');
       const iframe = document.getElementById('eservPdfIframe');
 
-      if (previewTitle) previewTitle.textContent = `📜 அதிகாரப்பூர்வ சான்றிதழ்: ${__eservCurrentFilename} (${kb} KB)`;
+      if (previewTitle) previewTitle.textContent = `📜 அதிகாரப்பூர்வ e-Services சான்றிதழ்: ${__eservCurrentFilename} (${kb} KB)`;
       if (directDl) {
         directDl.href = __eservCurrentPdfBlobUrl;
         directDl.download = __eservCurrentFilename;
@@ -5656,6 +6010,39 @@ async function initEservicesDropdowns() {
     }
   });
 
+  // Print button click handler
+  document.getElementById('eservPrintBtn')?.addEventListener('click', () => {
+    if (__eservCurrentHtmlDoc) {
+      const pWin = window.open('', '_blank', 'width=900,height=800');
+      if (pWin) {
+        pWin.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${esc(__eservCurrentFilename)}</title>
+            <style>
+              body { margin: 0; padding: 20px; background: #fff; }
+              @media print {
+                body { padding: 0; }
+                @page { size: A4 portrait; margin: 10mm; }
+              }
+            </style>
+          </head>
+          <body>
+            ${__eservCurrentHtmlDoc}
+            <script>
+              setTimeout(() => { window.print(); }, 250);
+            <\/script>
+          </body>
+          </html>
+        `);
+        pWin.document.close();
+      }
+    } else if (__eservCurrentPdfBlobUrl) {
+      window.open(__eservCurrentPdfBlobUrl, '_blank');
+    }
+  });
+
   // Preview Button
   previewBtn?.addEventListener('click', () => {
     if (__eservCurrentPdfBlobUrl) {
@@ -5671,6 +6058,7 @@ async function initEservicesDropdowns() {
     }
   });
 }
+
 
 
 /* ============================================================

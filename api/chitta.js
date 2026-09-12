@@ -134,6 +134,33 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: false, error: 'Could not load villages', raw: data });
     }
 
+    if (mode === 'extract_data' || mode === 'data') {
+      const distCode = String(params.distCode || '37').padStart(2, '0');
+      const talukCode = String(params.talukCode || '12').padStart(2, '0');
+      const villageCode = String(params.villageCode || '045').padStart(3, '0');
+      const pattaNo = String(params.pattaNo || '').trim();
+      const transType = (params.transType || 'R').toUpperCase();
+
+      if (!pattaNo) {
+        return res.status(400).json({ success: false, error: 'Missing patta number (pattaNo)' });
+      }
+
+      const inputObj = {
+        districtCode: distCode,
+        talukCode: talukCode,
+        villageCode: villageCode,
+        pattaNo: pattaNo,
+        txnType: transType,
+        transType: transType
+      };
+
+      const data = await callTnPortal('Master/getChittaExtractData', inputObj, username, password, roleId, 'GET');
+      if (data && (data.existingOwner_landdetails || data.status === 1)) {
+        return res.status(200).json({ success: true, data, distCode, talukCode, villageCode, pattaNo, transType });
+      }
+      return res.status(200).json({ success: false, error: data?.error || 'Failed to fetch extract data from Tamil Nilam portal', raw: data });
+    }
+
     if (mode === 'download' || mode === 'pdf') {
       const distCode = String(params.distCode || '37').padStart(2, '0');
       const talukCode = String(params.talukCode || '12').padStart(2, '0');
