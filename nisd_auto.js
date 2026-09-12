@@ -438,6 +438,44 @@
     return clean;
   }
 
+  function cleanTalukTitle(val) {
+    if (!val) return 'Nemili';
+    const raw = String(val).replace(/\(\d+\)/g, '').trim();
+    const c = resolveTalukName(raw);
+    const titles = {
+      'nemili': 'Nemili',
+      'arakkonam': 'Arakkonam',
+      'arcot': 'Arcot',
+      'kalavai': 'Kalavai',
+      'sholinghur': 'Sholinghur',
+      'walajah': 'Walajah'
+    };
+    return titles[c] || raw || 'Nemili';
+  }
+
+  function resolveTalukCode(val) {
+    if (!val) return '12';
+    const clean = String(val).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (/^\d+$/.test(clean)) {
+      if (clean === '3' || clean === '03' || clean === '1' || clean === '01') return '03';
+      if (clean === '2' || clean === '02') return '02';
+      if (clean === '4' || clean === '04' || clean === '5' || clean === '05') return '04';
+      if (clean === '12') return '12';
+      if (clean === '13') return '13';
+      if (clean === '14') return '14';
+      return clean.padStart(2, '0');
+    }
+    if (clean.includes('nemili')) return '12';
+    if (clean.includes('arakkonam')) return '03';
+    if (clean.includes('arcot')) return '02';
+    if (clean.includes('kalavai')) return '13';
+    if (clean.includes('sholinghur')) return '14';
+    if (clean.includes('walajah') || clean.includes('ranipet')) return '04';
+    return '12';
+  }
+  window.resolveTalukCode = resolveTalukCode;
+  window.cleanTalukTitle = cleanTalukTitle;
+
   function setSelectByTaluk(sel, targetVal) {
     if (!sel || !sel.options || !targetVal) return false;
     const targetRaw = String(targetVal).trim();
@@ -1934,7 +1972,8 @@
     const talukSel = document.getElementById('tnFFTalukSel') || document.getElementById('talukSel') || document.getElementById('tnTalukSel');
     const talukCode = (talukSel && talukSel.value) ? talukSel.value : '12';
     const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
-    const talukName = talukOption ? talukOption.text : `Taluk ${talukCode}`;
+    const rawTalukName = talukOption ? talukOption.text : `Taluk ${talukCode}`;
+    const talukName = cleanTalukTitle(rawTalukName);
     const distCode = document.getElementById('tnDistSel')?.value || '37';
 
     const creds = getTnCreds();
@@ -2356,7 +2395,8 @@
   window.__pullIsdRuralPdfStandalone = async function() {
     const badge = document.querySelector('[data-badge="isdRuralPdf"]');
     const drop = document.querySelector('[data-drop="isdRuralPdf"]');
-    const activeTaluk = (typeof window.talukName === 'function' && window.talukName()) || window.TALUK || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+    const rawTaluk = (typeof window.talukName === 'function' && window.talukName()) || window.TALUK || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+    const activeTaluk = cleanTalukTitle(rawTaluk);
     const talukCode = resolveTalukCode(activeTaluk) || '12';
 
     const secCreds = getTnCreds('secondary');
