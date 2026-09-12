@@ -324,132 +324,7 @@ module.exports = async (req, res) => {
       const fromStr = formatDateToDDMMYYYY(params.fromDate || defaultFrom);
       const toStr = formatDateToDDMMYYYY(params.toDate || defaultTo);
 
-      let rawData = [];
-      try {
-        rawData = await fetchAppCountVillageThl(distCode, talukCode, fromStr, toStr, u2, p2, r2, 35000);
-      } catch (errThl) {
-        console.warn('fetchAppCountVillageThl note:', errThl.message);
-      }
-
-      // Check if returned rawData actually belongs to the requested talukCode
-      const normTargetTaluk = String(talukCode || '').replace(/^0+/, '');
-      const filteredThl = (Array.isArray(rawData) ? rawData : []).filter(item => {
-        const itemTaluk = String(item.taluk_code || '').replace(/^0+/, '');
-        return itemTaluk === normTargetTaluk;
-      });
-
-      if (filteredThl.length > 0) {
-        const vMap = new Map();
-        let sno = 1;
-        let grandAll = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
-        let grandInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
-        let grandNotInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
-
-        filteredThl.forEach(item => {
-          const vCode = item.village_code;
-          const vName = (item.village_name || '').trim();
-          if (!vMap.has(vCode)) {
-            vMap.set(vCode, {
-              sno: sno++,
-              code: vCode,
-              village: vName,
-              village_tname: (item.village_tname || '').trim(),
-              approved: 0,
-              pending: 0,
-              rejected: 0,
-              returned: 0,
-              total: 0,
-              inv: null,
-              notinv: null
-            });
-          }
-          const entry = vMap.get(vCode);
-          const appr = parseInt(item.approved || '0', 10);
-          const pend = parseInt(item.pending || '0', 10);
-          const rej = parseInt(item.rejected || '0', 10);
-          const ret = parseInt(item.returned || '0', 10);
-          const tot = parseInt(item.total || '0', 10);
-
-          entry.approved += appr;
-          entry.pending += pend;
-          entry.rejected += rej;
-          entry.returned += ret;
-          entry.total += tot;
-
-          grandAll.approved += appr;
-          grandAll.pending += pend;
-          grandAll.rejected += rej;
-          grandAll.returned += ret;
-          grandAll.total += tot;
-
-          if (item.scode === '0105') { // Involving Sub-Division
-            entry.inv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
-            grandInv.approved += appr;
-            grandInv.pending += pend;
-            grandInv.rejected += rej;
-            grandInv.returned += ret;
-            grandInv.total += tot;
-          } else if (item.scode === '0103') { // Not Involving Sub-Division
-            entry.notinv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
-            grandNotInv.approved += appr;
-            grandNotInv.pending += pend;
-            grandNotInv.rejected += rej;
-            grandNotInv.returned += ret;
-            grandNotInv.total += tot;
-          }
-        });
-
-        const villagesList = Array.from(vMap.values());
-        const period = `APPLICATION STATUS FROM: ${fromStr} TO: ${toStr}`;
-
-        res.status(200).json({
-          success: true,
-          distCode,
-          talukCode,
-          period,
-          asOn: `AND PENDING AS ON: ${toStr}`,
-          villages: villagesList,
-          totalVillages: villagesList.length,
-          grand: {
-            all: grandAll,
-            inv: grandInv,
-            notinv: grandNotInv
-          },
-          name: `TamilNilam_Auto_ISD_Status_${talukCode}.json`
-        });
-        return;
-      }
-
-      // Fallback: When secondary login (Tahsildar) does not cover this taluk (e.g. Arakkonam taluk 03),
-      // fetch live authentic village counts from opt_pending_ason_today using primary credentials (DLU / District User)
-      const fromDateYMD = formatDateToYYYYMMDD(params.fromDate || defaultFrom);
-      const toDateYMD = formatDateToYYYYMMDD(params.toDate || defaultTo);
-
-      const [invRes, notInvRes] = await Promise.all([
-        fetchTamilNilamRaw({
-          DistCode: String(distCode),
-          taluckcode: String(talukCode).padStart(2, '0'),
-          frmDate: fromDateYMD,
-          toDate: toDateYMD,
-          flag: 'I',
-          villType: 'B',
-          cdn_flag: 'T'
-        }, username, password, roleId, 25000).catch(() => ({})),
-        fetchTamilNilamRaw({
-          DistCode: String(distCode),
-          taluckcode: String(talukCode).padStart(2, '0'),
-          frmDate: fromDateYMD,
-          toDate: toDateYMD,
-          flag: 'N',
-          cdn_flag: 'T'
-        }, username, password, roleId, 25000).catch(() => ({}))
-      ]);
-
-      const notInvMap = new Map();
-      (notInvRes.distarr || []).forEach(v => {
-        const c = String(v.village_code || '').padStart(3, '0');
-        notInvMap.set(c, v);
-      });
+      const rawData = await fetchAppCountVillageThl(distCode, talukCode, fromStr, toStr, u2, p2, r2, 35000);
 
       const vMap = new Map();
       let sno = 1;
@@ -457,51 +332,58 @@ module.exports = async (req, res) => {
       let grandInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
       let grandNotInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
 
-      (invRes.distarr || []).forEach(item => {
-        const vCode = String(item.village_code || '').padStart(3, '0');
+      (Array.isArray(rawData) ? rawData : []).forEach(item => {
+        const vCode = item.village_code;
         const vName = (item.village_name || '').trim();
-        const ni = notInvMap.get(vCode) || {};
+        if (!vMap.has(vCode)) {
+          vMap.set(vCode, {
+            sno: sno++,
+            code: vCode,
+            village: vName,
+            village_tname: (item.village_tname || '').trim(),
+            approved: 0,
+            pending: 0,
+            rejected: 0,
+            returned: 0,
+            total: 0,
+            inv: null,
+            notinv: null
+          });
+        }
+        const entry = vMap.get(vCode);
+        const appr = parseInt(item.approved || '0', 10);
+        const pend = parseInt(item.pending || '0', 10);
+        const rej = parseInt(item.rejected || '0', 10);
+        const ret = parseInt(item.returned || '0', 10);
+        const tot = parseInt(item.total || '0', 10);
 
-        const invTot = parseInt(item.total || 0, 10);
-        const notInvTot = parseInt(ni.total || 0, 10);
-        const tot = invTot + notInvTot;
+        entry.approved += appr;
+        entry.pending += pend;
+        entry.rejected += rej;
+        entry.returned += ret;
+        entry.total += tot;
 
-        const invEntry = {
-          approved: 0,
-          pending: invTot,
-          rejected: 0,
-          returned: 0,
-          total: invTot
-        };
-
-        const notInvEntry = {
-          approved: 0,
-          pending: notInvTot,
-          rejected: 0,
-          returned: 0,
-          total: notInvTot
-        };
-
-        vMap.set(vName, {
-          sno: sno++,
-          code: vCode,
-          village: vName,
-          village_tname: vName,
-          approved: 0,
-          pending: tot,
-          rejected: 0,
-          returned: 0,
-          total: tot,
-          inv: invEntry,
-          notinv: notInvEntry
-        });
-
-        grandAll.pending += tot;
+        grandAll.approved += appr;
+        grandAll.pending += pend;
+        grandAll.rejected += rej;
+        grandAll.returned += ret;
         grandAll.total += tot;
-        grandInv.pending += invTot;
-        grandInv.total += invTot;
-        grandNotInv.pending += notInvTot;
-        grandNotInv.total += notInvTot;
+
+        if (item.scode === '0105') { // Involving Sub-Division
+          entry.inv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
+          grandInv.approved += appr;
+          grandInv.pending += pend;
+          grandInv.rejected += rej;
+          grandInv.returned += ret;
+          grandInv.total += tot;
+        } else if (item.scode === '0103') { // Not Involving Sub-Division
+          entry.notinv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
+          grandNotInv.approved += appr;
+          grandNotInv.pending += pend;
+          grandNotInv.rejected += rej;
+          grandNotInv.returned += ret;
+          grandNotInv.total += tot;
+        }
       });
 
       const villagesList = Array.from(vMap.values());
