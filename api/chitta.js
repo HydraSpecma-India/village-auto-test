@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const https = require('https');
 
-function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', password = 'Taluk@123', roleId = '8', method = 'GET', timeoutMs = 35000) {
+function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', password = 'Taluk@123', roleId = '8', method = 'GET', extraHeaders = {}, customBody = null, timeoutMs = 35000) {
   return new Promise((resolve, reject) => {
     const s1 = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
@@ -13,6 +13,8 @@ function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', passw
 
     let fullPath = `/Tnilam_Service_N/${servicePath}`;
     fullPath += fullPath.includes('?') ? `&jsoncallback=cb` : `?jsoncallback=cb`;
+
+    const bodyToSend = customBody !== null ? customBody : inputVal;
 
     const options = {
       hostname: 'tamilnilam.tn.gov.in',
@@ -28,7 +30,8 @@ function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', passw
         'Origin': 'https://tamilnilam.tn.gov.in',
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json;charset=utf-8',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        ...extraHeaders
       },
       rejectUnauthorized: false
     };
@@ -37,8 +40,8 @@ function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', passw
       options.headers['inputVal'] = inputVal;
     }
 
-    if (inputVal && method === 'POST') {
-      options.headers['Content-Length'] = Buffer.byteLength(inputVal);
+    if (bodyToSend && method === 'POST') {
+      options.headers['Content-Length'] = Buffer.byteLength(bodyToSend);
     }
 
     const req = https.request(options, res => {
@@ -60,8 +63,8 @@ function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', passw
       req.destroy(new Error(`Tamil Nilam request timed out after ${timeoutMs}ms.`));
     });
 
-    if (inputVal && method === 'POST') {
-      req.write(inputVal);
+    if (bodyToSend && method === 'POST') {
+      req.write(bodyToSend);
     }
     req.end();
   });
@@ -152,7 +155,27 @@ module.exports = async (req, res) => {
         transType: transType
       };
 
-      const data = await callTnPortal('Master/getChittaExtractData_pdf', inputObj, username, password, roleId, 'GET');
+      let data = null;
+
+      // 1. For Natham: Try OrderCopyService/loadChittaExtractNatham (matches the official Natham Patta layout with QR code, table and eservices verification)
+      if (transType === 'N') {
+        const inputValStr = JSON.stringify(inputObj);
+        data = await callTnPortal(
+          'OrderCopyService/loadChittaExtractNatham',
+          inputObj,
+          username,
+          password,
+          roleId,
+          'POST',
+          { 'flag_chk': 'N' },
+          encodeURIComponent(inputValStr)
+        );
+      }
+
+      // 2. If Natham returned empty/error, or if transType is Rural: fallback to Master/getChittaExtractData_pdf
+      if (!data || !data.base64Output || data.Status === 2 || data.Status === '2') {
+        data = await callTnPortal('Master/getChittaExtractData_pdf', inputObj, username, password, roleId, 'GET');
+      }
 
       if (data && data.base64Output) {
         const filename = `Chitta_${transType === 'N' ? 'Natham' : 'Rural'}_D${distCode}_T${talukCode}_V${villageCode}_Patta${pattaNo}.pdf`;
