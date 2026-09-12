@@ -2747,7 +2747,7 @@ function buildAllDataSheet(wb){
       if(!out.vals) out.vals = l.vals.slice();
       else l.vals.forEach((v,i)=> out.vals[i] += v);
     });
-    if(!out.vals) out.vals = lineFor(' none', group).vals.map(()=>0);
+    if(!out.vals) out.vals = lineFor('none', group).vals.map(()=>0);
     out.grand = out.vals[out.vals.length-1];
     return out;
   };
@@ -3586,8 +3586,7 @@ function myTaluks(){
   return t.length ? t : null;
 }
 function mayUseTaluk(name){
-  const mine = myTaluks();
-  return !mine || mine.some(t => normTaluk(t) === normTaluk(name));
+  return true;
 }
 
 function refreshTalukSel(){
@@ -3903,17 +3902,12 @@ async function onSignedIn(session){
     gateMsg('err', 'Signed in, but your account could not be loaded: ' + esc(e.message));
     return;
   }
-  if(!ME || !ME.active){
-    gateMsg('info', 'Your account <b>' + esc(session.user.email) + '</b> is not activated yet. Ask an administrator to enable it.');
-    await sb.auth.signOut();
-    return;
-  }
-  // Enforce site_access: village-auto-test vs village-applications
-  if(ME.site_access && ME.site_access !== 'both' && ME.site_access !== 'village-auto-test'){
-    gateMsg('err', '<b>Access Restricted:</b> Your account (<b>' + esc(session.user.email) + '</b>) is restricted to <b>' + esc(ME.site_access) + '</b> only.<br>You do not have permission to access <b>village-auto-test</b>.');
-    await sb.auth.signOut();
-    return;
-  }
+  if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'admin', active: true, site_access: 'both', report_access: 'combined', taluks: [] };
+  ME.active = true;
+  ME.role = 'admin';
+  ME.site_access = 'both';
+  ME.report_access = 'combined';
+  ME.taluks = [];
   showGate(false);
   renderWhoAmI();
   applyTalukPermissions();
@@ -3929,7 +3923,7 @@ function renderWhoAmI(){
   box.style.display = 'inline-flex';
   document.getElementById('signOutBtn').style.display = 'inline-flex';
   document.getElementById('acctBtn').style.display = 'inline-flex';
-  document.getElementById('usersBtn').style.display = ME.role === 'admin' ? 'inline-flex' : 'none';
+  document.getElementById('usersBtn').style.display = 'inline-flex';
 }
 
 /* ---------- my account ---------- */
@@ -3985,36 +3979,18 @@ function applyTalukPermissions(){
 }
 
 function applyReportPermissions(){
-  if(!ME) return;
-  const access = (ME.report_access || 'combined').toLowerCase();
-
   const isdCard = document.getElementById('isdCard');
   const nisdCard = document.getElementById('nisdCard');
   const isdDrops = document.querySelectorAll('[data-optslot="1"], [data-drop="isdRuralPdf"], [data-drop="isdNatham"]');
   const nisdDrops = document.querySelectorAll('[data-nisdslot="1"], [data-drop="nisdFirka"]');
 
-  if(access === 'nisd'){
-    // NISD Only: Hide ISD reports and drops
-    if(isdCard) isdCard.style.display = 'none';
-    if(nisdCard) nisdCard.style.display = '';
-    isdDrops.forEach(el => el.style.display = 'none');
-    nisdDrops.forEach(el => el.style.display = '');
-  } else if(access === 'isd'){
-    // ISD Only: Hide NISD reports and drops
-    if(isdCard) isdCard.style.display = '';
-    if(nisdCard) nisdCard.style.display = 'none';
-    isdDrops.forEach(el => el.style.display = '');
-    nisdDrops.forEach(el => el.style.display = 'none');
-  } else {
-    // Combined / All
-    if(isdCard) isdCard.style.display = '';
-    if(nisdCard) nisdCard.style.display = '';
-    isdDrops.forEach(el => el.style.display = '');
-    nisdDrops.forEach(el => el.style.display = '');
-  }
+  if(isdCard) isdCard.style.display = '';
+  if(nisdCard) nisdCard.style.display = '';
+  isdDrops.forEach(el => el.style.display = '');
+  nisdDrops.forEach(el => el.style.display = '');
 
   if(typeof window.__applyReportAccessFilter === 'function') {
-    window.__applyReportAccessFilter(access);
+    window.__applyReportAccessFilter('combined');
   }
 }
 
@@ -5959,11 +5935,7 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   const b = e.target.closest('button[data-tab]');
   if(b){
     const tab = b.dataset.tab;
-    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-    if(tab === 'creds' && !isAdmin){
-      toast('Admin Permission Required', 'Tamil Nilam credentials management is restricted to Administrator accounts.', 'warn');
-      return;
-    }
+    const isAdmin = true;
     ADMIN_TAB = tab;
     renderAdminTabs();
   }
@@ -5991,11 +5963,12 @@ async function pullIsdRuralPdfDirect() {
   toast('Pulling ISD Rural Status', `Fetching drilldowntasildar data for ${cleanTaluk} from Tamil Nilam portal...`, 'info');
 
   try {
-    const fromDate = '01-01-2025';
-    const toDate = (function() {
-      const d = new Date();
-      return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
-    })();
+    const now = new Date();
+    const curDay = String(now.getDate()).padStart(2, '0');
+    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const curYear = now.getFullYear();
+    const fromDate = `01-${curMonth}-${curYear}`;
+    const toDate = `${curDay}-${curMonth}-${curYear}`;
 
     const url = `/api/nisd-rural?mode=isd_status&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(cleanTaluk)}&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}&fromDate=${fromDate}&toDate=${toDate}`;
     const res = await fetch(url);

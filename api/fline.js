@@ -103,8 +103,14 @@ module.exports = async (req, res) => {
     const reportType = (params.reportType || 'FLINE').toUpperCase(); // 'FLINE' vs 'APPEAL'
     const landCategory = (params.landCategory || 'rural').toLowerCase(); // 'rural' vs 'natham'
     const stmtFlag = params.stmtFlag || 'Current'; // 'Current' vs 'OPT'
-    const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-09-01');
-    const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-10');
+    const nowD = new Date();
+    const curDay = String(nowD.getDate()).padStart(2, '0');
+    const curMonth = String(nowD.getMonth() + 1).padStart(2, '0');
+    const curYear = nowD.getFullYear();
+    const defaultFrom = `01-${curMonth}-${curYear}`;
+    const defaultTo = `${curDay}-${curMonth}-${curYear}`;
+    const fromDate = formatDateToYYYYMMDD(params.fromDate || defaultFrom);
+    const toDate = formatDateToYYYYMMDD(params.toDate || defaultTo);
     const mode = params.mode || 'details'; // 'details' vs 'summary'
     const username = params.username || 'dlurpet';
     const password = params.password || '16-03-1992';
@@ -188,7 +194,7 @@ module.exports = async (req, res) => {
         pending_days: item.opt_days || item.pending_days || '0',
         total_pending: item.opt_days || item.pending_days || '0',
         pending_at: item.pending_at || 'Surveyor',
-        appl_status: item.appl_status || 'Pending',
+        appl_status: item.appl_status || item.status || 'Pending',
         update_dt: item.update_dt || '',
         reportType: reportType,
         landCategory: landCategory

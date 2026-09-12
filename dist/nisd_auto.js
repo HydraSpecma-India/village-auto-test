@@ -139,6 +139,7 @@
                   <div class="tn-radio-group" style="gap: 20px;">
                     <label style="font-weight: 600;"><input type="radio" name="tnServiceGroup" id="tnSvcOpt" value="OPT" checked> 🏛️ OPT Applications (NISD / ISD)</label>
                     <label style="font-weight: 600;"><input type="radio" name="tnServiceGroup" id="tnSvcFline" value="FLINE"> 📐 F-Line / F-Line Appeal</label>
+                    <label style="font-weight: 600;"><input type="radio" name="tnServiceGroup" id="tnSvcIsdPdf" value="ISD_PDF"> 📑 ISD Rural Status (PDF / drilldown)</label>
                   </div>
                 </div>
 
@@ -221,6 +222,7 @@
 
               <div class="tn-btn-bar">
                 <button type="button" class="tn-btn-submit" id="tnBtnSubmit">Submit</button>
+                <button type="button" class="tn-quick-btn" id="tnDirectIsdPdfBtn" style="background:#2563eb; color:#fff; font-weight:700; padding:8px 14px; border-radius:7px; cursor:pointer;" title="Direct 1-click pull of current month ISD Rural status PDF">⚡ 1-Click Pull ISD PDF</button>
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
                 <div id="tnApplyWrap" style="display:none; align-items:center; gap:10px;">
                   <span id="tnBucketSummary" class="tn-bucket-tag" style="display:none;"></span>
@@ -240,10 +242,20 @@
     `;
   }
 
+  function getCurrentMonthRange() {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return {
+      fromDate: `01-${month}-${year}`,
+      toDate: `${day}-${month}-${year}`
+    };
+  }
+
   function createFlashFillModalHtml() {
-    const today = new Date();
-    const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
-    const toDateStr = formatD(today);
+    const curMonthRange = getCurrentMonthRange();
+    const toDateStr = curMonthRange.toDate;
 
     return `
       <div id="tnFFModalBackdrop" class="tn-ff-modal-backdrop">
@@ -266,6 +278,7 @@
                 </select>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="tn-quick-btn" id="tnFFSetCurrentMonth">Set Current Month</button>
                 <button type="button" class="tn-quick-btn" id="tnFFSetAllFrom">Set All From (01-01-2025)</button>
                 <button type="button" class="tn-quick-btn" id="tnFFSetAllTo">Set All To (Today)</button>
                 <button type="button" class="tn-quick-btn" id="tnFFToggleAll">Toggle All</button>
@@ -289,6 +302,15 @@
                 </tr>
               </thead>
               <tbody>
+                <tr data-ff-group="isd_pdf">
+                  <td style="text-align:center;"><input type="checkbox" id="ff_chk_isd_rural_pdf" checked></td>
+                  <td><b>ISD Rural — Application Status (PDF)</b><br><small style="color:var(--muted)">drilldowntasildar.html (Tahsildar ID 2)</small></td>
+                  <td><span class="tn-badge-role">Rural</span></td>
+                  <td>Application Status PDF</td>
+                  <td><input type="text" id="ff_from_isd_rural_pdf" class="tn-ff-date-input" value="${curMonthRange.fromDate}"></td>
+                  <td><input type="text" id="ff_to_isd_rural_pdf" class="tn-ff-date-input" value="${curMonthRange.toDate}"></td>
+                  <td><span id="ff_status_isd_rural_pdf" class="tn-ff-status-badge">Ready</span></td>
+                </tr>
                 <tr data-ff-group="nisd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_nisd_rural" checked></td>
                   <td><b>NISD Rural</b><br><small style="color:var(--muted)">VAO Pending (12d / 10d / &lt;10d)</small></td>
@@ -300,7 +322,7 @@
                 </tr>
                 <tr data-ff-group="isd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_isd_rural" checked></td>
-                  <td><b>ISD Rural</b><br><small style="color:var(--muted)">Surveyor &amp; VAO + Application Status PDF</small></td>
+                  <td><b>ISD Rural (OPT)</b><br><small style="color:var(--muted)">Surveyor &amp; VAO Pending (3 Buckets)</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
                   <td>ISD (Surveyor &amp; VAO)</td>
                   <td><input type="text" id="ff_from_isd_rural" class="tn-ff-date-input" value="01-01-2025"></td>
@@ -546,32 +568,19 @@
     const headerTalukSel = document.getElementById('talukSel');
 
     function applyReportAccessFilter() {
-      const access = (window.ME?.report_access || 'combined').toLowerCase();
+      // Full access across all reports and groups
       const nisdRows = document.querySelectorAll('tr[data-ff-group="nisd"]');
-      const isdRows = document.querySelectorAll('tr[data-ff-group="isd"]');
+      const isdRows = document.querySelectorAll('tr[data-ff-group="isd"], tr[data-ff-group="isd_pdf"]');
+      const flineRows = document.querySelectorAll('tr[data-ff-group="fline"]');
 
-      if (access === 'nisd') {
-        nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-        isdRows.forEach(r => { r.style.display = 'none'; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = false; });
-        const isdRadio = document.getElementById('tnRadioIsd');
-        const nisdRadio = document.getElementById('tnRadioNisd');
-        if (isdRadio) { isdRadio.disabled = true; isdRadio.parentElement.style.display = 'none'; }
-        if (nisdRadio) { nisdRadio.checked = true; nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
-      } else if (access === 'isd') {
-        nisdRows.forEach(r => { r.style.display = 'none'; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = false; });
-        isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-        const isdRadio = document.getElementById('tnRadioIsd');
-        const nisdRadio = document.getElementById('tnRadioNisd');
-        if (nisdRadio) { nisdRadio.disabled = true; nisdRadio.parentElement.style.display = 'none'; }
-        if (isdRadio) { isdRadio.checked = true; isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
-      } else {
-        nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-        isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-        const isdRadio = document.getElementById('tnRadioIsd');
-        const nisdRadio = document.getElementById('tnRadioNisd');
-        if (isdRadio) { isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
-        if (nisdRadio) { nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
-      }
+      nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+      isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+      flineRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+
+      const isdRadio = document.getElementById('tnRadioIsd');
+      const nisdRadio = document.getElementById('tnRadioNisd');
+      if (isdRadio) { isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
+      if (nisdRadio) { nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
     }
     window.__applyReportAccessFilter = applyReportAccessFilter;
 
@@ -625,6 +634,14 @@
     if (ffBackdrop) ffBackdrop.addEventListener('click', e => { if (e.target === ffBackdrop) closeFFModal(); });
 
     // --- Flash Fill modal action buttons ---
+    const ffSetCurrentMonthBtn = document.getElementById('tnFFSetCurrentMonth');
+    if (ffSetCurrentMonthBtn) {
+      ffSetCurrentMonthBtn.addEventListener('click', () => {
+        const cur = getCurrentMonthRange();
+        document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = cur.fromDate);
+        document.querySelectorAll('.tn-ff-date-input[id^="ff_to_"]').forEach(i => i.value = cur.toDate);
+      });
+    }
     if (ffSetAllFromBtn) {
       ffSetAllFromBtn.addEventListener('click', () => {
         document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = '01-01-2025');
@@ -711,6 +728,8 @@
     const landNathamRadio = document.getElementById('tnLandNatham');
     const svcOptRadio = document.getElementById('tnSvcOpt');
     const svcFlineRadio = document.getElementById('tnSvcFline');
+    const svcIsdPdfRadio = document.getElementById('tnSvcIsdPdf');
+    const directIsdPdfBtn = document.getElementById('tnDirectIsdPdfBtn');
 
     if (distSel) distSel.addEventListener('change', onDistrictChange);
 
@@ -721,6 +740,15 @@
 
     if (svcOptRadio) svcOptRadio.addEventListener('change', onServiceGroupChange);
     if (svcFlineRadio) svcFlineRadio.addEventListener('change', onServiceGroupChange);
+    if (svcIsdPdfRadio) svcIsdPdfRadio.addEventListener('change', onServiceGroupChange);
+
+    if (directIsdPdfBtn) {
+      directIsdPdfBtn.addEventListener('click', async () => {
+        if (typeof window.__pullIsdRuralPdfStandalone === 'function') {
+          await window.__pullIsdRuralPdfStandalone();
+        }
+      });
+    }
 
     bindQuickDateEvents();
 
@@ -737,7 +765,17 @@
     const dateModeRow = document.getElementById('tnFlineDateModeRow');
     const applyBtn = document.getElementById('tnBtnApply');
 
-    if (serviceGroup === 'FLINE') {
+    if (serviceGroup === 'ISD_PDF') {
+      if (optRow) optRow.style.display = 'none';
+      if (flineRow) flineRow.style.display = 'none';
+      if (dateModeRow) dateModeRow.style.display = 'none';
+      const cur = getCurrentMonthRange();
+      const fromEl = document.getElementById('tnFromDate');
+      const toEl = document.getElementById('tnToDate');
+      if (fromEl) fromEl.value = cur.fromDate;
+      if (toEl) toEl.value = cur.toDate;
+      if (applyBtn) applyBtn.innerHTML = '⚡ Auto-Load ISD Rural Status into Dashboard';
+    } else if (serviceGroup === 'FLINE') {
       if (optRow) optRow.style.display = 'none';
       if (flineRow) flineRow.style.display = 'block';
       if (dateModeRow) dateModeRow.style.display = 'block';
@@ -752,7 +790,7 @@
 
   function onOptTypeChange() {
     const serviceGroup = document.querySelector('input[name="tnServiceGroup"]:checked')?.value || 'OPT';
-    if (serviceGroup === 'FLINE') return;
+    if (serviceGroup === 'FLINE' || serviceGroup === 'ISD_PDF') return;
 
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
     const quickContainer = document.getElementById('tnQuickDatesContainer');
@@ -1062,6 +1100,33 @@
     if (applyWrap) applyWrap.style.display = 'none';
 
     try {
+      if (serviceGroup === 'ISD_PDF') {
+        const secCreds = getTnCreds('secondary');
+        showStatus(`Connecting to Tamil Nilam & fetching live drilldowntasildar ISD Rural Status for ${targetDesc}...`, 'info');
+
+        const url = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to fetch ISD Rural status');
+
+        currentReportData = { ...data, serviceGroup: 'ISD_PDF', landCategory: 'rural' };
+        hideStatus();
+
+        renderIsdStatusTable(data);
+        reportArea.style.display = 'block';
+        excelBtn.style.display = 'inline-block';
+
+        if (applyWrap) {
+          applyWrap.style.display = 'inline-flex';
+          const vCount = (data.villages || []).length;
+          if (bucketSummary) {
+            bucketSummary.style.display = 'inline-flex';
+            bucketSummary.innerHTML = `ISD Status: <b>${vCount}</b> villages found`;
+          }
+        }
+        return;
+      }
+
       if (serviceGroup === 'FLINE') {
         const reportType = document.querySelector('input[name="tnFlineReportType"]:checked')?.value || 'FLINE';
         const stmtFlag = document.querySelector('input[name="tnStmtFlag"]:checked')?.value || 'Current';
@@ -1228,6 +1293,66 @@
           </tr>
         `;
       });
+    }
+
+    html += `</tbody></table>`;
+    tableWrap.innerHTML = html;
+  }
+
+  function renderIsdStatusTable(data) {
+    const tableWrap = document.getElementById('tnTableWrap');
+    const villages = data.villages || [];
+    const period = data.period || 'ISD RURAL APPLICATION STATUS';
+    const asOn = data.asOn || '';
+    const grand = data.grand?.all || { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
+
+    let html = `
+      <table class="tn-report-table" id="tnExportTable">
+        <thead>
+          <tr>
+            <th colspan="7" class="tn-main-head">
+              ${esc(period)} ${asOn ? `<br>${esc(asOn)}` : ''}
+            </th>
+          </tr>
+          <tr>
+            <th class="tn-col-head">S.No.</th>
+            <th class="tn-col-head">Village Name</th>
+            <th class="tn-col-head">Approved</th>
+            <th class="tn-col-head">Pending</th>
+            <th class="tn-col-head">Rejected</th>
+            <th class="tn-col-head">Returned</th>
+            <th class="tn-col-head">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    if (!villages.length) {
+      html += `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--muted);">No village records found for the selected date range.</td></tr>`;
+    } else {
+      villages.forEach((v, idx) => {
+        html += `
+          <tr>
+            <td class="align-center">${idx + 1}</td>
+            <td><b>${esc(v.village || '')}</b></td>
+            <td class="align-center" style="color:#10b981; font-weight:600;">${v.approved || 0}</td>
+            <td class="align-center" style="color:#ef4444; font-weight:700;">${v.pending || 0}</td>
+            <td class="align-center" style="color:#6b7280;">${v.rejected || 0}</td>
+            <td class="align-center" style="color:#9ca3af;">${v.returned || 0}</td>
+            <td class="align-center" style="font-weight:700;">${v.total || 0}</td>
+          </tr>
+        `;
+      });
+      html += `
+        <tr style="background:var(--surface-2); font-weight:800; border-top:2px solid var(--line-strong);">
+          <td colspan="2" style="text-align:right; padding:8px 12px;">Total:</td>
+          <td class="align-center" style="color:#10b981;">${grand.approved || 0}</td>
+          <td class="align-center" style="color:#ef4444;">${grand.pending || 0}</td>
+          <td class="align-center" style="color:#6b7280;">${grand.rejected || 0}</td>
+          <td class="align-center" style="color:#9ca3af;">${grand.returned || 0}</td>
+          <td class="align-center">${grand.total || 0}</td>
+        </tr>
+      `;
     }
 
     html += `</tbody></table>`;
@@ -1572,7 +1697,43 @@
     const talukSel = document.getElementById('tnTalukSel') || document.getElementById('talukSel') || document.getElementById('tnFFTalukSel');
     const talukCode = talukSel ? talukSel.value : '';
     const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
-    const talukName = talukOption ? talukOption.text : '';
+    const serviceGroup = currentReportData.serviceGroup || 'OPT';
+    const landCategory = currentReportData.landCategory || 'rural';
+
+    if (serviceGroup === 'ISD_PDF') {
+      try {
+        if (!window.store) window.store = {};
+        const vMap = new Map();
+        (currentReportData.villages || []).forEach(v => {
+          if (v.village) vMap.set(v.village, v);
+        });
+        const parsedPdf = {
+          name: `TamilNilam_Auto_ISD_Status_${talukName || 'Nemili'}.json`,
+          villages: vMap,
+          grand: currentReportData.grand || {}
+        };
+        window.store['isdRuralPdf'] = parsedPdf;
+        if (typeof window.markLoaded === 'function') window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+        if (typeof window.updateRail === 'function') window.updateRail();
+        if (typeof window.render === 'function') window.render();
+
+        if (typeof window.saveToCloud === 'function') {
+          try {
+            const fileName = `TamilNilam_Auto_ISD_Status_${talukName || 'Nemili'}.json`;
+            const blob = new Blob([JSON.stringify({ villages: Array.from(vMap.values()), grand: parsedPdf.grand })], { type: 'application/json' });
+            blob.name = fileName;
+            await window.saveToCloud('isdRuralPdf', blob, parsedPdf, talukName || 'Nemili');
+          } catch (cloudErr) {
+            console.warn('Supabase cloud save note:', cloudErr);
+          }
+        }
+        showStatus(`✓ Auto-loaded & Saved: ${vMap.size} villages ISD Status into Dashboard!`, 'info');
+        if (typeof window.toast === 'function') window.toast('ISD Status Loaded', `Saved ${vMap.size} villages to dashboard & cloud!`, 'ok');
+      } catch (err) {
+        showStatus(`Failed to apply ISD Status: ${err.message}`, 'error');
+      }
+      return;
+    }
 
     let rawApps = currentReportData.applications || [];
     rawApps = filterAppsByTaluk(rawApps, talukCode, talukName);
@@ -1584,8 +1745,6 @@
 
     const fromDate = document.getElementById('tnFromDate').value.trim();
     const toDate = document.getElementById('tnToDate').value.trim();
-    const serviceGroup = currentReportData.serviceGroup || 'OPT';
-    const landCategory = currentReportData.landCategory || 'rural';
     const period = currentReportData.period || `APPLICATION FROM: ${fromDate} TO: ${toDate}`;
     const asOn = currentReportData.asOn ? `AND PENDING AS ON: ${currentReportData.asOn}` : '';
 
@@ -1613,11 +1772,13 @@
 
         const flineData = {
           name: `Auto F-Line ${reportType} (${landCategory.toUpperCase()}) - ${rawApps.length} apps`,
-          header: ['Village Name', 'Application Date', 'Application Status'],
+          header: ['Village Name', 'Application Date', 'Pending At', 'Number of days pending', 'Application Status'],
           objs: rawApps.map(a => ({
             'Village Name': (a.village_name || a.village || 'Unknown').trim(),
             'Application Date': a.appl_date || a.appl_dt || '',
-            'Application Status': 'Pending'
+            'Pending At': a.pending_at || 'Surveyor',
+            'Number of days pending': a.pending_days || a.total_pending || a.opt_days || '0',
+            'Application Status': (a.appl_status || a.status || a.application_status || 'Pending').trim()
           })),
           rows,
           period,
@@ -2013,6 +2174,20 @@
       let summaryStats = [];
       const fetchTasks = [];
 
+      // 0. ISD Rural Application Status (PDF)
+      if (isChk('isd_rural_pdf')) {
+        setStatus('isd_rural_pdf', 'Pulling PDF...', 'loading');
+        const { fromDate, toDate } = getRowDates('isd_rural_pdf');
+        const secCreds = getTnCreds('secondary');
+        const isdStatusParams = `username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&mode=isd_status&fromDate=${fromDate}&toDate=${toDate}`;
+        fetchTasks.push(
+          fetch(`/api/nisd-rural?${isdStatusParams}`)
+            .then(r => r.json())
+            .then(res => ({ key: 'isd_rural_pdf', res, fromDate, toDate }))
+            .catch(e => ({ key: 'isd_rural_pdf', error: e.message }))
+        );
+      }
+
       // 1. NISD Rural
       if (isChk('nisd_rural')) {
         setStatus('nisd_rural', 'Pulling...', 'loading');
@@ -2025,28 +2200,15 @@
         );
       }
 
-      // 2. ISD Rural (OPT applications + Application Status PDF)
+      // 2. ISD Rural (OPT applications)
       if (isChk('isd_rural')) {
         setStatus('isd_rural', 'Pulling...', 'loading');
         const { fromDate, toDate } = getRowDates('isd_rural');
-        const secCreds = getTnCreds('secondary');
-        const isdStatusParams = `username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&mode=isd_status&fromDate=${fromDate}&toDate=${toDate}`;
-
         fetchTasks.push(
-          Promise.all([
-            fetch(`/api/nisd-rural?landCategory=rural&flag=I&fromDate=${fromDate}&toDate=${toDate}&${credParams}`)
-              .then(r => r.json())
-              .catch(e => ({ success: false, error: e.message })),
-            fetch(`/api/nisd-rural?${isdStatusParams}`)
-              .then(r => r.json())
-              .catch(e => ({ success: false, error: e.message }))
-          ]).then(([optRes, isdStatusRes]) => ({
-            key: 'isd_rural',
-            res: optRes,
-            isdStatusRes,
-            fromDate,
-            toDate
-          })).catch(e => ({ key: 'isd_rural', error: e.message }))
+          fetch(`/api/nisd-rural?landCategory=rural&flag=I&fromDate=${fromDate}&toDate=${toDate}&${credParams}`)
+            .then(r => r.json())
+            .then(res => ({ key: 'isd_rural', res, fromDate, toDate }))
+            .catch(e => ({ key: 'isd_rural', error: e.message }))
         );
       }
 
@@ -2146,6 +2308,31 @@
           summaryStats.push(`NISD Rural: ${vaoApps.length} VAO apps`);
         }
 
+        if (item.key === 'isd_rural_pdf') {
+          if (item.res && item.res.success && Array.isArray(item.res.villages)) {
+            const vMap = new Map();
+            item.res.villages.forEach(v => {
+              if (v.village) {
+                vMap.set(v.village, v);
+                allAppVillages.push(v.village);
+              }
+            });
+            const parsedPdf = {
+              name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
+              villages: vMap,
+              grand: item.res.grand || {}
+            };
+            window.store['isdRuralPdf'] = parsedPdf;
+            if (typeof window.markLoaded === 'function') {
+              window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+            }
+            setStatus('isd_rural_pdf', `✓ ${vMap.size} villages`, 'ok');
+            summaryStats.push(`ISD Rural PDF: ${vMap.size} villages`);
+          } else {
+            setStatus('isd_rural_pdf', 'Error: ' + (item.res?.error || 'Failed'), 'err');
+          }
+        }
+
         if (item.key === 'isd_rural') {
           const b30 = [], b25 = [], bBelow25 = [];
           rawApps.forEach(app => {
@@ -2164,25 +2351,8 @@
             window.markLoaded('opt2', d30.name, isd30.rows.length, false);
           }
 
-          // Handle Application Status PDF from drilldowntasildar
-          let statusPdfMsg = '';
-          if (item.isdStatusRes && item.isdStatusRes.success && Array.isArray(item.isdStatusRes.villages)) {
-            const vMap = new Map();
-            item.isdStatusRes.villages.forEach(v => vMap.set(v.village, v));
-            const parsedPdf = {
-              name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
-              villages: vMap,
-              grand: item.isdStatusRes.grand || {}
-            };
-            window.store['isdRuralPdf'] = parsedPdf;
-            if (typeof window.markLoaded === 'function') {
-              window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
-            }
-            statusPdfMsg = ` + ${vMap.size} villages PDF`;
-          }
-
-          setStatus('isd_rural', `✓ ${rawApps.length} apps${statusPdfMsg}`, 'ok');
-          summaryStats.push(`ISD Rural: ${rawApps.length} apps${statusPdfMsg}`);
+          setStatus('isd_rural', `✓ ${rawApps.length} apps`, 'ok');
+          summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
         }
 
         if (item.key === 'nisd_natham') {
@@ -2238,12 +2408,13 @@
           const isdGroup = groupAppsByVillageForISD(rawApps);
           const dataNatham = {
             name: `Auto ISD Natham (${rawApps.length} apps)`,
-            header: ['Village Name', 'Application Date', 'Pending At', 'Application Status'],
+            header: ['Village Name', 'Application Date', 'Pending At', 'Number of days pending', 'Application Status'],
             objs: rawApps.map(a => ({
               'Village Name': (a.village_name || a.village || 'Unknown').trim(),
               'Application Date': a.appl_date || a.appl_dt || '',
               'Pending At': a.role_name || a.pending_at || 'Surveyor',
-              'Application Status': 'Pending'
+              'Number of days pending': a.pending_days || a.total_pending || '0',
+              'Application Status': (a.appl_status || a.status || a.application_status || 'Pending').trim()
             })),
             rows: isdGroup.rows,
             footer: isdGroup.footer
@@ -2261,11 +2432,13 @@
           rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
           const dataFlr = {
             name: `Auto F-Line Rural (${rawApps.length} apps)`,
-            header: ['Village Name', 'Application Date', 'Application Status'],
+            header: ['Village Name', 'Application Date', 'Pending At', 'Number of days pending', 'Application Status'],
             objs: rawApps.map(a => ({
               'Village Name': (a.village_name || a.village || 'Unknown').trim(),
               'Application Date': a.appl_date || a.appl_dt || '',
-              'Application Status': 'Pending'
+              'Pending At': a.pending_at || 'Surveyor',
+              'Number of days pending': a.pending_days || a.total_pending || a.opt_days || '0',
+              'Application Status': (a.appl_status || a.status || a.application_status || 'Pending').trim()
             })),
             rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c }))
           };
@@ -2282,11 +2455,13 @@
           rawApps.forEach(a => { const v = (a.village_name || 'Unknown').trim(); vMap.set(v, (vMap.get(v) || 0) + 1); });
           const dataFln = {
             name: `Auto F-Line Natham (${rawApps.length} apps)`,
-            header: ['Village Name', 'Application Date', 'Application Status'],
+            header: ['Village Name', 'Application Date', 'Pending At', 'Number of days pending', 'Application Status'],
             objs: rawApps.map(a => ({
               'Village Name': (a.village_name || a.village || 'Unknown').trim(),
               'Application Date': a.appl_date || a.appl_dt || '',
-              'Application Status': 'Pending'
+              'Pending At': a.pending_at || 'Surveyor',
+              'Number of days pending': a.pending_days || a.total_pending || a.opt_days || '0',
+              'Application Status': (a.appl_status || a.status || a.application_status || 'Pending').trim()
             })),
             rows: Array.from(vMap.entries()).map(([v, c]) => ({ village: v, rtr: 0, str: c, total: c }))
           };
@@ -2416,11 +2591,9 @@
     }
 
     try {
-      const fromDate = '01-01-2025';
-      const toDate = (function() {
-        const d = new Date();
-        return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
-      })();
+      const curRange = getCurrentMonthRange();
+      const fromDate = curRange.fromDate;
+      const toDate = curRange.toDate;
 
       const url = `/api/nisd-rural?mode=isd_status&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(activeTaluk)}&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}&fromDate=${fromDate}&toDate=${toDate}`;
       const res = await fetch(url);

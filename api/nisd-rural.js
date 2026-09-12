@@ -315,8 +315,14 @@ module.exports = async (req, res) => {
       const u2 = params.username || 'rpt_panneerselvam';
       const p2 = params.password || 'Taluk@123';
       const r2 = params.roleId || '8';
-      const fromStr = formatDateToDDMMYYYY(params.fromDate || '2026-01-01');
-      const toStr = formatDateToDDMMYYYY(params.toDate || new Date());
+      const nowD = new Date();
+      const curDay = String(nowD.getDate()).padStart(2, '0');
+      const curMonth = String(nowD.getMonth() + 1).padStart(2, '0');
+      const curYear = nowD.getFullYear();
+      const defaultFrom = `01-${curMonth}-${curYear}`;
+      const defaultTo = `${curDay}-${curMonth}-${curYear}`;
+      const fromStr = formatDateToDDMMYYYY(params.fromDate || defaultFrom);
+      const toStr = formatDateToDDMMYYYY(params.toDate || defaultTo);
 
       const rawData = await fetchAppCountVillageThl(distCode, talukCode, fromStr, toStr, u2, p2, r2, 35000);
 
@@ -423,16 +429,17 @@ module.exports = async (req, res) => {
 
         // Check if application is pending
         const isPending = status === 'Pending' || (pendingAt && pendingAt !== '-');
-        if (!isPending) return;
 
-        // Role filtering
-        if (flag === 'N') {
-          // NISD Natham: pending at VAO only
-          if (pendingAt.toUpperCase() !== 'VAO') return;
-        } else {
-          // ISD Natham: pending at VAO or Surveyor
-          const pUpper = pendingAt.toUpperCase();
-          if (!pUpper.includes('VAO') && !pUpper.includes('SURVEYOR')) return;
+        // Role filtering for pending applications
+        if (isPending) {
+          if (flag === 'N') {
+            // NISD Natham: pending at VAO only
+            if (pendingAt.toUpperCase() !== 'VAO') return;
+          } else {
+            // ISD Natham: pending at VAO or Surveyor
+            const pUpper = pendingAt.toUpperCase();
+            if (!pUpper.includes('VAO') && !pUpper.includes('SURVEYOR')) return;
+          }
         }
 
         normalizedApps.push({
@@ -440,11 +447,11 @@ module.exports = async (req, res) => {
           appl_date: item.appl_dt || item.appl_date || '',
           district_name: item.district_name || '',
           taluk_name: item.taluk_name || '',
-          village_name: item.village_name || '',
+          village_name: (item.village_name || '').trim(),
           zone_name: item.zone_name || '',
           rtr_str: item.rtr_str || '',
-          pending_at: pendingAt,
-          appl_status: status,
+          pending_at: pendingAt || '-',
+          appl_status: status || (isPending ? 'Pending' : 'Approved'),
           pending_days: item.pending_days || item.current_role || '0',
           total_pending: item.pending_days || item.current_role || '0',
           update_dt: item.update_dt || ''
