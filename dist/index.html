@@ -855,6 +855,7 @@
     <button data-tab="users" class="on">👥 Authorized Users</button>
     <button data-tab="files">📁 Stored Cloud Files</button>
     <button data-tab="creds">🔑 Tamil Nilam Credentials</button>
+    <button data-tab="chitta">📜 Chitta Extract (Tahsildar)</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
 </aside>
@@ -904,6 +905,7 @@
         <select id="talukSel"><option value="">All taluks</option></select>
       </label>
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center to configure dates &amp; pull reports for selected Taluk">⚡ Flash Fill Control Center</button>
+      <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
     </div>
     <div class="topbar-actions">
       <span class="whoami" id="whoami" style="display:none"></span>
@@ -4172,6 +4174,7 @@ function renderAdminTabs(){
   if(ADMIN_TAB === 'users') renderUsers();
   else if(ADMIN_TAB === 'files') renderFiles();
   else if(ADMIN_TAB === 'creds') renderTnCredsTab();
+  else if(ADMIN_TAB === 'chitta') renderChittaTab();
 }
 
 /* A person can be given any number of taluks. Nothing ticked means no limit. */
@@ -4647,6 +4650,442 @@ function renderTnCredsTab() {
       if (mainFFBtn) mainFFBtn.click();
     });
   }
+}
+
+/* ---------- Chitta Extract (Tahsildar Portal) ---------- */
+let __chittaDistrictsCache = null;
+let __chittaTaluksCache = {};
+let __chittaVillagesCache = {};
+let __chittaCurrentPdfBlobUrl = null;
+let __chittaCurrentFilename = '';
+
+function renderChittaTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div style="max-width: 920px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Tamil Nilam Header Banner (Matching Reference Image) -->
+      <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%); color: #fff; border-radius: 14px; padding: 20px 24px; box-shadow: 0 4px 14px rgba(30, 58, 138, 0.25);">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center;">
+          <div style="background: #fff; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+            <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 54px; width: 54px; object-fit: contain; border-radius: 50%;">
+          </div>
+          <div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: #fff;">Revenue and Disaster Management Department</h2>
+            <div style="font-size: 14px; font-weight: 600; opacity: 0.95; margin-top: 2px;">Government of Tamil Nadu</div>
+            <div style="font-size: 11.5px; opacity: 0.85; margin-top: 2px; letter-spacing: 0.3px;">Tamil Nadu Information System On Land Administration And Management (TAMILNILAM)</div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px;">
+          <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+            <span>👤</span> Login: Tahsildar
+          </span>
+          <span id="chittaBannerLoc" style="font-weight: 600; opacity: 0.95;">District: Ranipet | Taluk: Nemili</span>
+        </div>
+      </div>
+
+      <!-- Form Card -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 24px 26px; box-shadow: var(--shadow);">
+        
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 6px; font-size: 18px; font-weight: 800; color: #1e40af; text-decoration: underline; text-underline-offset: 4px;">
+            Chitta Extract – Tahsildar
+          </h3>
+          <p style="margin: 0; font-size: 12.5px; color: var(--muted);">
+            நில அளவை ஆவணம் — பட்டா மாறுதல் &amp; சிட்டா விவரங்கள் (10(1) பிரிவு) பதிவிறக்கம்
+          </p>
+        </div>
+
+        <!-- Form Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;">
+          
+          <!-- District -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              மாவட்டம் <span style="color:#ef4444">*</span> (District)
+            </label>
+            <select id="chittaDist" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="37">Ranipet (37)</option>
+            </select>
+          </div>
+
+          <!-- Type -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              வகை <span style="color:#ef4444">*</span> (Type)
+            </label>
+            <select id="chittaType" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="N" selected>Natham (நத்தம்)</option>
+              <option value="R">Rural (கிராமப்புறம்)</option>
+            </select>
+          </div>
+
+          <!-- Taluk -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              வட்டம் <span style="color:#ef4444">*</span> (Taluk)
+            </label>
+            <select id="chittaTaluk" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="12">Nemili (12)</option>
+            </select>
+          </div>
+
+          <!-- Village -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              கிராமம் <span style="color:#ef4444">*</span> (Village)
+            </label>
+            <select id="chittaVillage" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="045">Karivedu (045)</option>
+            </select>
+          </div>
+
+          <!-- Patta Number -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              பட்டா எண் <span style="color:#ef4444">*</span> (Patta No)
+            </label>
+            <input type="text" id="chittaPattaNo" value="1069" placeholder="e.g. 1069" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 700;">
+          </div>
+
+        </div>
+
+        <!-- Buttons -->
+        <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="primary" id="chittaFetchBtn" style="padding: 10px 24px; font-size: 13.5px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
+              <span>📥</span> Get Details &amp; Download PDF
+            </button>
+            <button type="button" class="ghost" id="chittaPreviewBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: not-allowed; display: flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>👁️</span> Open PDF in New Tab
+            </button>
+            <button type="button" class="ghost" id="chittaToggleEmbedBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: not-allowed; display: flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>📄</span> Toggle Inline Preview
+            </button>
+          </div>
+
+          <button type="button" class="ghost" id="chittaResetBtn" style="padding: 10px 16px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: pointer; color: var(--muted);">
+            🔄 Reset
+          </button>
+        </div>
+
+        <!-- Status Box -->
+        <div id="chittaStatusBox" style="margin-top: 16px; display: none; padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;"></div>
+
+      </div>
+
+      <!-- PDF Preview Box -->
+      <div id="chittaPreviewBox" style="display: none; background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 16px; box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <b id="chittaPreviewTitle" style="font-size: 13.5px; color: var(--ink);">📄 PDF Preview</b>
+          <a id="chittaDirectDownloadLink" href="#" download="" class="primary" style="padding: 6px 14px; font-size: 12px; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">⬇ Re-download PDF</a>
+        </div>
+        <iframe id="chittaPdfIframe" style="width: 100%; height: 650px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff;" src="about:blank"></iframe>
+      </div>
+
+    </div>
+  `;
+
+  initChittaDropdowns();
+}
+
+async function initChittaDropdowns() {
+  const distSel = document.getElementById('chittaDist');
+  const talukSel = document.getElementById('chittaTaluk');
+  const villageSel = document.getElementById('chittaVillage');
+  const bannerLoc = document.getElementById('chittaBannerLoc');
+  const fetchBtn = document.getElementById('chittaFetchBtn');
+  const previewBtn = document.getElementById('chittaPreviewBtn');
+  const toggleEmbedBtn = document.getElementById('chittaToggleEmbedBtn');
+  const resetBtn = document.getElementById('chittaResetBtn');
+  const statusBox = document.getElementById('chittaStatusBox');
+
+  const updateBanner = () => {
+    const dTxt = distSel?.options[distSel.selectedIndex]?.text || 'Ranipet';
+    const tTxt = talukSel?.options[talukSel.selectedIndex]?.text || 'Nemili';
+    if (bannerLoc) {
+      bannerLoc.textContent = `District: ${dTxt} | Taluk: ${tTxt}`;
+    }
+  };
+
+  const getTahsildarCreds = () => {
+    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary') : {};
+    return {
+      username: sec?.username || 'rpt_panneerselvam',
+      password: sec?.password || 'Taluk@123',
+      roleId: sec?.roleId || '8'
+    };
+  };
+
+  // Helper to load districts
+  const loadDistricts = async () => {
+    if (__chittaDistrictsCache && __chittaDistrictsCache.length) {
+      return __chittaDistrictsCache;
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=districts&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.districts)) {
+        __chittaDistrictsCache = data.districts;
+        return data.districts;
+      }
+    } catch (e) {
+      console.warn('Failed to load districts from API:', e);
+    }
+    return [{ id: '37', name: 'Ranipet' }];
+  };
+
+  // Helper to load taluks for district
+  const loadTaluks = async (distCode) => {
+    if (__chittaTaluksCache[distCode] && __chittaTaluksCache[distCode].length) {
+      return __chittaTaluksCache[distCode];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=taluks&distCode=${encodeURIComponent(distCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.taluks)) {
+        __chittaTaluksCache[distCode] = data.taluks;
+        return data.taluks;
+      }
+    } catch (e) {
+      console.warn(`Failed to load taluks for dist ${distCode}:`, e);
+    }
+    return distCode === '37' ? [
+      { id: '12', name: 'Nemili' },
+      { id: '03', name: 'Arakkonam' },
+      { id: '02', name: 'Arcot' },
+      { id: '13', name: 'Kalavai' },
+      { id: '14', name: 'Sholinghur' },
+      { id: '04', name: 'Walajah' }
+    ] : [];
+  };
+
+  // Helper to load villages for taluk
+  const loadVillages = async (distCode, talukCode) => {
+    const key = `${distCode}_${talukCode}`;
+    if (__chittaVillagesCache[key] && __chittaVillagesCache[key].length) {
+      return __chittaVillagesCache[key];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.villages)) {
+        __chittaVillagesCache[key] = data.villages;
+        return data.villages;
+      }
+    } catch (e) {
+      console.warn(`Failed to load villages for ${key}:`, e);
+    }
+    return (distCode === '37' && talukCode === '12') ? [
+      { id: '045', name: 'Karivedu' },
+      { id: '122', name: 'Nemili' },
+      { id: '034', name: 'Kaveripakkam' },
+      { id: '053', name: 'Panappakkam' },
+      { id: '046', name: 'Avalur' }
+    ] : [];
+  };
+
+  // Populate Districts
+  const districts = await loadDistricts();
+  if (distSel) {
+    distSel.innerHTML = districts.map(d => `<option value="${d.id}" ${d.id === '37' ? 'selected' : ''}>${esc(d.name)} (${d.id})</option>`).join('');
+  }
+
+  // Populate Taluks for initial district
+  const populateTaluks = async (distCode, preferredTaluk = '12') => {
+    if (!talukSel) return;
+    talukSel.innerHTML = '<option value="">⏳ Loading taluks...</option>';
+    const taluks = await loadTaluks(distCode);
+    if (!taluks.length) {
+      talukSel.innerHTML = '<option value="">No taluks found</option>';
+      return;
+    }
+    talukSel.innerHTML = taluks.map(t => `<option value="${t.id}" ${t.id === preferredTaluk ? 'selected' : ''}>${esc(t.name)} (${t.id})</option>`).join('');
+    if (!talukSel.value && taluks.length) {
+      talukSel.value = taluks[0].id;
+    }
+    updateBanner();
+    await populateVillages(distCode, talukSel.value);
+  };
+
+  // Populate Villages for initial taluk
+  const populateVillages = async (distCode, talukCode, preferredVillage = '045') => {
+    if (!villageSel) return;
+    villageSel.innerHTML = '<option value="">⏳ Loading villages...</option>';
+    const villages = await loadVillages(distCode, talukCode);
+    if (!villages.length) {
+      villageSel.innerHTML = '<option value="">No villages found</option>';
+      return;
+    }
+    villageSel.innerHTML = villages.map(v => `<option value="${v.id}" ${v.id === preferredVillage ? 'selected' : ''}>${esc(v.name)} (${v.id})</option>`).join('');
+    if (!villageSel.value && villages.length) {
+      villageSel.value = villages[0].id;
+    }
+  };
+
+  // Initial Load
+  const initDist = distSel?.value || '37';
+  await populateTaluks(initDist, '12');
+
+  // District Change Event
+  distSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateTaluks(distSel.value);
+  });
+
+  // Taluk Change Event
+  talukSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateVillages(distSel.value, talukSel.value);
+  });
+
+  // Reset Button
+  resetBtn?.addEventListener('click', async () => {
+    if (distSel) distSel.value = '37';
+    const typeSel = document.getElementById('chittaType');
+    if (typeSel) typeSel.value = 'N';
+    const pattaInp = document.getElementById('chittaPattaNo');
+    if (pattaInp) pattaInp.value = '1069';
+    await populateTaluks('37', '12');
+    if (statusBox) { statusBox.style.display = 'none'; statusBox.textContent = ''; }
+  });
+
+  // Fetch / Download PDF Click
+  fetchBtn?.addEventListener('click', async () => {
+    const distCode = distSel?.value || '37';
+    const talukCode = talukSel?.value || '12';
+    const villageCode = villageSel?.value || '045';
+    const transType = document.getElementById('chittaType')?.value || 'N';
+    const pattaNo = (document.getElementById('chittaPattaNo')?.value || '').trim();
+
+    if (!pattaNo) {
+      toast('Patta Number Required', 'Please enter a valid Patta number.', 'warn');
+      document.getElementById('chittaPattaNo')?.focus();
+      return;
+    }
+
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = '#eff6ff';
+      statusBox.style.color = '#1d4ed8';
+      statusBox.style.border = '1px solid #bfdbfe';
+      statusBox.innerHTML = '⏳ <b>Connecting to Tamil Nilam Portal:</b> Fetching Chitta Extract PDF for Patta ' + esc(pattaNo) + '...';
+    }
+    fetchBtn.disabled = true;
+    fetchBtn.style.opacity = '0.7';
+
+    try {
+      const creds = getTahsildarCreds();
+      const url = `/api/chitta?mode=download&transType=${encodeURIComponent(transType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+      
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.success || !data.base64) {
+        throw new Error(data.error || 'Failed to download Chitta PDF from Tamil Nilam portal');
+      }
+
+      // Convert Base64 to Blob
+      const binaryString = atob(data.base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      
+      if (__chittaCurrentPdfBlobUrl) {
+        URL.revokeObjectURL(__chittaCurrentPdfBlobUrl);
+      }
+      __chittaCurrentPdfBlobUrl = URL.createObjectURL(blob);
+      __chittaCurrentFilename = data.filename || `Chitta_Extract_${pattaNo}.pdf`;
+
+      // Auto trigger download
+      const dlLink = document.createElement('a');
+      dlLink.href = __chittaCurrentPdfBlobUrl;
+      dlLink.download = __chittaCurrentFilename;
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      dlLink.remove();
+
+      // Update UI
+      const kb = (blob.size / 1024).toFixed(1);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#ecfdf5';
+        statusBox.style.color = '#065f46';
+        statusBox.style.border = '1px solid #a7f3d0';
+        statusBox.innerHTML = `✓ <b>Success!</b> Chitta PDF downloaded: <b>${esc(__chittaCurrentFilename)}</b> (${kb} KB).`;
+      }
+
+      toast('Chitta Downloaded', `Successfully downloaded ${__chittaCurrentFilename}`, 'ok');
+
+      // Enable preview buttons
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        previewBtn.style.opacity = '1';
+        previewBtn.style.cursor = 'pointer';
+      }
+      if (toggleEmbedBtn) {
+        toggleEmbedBtn.disabled = false;
+        toggleEmbedBtn.style.opacity = '1';
+        toggleEmbedBtn.style.cursor = 'pointer';
+      }
+
+      // Prepare preview box
+      const previewBox = document.getElementById('chittaPreviewBox');
+      const previewTitle = document.getElementById('chittaPreviewTitle');
+      const directDl = document.getElementById('chittaDirectDownloadLink');
+      const iframe = document.getElementById('chittaPdfIframe');
+
+      if (previewTitle) previewTitle.textContent = `📄 PDF Preview: ${__chittaCurrentFilename} (${kb} KB)`;
+      if (directDl) {
+        directDl.href = __chittaCurrentPdfBlobUrl;
+        directDl.download = __chittaCurrentFilename;
+      }
+      if (iframe) {
+        iframe.src = __chittaCurrentPdfBlobUrl;
+      }
+      if (previewBox) {
+        previewBox.style.display = 'block';
+      }
+
+    } catch (err) {
+      console.error('Chitta download error:', err);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#fef2f2';
+        statusBox.style.color = '#b91c1c';
+        statusBox.style.border = '1px solid #fecaca';
+        statusBox.innerHTML = `✕ <b>Failed:</b> ${esc(err.message)}`;
+      }
+      toast('Download Failed', err.message, 'err');
+    } finally {
+      fetchBtn.disabled = false;
+      fetchBtn.style.opacity = '1';
+    }
+  });
+
+  // Open in New Tab Button
+  previewBtn?.addEventListener('click', () => {
+    if (__chittaCurrentPdfBlobUrl) {
+      window.open(__chittaCurrentPdfBlobUrl, '_blank');
+    }
+  });
+
+  // Toggle Inline Preview Button
+  toggleEmbedBtn?.addEventListener('click', () => {
+    const previewBox = document.getElementById('chittaPreviewBox');
+    if (previewBox) {
+      previewBox.style.display = (previewBox.style.display === 'none') ? 'block' : 'none';
+    }
+  });
 }
 
 /* ============================================================
@@ -5929,6 +6368,10 @@ document.getElementById('acctBack').addEventListener('click', closeAcct);
 document.getElementById('pwSave').addEventListener('click', changePassword);
 document.getElementById('pwReset').addEventListener('click', sendOwnReset);
 document.getElementById('usersBtn').addEventListener('click', openUsersPanel);
+document.getElementById('chittaMenuBtn')?.addEventListener('click', () => {
+  ADMIN_TAB = 'chitta';
+  openUsersPanel();
+});
 document.getElementById('usersClose').addEventListener('click', closeUsersPanel);
 document.getElementById('usersBack').addEventListener('click', closeUsersPanel);
 document.getElementById('usersTabs').addEventListener('click', e=>{
