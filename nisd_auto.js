@@ -758,10 +758,14 @@
   function groupAppsByVillageForISD(apps) {
     const map = new Map();
     apps.forEach(app => {
-      const vName = (app.village_name || 'Unknown').trim();
+      const vName = (app.village_name || app.village || 'Unknown').trim();
+      const tName = (app.taluk_name || app.taluk || '').trim();
       if (!map.has(vName)) {
         map.set(vName, {
+          label: vName,
           village: vName,
+          taluk: tName,
+          surv: 0, vao: 0, lrd: 0, dis: 0, thl: 0, all: 0,
           rtr: 0, str: 0, total: 0,
           sur_rtr: 0, sur_str: 0, total_sur: 0,
           lrd_rtr: 0, lrd_str: 0, total_lrd: 0,
@@ -771,28 +775,35 @@
         });
       }
       const item = map.get(vName);
+      if (!item.taluk && tName) item.taluk = tName;
       const isRtr = (app.rtr_str || '').toUpperCase() === 'R';
       const role = String(app.role_name || app.pending_at || '').trim().toUpperCase();
 
       if (isRtr) item.rtr++;
       else item.str++;
       item.total++;
+      item.all++;
 
       if (role.includes('SURVEYOR') || role.includes('SUR')) {
         if (isRtr) item.sur_rtr++; else item.sur_str++;
         item.total_sur++;
+        item.surv++;
       } else if (role.includes('LRD')) {
         if (isRtr) item.lrd_rtr++; else item.lrd_str++;
         item.total_lrd++;
+        item.lrd++;
       } else if (role.includes('DIS') || role.includes('DISTRICT')) {
         if (isRtr) item.dis_rtr++; else item.dis_str++;
         item.total_dis++;
+        item.dis++;
       } else if (role.includes('THL') || role.includes('TAHSILDAR') || role.includes('TASHILDAR')) {
         if (isRtr) item.thl_rtr++; else item.thl_str++;
         item.total_thl++;
+        item.thl++;
       } else {
         if (isRtr) item.vao_rtr++; else item.vao_str++;
         item.total_vao++;
+        item.vao++;
       }
     });
 
@@ -800,7 +811,15 @@
     let footer = null;
     if (rows.length > 0) {
       footer = {
+        label: 'Total',
         village: 'Total',
+        taluk: '',
+        surv: rows.reduce((s, r) => s + r.surv, 0),
+        vao: rows.reduce((s, r) => s + r.vao, 0),
+        lrd: rows.reduce((s, r) => s + r.lrd, 0),
+        dis: rows.reduce((s, r) => s + r.dis, 0),
+        thl: rows.reduce((s, r) => s + r.thl, 0),
+        all: rows.reduce((s, r) => s + r.all, 0),
         rtr: rows.reduce((s, r) => s + r.rtr, 0),
         str: rows.reduce((s, r) => s + r.str, 0),
         total: rows.reduce((s, r) => s + r.total, 0),
@@ -1237,7 +1256,77 @@
     tableWrap.innerHTML = html;
   }
 
+  function buildVillageOptWorkbook(grouped, title) {
+    const ws_data = [
+      [title],
+      ['S.No.', 'Taluk Name', 'Village Name', 'TOTAL RTR', 'TOTAL STR', 'TOTAL Total',
+       'SURVEYOR RTR', 'SURVEYOR STR', 'SURVEYOR Total',
+       'LRD RTR', 'LRD STR', 'LRD Total',
+       'DIS RTR', 'DIS STR', 'DIS Total',
+       'THL RTR', 'THL STR', 'THL Total',
+       'VAO RTR', 'VAO STR', 'VAO Total']
+    ];
+    grouped.rows.forEach((r, idx) => {
+      ws_data.push([
+        idx + 1, r.taluk || '', r.label || r.village || '',
+        r.rtr || 0, r.str || 0, r.total || 0,
+        r.sur_rtr || 0, r.sur_str || 0, r.surv || r.total_sur || 0,
+        r.lrd_rtr || 0, r.lrd_str || 0, r.lrd || r.total_lrd || 0,
+        r.dis_rtr || 0, r.dis_str || 0, r.dis || r.total_dis || 0,
+        r.thl_rtr || 0, r.thl_str || 0, r.thl || r.total_thl || 0,
+        r.vao_rtr || 0, r.vao_str || 0, r.vao || r.total_vao || 0
+      ]);
+    });
+    if (grouped.footer) {
+      const f = grouped.footer;
+      ws_data.push([
+        'Total', '', 'Total',
+        f.rtr || 0, f.str || 0, f.total || 0,
+        f.sur_rtr || 0, f.sur_str || 0, f.surv || f.total_sur || 0,
+        f.lrd_rtr || 0, f.lrd_str || 0, f.lrd || f.total_lrd || 0,
+        f.dis_rtr || 0, f.dis_str || 0, f.dis || f.total_dis || 0,
+        f.thl_rtr || 0, f.thl_str || 0, f.thl || f.total_thl || 0,
+        f.vao_rtr || 0, f.vao_str || 0, f.vao || f.total_vao || 0
+      ]);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Pending Report');
+    return wb;
+  }
+
   function handleExportExcel() {
+    const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const serviceGroup = document.querySelector('input[name="tnServiceGroup"]:checked')?.value || 'OPT';
+    const isRuralIsd = serviceGroup === 'OPT' && optType === 'I';
+
+    // If exporting ISD Rural with raw applications, download the 3 day-range files (30d+, 25-29d, <25d)
+    if (isRuralIsd && currentReportData && Array.isArray(currentReportData.applications) && currentReportData.applications.length > 0) {
+      const rawApps = currentReportData.applications;
+      const b30 = [], b25 = [], bBelow25 = [];
+      rawApps.forEach(app => {
+        const days = calculatePendingDays(app);
+        if (days >= 30) b30.push(app);
+        else if (days >= 25) b25.push(app);
+        else bBelow25.push(app);
+      });
+      const isd30 = groupAppsByVillageForISD(b30);
+      const isd25 = groupAppsByVillageForISD(b25);
+      const isdBelow25 = groupAppsByVillageForISD(bBelow25);
+
+      if (typeof window.XLSX !== 'undefined') {
+        const wbBelow25 = buildVillageOptWorkbook(isdBelow25, `OPT PENDING - 25 DAYS BELOW (${bBelow25.length} apps)`);
+        const wb25 = buildVillageOptWorkbook(isd25, `OPT PENDING - 25 DAYS ABOVE (${b25.length} apps)`);
+        const wb30 = buildVillageOptWorkbook(isd30, `OPT PENDING - 30 DAYS ABOVE (${b30.length} apps)`);
+
+        XLSX.writeFile(wbBelow25, `TamilNilam_ISD_Rural_25DaysBelow.xlsx`);
+        setTimeout(() => XLSX.writeFile(wb25, `TamilNilam_ISD_Rural_25DaysAbove.xlsx`), 300);
+        setTimeout(() => XLSX.writeFile(wb30, `TamilNilam_ISD_Rural_30DaysAbove.xlsx`), 600);
+        showStatus(`✓ Exported 3 files: 25 Days below (${bBelow25.length}), 25 Days above (${b25.length}), 30 Days above (${b30.length})`, 'ok');
+        return;
+      }
+    }
+
     const table = document.getElementById('tnExportTable');
     if (!table) return;
 
@@ -1429,17 +1518,26 @@
           asOn
         };
 
-        window.store['opt0'] = dataBelow25;
-        window.store['opt_0_0'] = dataBelow25;
-        window.store['opt1'] = data25Above;
-        window.store['opt_0_1'] = data25Above;
-        window.store['opt2'] = data30Above;
-        window.store['opt_0_2'] = data30Above;
-
-        if (typeof window.markLoaded === 'function') {
-          window.markLoaded('opt0', dataBelow25.name, isdBelow25.rows.length, false);
-          window.markLoaded('opt1', data25Above.name, isd25.rows.length, false);
-          window.markLoaded('opt2', data30Above.name, isd30.rows.length, false);
+        if (bucket25Below.length > 0 || !window.store['opt0']) {
+          window.store['opt0'] = dataBelow25;
+          window.store['opt_0_0'] = dataBelow25;
+          if (typeof window.markLoaded === 'function') {
+            window.markLoaded('opt0', dataBelow25.name, isdBelow25.rows.length, false);
+          }
+        }
+        if (bucket25Above.length > 0 || !window.store['opt1']) {
+          window.store['opt1'] = data25Above;
+          window.store['opt_0_1'] = data25Above;
+          if (typeof window.markLoaded === 'function') {
+            window.markLoaded('opt1', data25Above.name, isd25.rows.length, false);
+          }
+        }
+        if (bucket30Above.length > 0 || !window.store['opt2']) {
+          window.store['opt2'] = data30Above;
+          window.store['opt_0_2'] = data30Above;
+          if (typeof window.markLoaded === 'function') {
+            window.markLoaded('opt2', data30Above.name, isd30.rows.length, false);
+          }
         }
 
         if (typeof window.updateRail === 'function') window.updateRail();

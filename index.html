@@ -1022,7 +1022,7 @@
   <div id="warnings" class="no-print"></div>
 
   <div class="card" id="isdCard">
-    <h2 class="no-print"><span class="step">2</span> <span id="isdCardTitle">Taluk ISD Pending Details</span> <span class="grow"></span><span style="text-transform:none; letter-spacing:0; font-size:11.5px">from the four OPT Pending exports + status PDF</span></h2>
+    <h2 class="no-print"><span class="step">2</span> <span id="isdCardTitle">Taluk ISD Pending Details</span> <span class="grow"></span><span style="text-transform:none; letter-spacing:0; font-size:11.5px">from the three OPT Pending exports (30d+ / 25d+ / &lt;25d) + status PDF</span></h2>
     <p class="repnote no-print" id="isdNote"></p>
     <div class="print-only print-header" id="isdPrintHeader" style="text-align:center; margin-bottom:10px">
       <img class="logo" src="/logo.jpg" alt="TN Govt Emblem">
@@ -3121,38 +3121,48 @@ function aggregateIsdRural(){
     let sSum = 0, vSum = 0;
 
     f.rows.forEach(r=>{
-      if(!inTaluk(r.taluk)) return;
-      const other = r.lrd + r.dis + r.thl;
-      if(other > 0) otherRoles.set(r.label, (otherRoles.get(r.label)||0) + other);
+      const label = r.label || r.village || r.villageName || r.village_name || '';
+      const taluk = r.taluk || r.talukName || r.taluk_name || '';
+      if(!inTaluk(taluk)) return;
+      const surv = (r.surv != null ? r.surv : (r.total_sur != null ? r.total_sur : (r.sur != null ? r.sur : 0)));
+      const vao  = (r.vao  != null ? r.vao  : (r.total_vao  != null ? r.total_vao  : 0));
+      const lrd  = (r.lrd  != null ? r.lrd  : (r.total_lrd  != null ? r.total_lrd  : 0));
+      const dis  = (r.dis  != null ? r.dis  : (r.total_dis  != null ? r.total_dis  : 0));
+      const thl  = (r.thl  != null ? r.thl  : (r.total_thl  != null ? r.total_thl  : 0));
 
-      const pk = norm(r.label) || r.label;
-      const pv = pendingByVillage.get(pk) || {surv:0, vao:0, label:r.label};
-      pv.surv += r.surv; pv.vao += r.vao; pendingByVillage.set(pk, pv);
+      const other = lrd + dis + thl;
+      if(other > 0) otherRoles.set(label, (otherRoles.get(label)||0) + other);
 
-      if(r.surv > 0){
-        sSum += r.surv;
-        const name = lookupVillage(r.label, villageL);
-        if(!name) noSurveyor.add(r.label);
+      const pk = norm(label) || label;
+      const pv = pendingByVillage.get(pk) || {surv:0, vao:0, label:label};
+      pv.surv += surv; pv.vao += vao; pendingByVillage.set(pk, pv);
+
+      if(surv > 0){
+        sSum += surv;
+        const name = lookupVillage(label, villageL);
+        if(!name) noSurveyor.add(label);
         else{
-          const rec = get(surveyors, name), v = addVillage(rec, r.label);
-          rec.b[bk] += r.surv; rec.pending += r.surv;
-          v.b[bk]   += r.surv; v.pending   += r.surv;
+          const rec = get(surveyors, name), v = addVillage(rec, label);
+          rec.b[bk] += surv; rec.pending += surv;
+          v.b[bk]   += surv; v.pending   += surv;
         }
       }
-      if(r.vao > 0){
-        vSum += r.vao;
-        const name = lookupVillage(r.label, vaoL);
-        if(!name) noVao.add(r.label);
-        const rec = get(vaos, name || 'VAO — name not listed'), v = addVillage(rec, r.label);
-        rec.b[bk] += r.vao; rec.pending += r.vao;
-        v.b[bk]   += r.vao; v.pending   += r.vao;
+      if(vao > 0){
+        vSum += vao;
+        const name = lookupVillage(label, vaoL);
+        if(!name) noVao.add(label);
+        const rec = get(vaos, name || 'VAO — name not listed'), v = addVillage(rec, label);
+        rec.b[bk] += vao; rec.pending += vao;
+        v.b[bk]   += vao; v.pending   += vao;
       }
     });
 
     slotTotals[slot.key] = {surv:sSum, vao:vSum};
     if(f.footer){
-      slotChecks.push({slot, fileSurv:f.footer.surv, fileVao:f.footer.vao, gotSurv:sSum, gotVao:vSum,
-                       okSurv:f.footer.surv === sSum, okVao:f.footer.vao === vSum});
+      const fSurv = (f.footer.surv != null ? f.footer.surv : (f.footer.total_sur != null ? f.footer.total_sur : sSum));
+      const fVao  = (f.footer.vao  != null ? f.footer.vao  : (f.footer.total_vao  != null ? f.footer.total_vao  : vSum));
+      slotChecks.push({slot, fileSurv:fSurv, fileVao:fVao, gotSurv:sSum, gotVao:vSum,
+                       okSurv:fSurv === sSum, okVao:fVao === vSum});
     }
   });
 
