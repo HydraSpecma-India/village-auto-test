@@ -856,6 +856,7 @@
     <button data-tab="files">📁 Stored Cloud Files</button>
     <button data-tab="creds">🔑 Tamil Nilam Credentials</button>
     <button data-tab="chitta">📜 Chitta Extract (Tahsildar)</button>
+    <button data-tab="eservices">🌐 e-Services (No OTP)</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
 </aside>
@@ -906,6 +907,7 @@
       </label>
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center to configure dates &amp; pull reports for selected Taluk">⚡ Flash Fill Control Center</button>
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
+      <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
     </div>
     <div class="topbar-actions">
       <span class="whoami" id="whoami" style="display:none"></span>
@@ -4175,6 +4177,7 @@ function renderAdminTabs(){
   else if(ADMIN_TAB === 'files') renderFiles();
   else if(ADMIN_TAB === 'creds') renderTnCredsTab();
   else if(ADMIN_TAB === 'chitta') renderChittaTab();
+  else if(ADMIN_TAB === 'eservices') renderEservicesTab();
 }
 
 /* A person can be given any number of taluks. Nothing ticked means no limit. */
@@ -5087,6 +5090,588 @@ async function initChittaDropdowns() {
     }
   });
 }
+
+/* ---------- e-Services Portal (Without OTP) ---------- */
+let __eservCurrentPdfBlobUrl = null;
+let __eservCurrentFilename = '';
+
+function renderEservicesTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div id="eservPortalWrapper" style="max-width: 960px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      
+      <!-- TN e-Services Header Banner (Faithful to eservices.tn.gov.in) -->
+      <div style="background: linear-gradient(135deg, #0b4d75 0%, #0e3d59 60%, #08293d 100%); color: #fff; border-radius: 12px; padding: 18px 22px; box-shadow: 0 4px 14px rgba(11, 77, 117, 0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+          
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="background: #fff; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
+              <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 54px; width: 54px; object-fit: contain; border-radius: 50%;">
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #7dd3fc; letter-spacing: 0.5px;">தமிழ்நாடு அரசு • Government of Tamil Nadu</div>
+              <h2 style="margin: 2px 0 0; font-size: 19px; font-weight: 800; color: #fff; letter-spacing: 0.2px;">எங்கிருந்தும் எந்நேரத்திலும் இணையவழி சேவைகள்</h2>
+              <div style="font-size: 12.5px; opacity: 0.9; margin-top: 2px; color: #e0f2fe;">நில அளவை மற்றும் நிலவரித்திட்ட ஆணையரகம் (Commissionerate of Survey and Settlement)</div>
+            </div>
+          </div>
+
+          <!-- Font Size Adjusters & Portal Badge -->
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.15); border-radius: 6px; padding: 2px 6px; font-size: 11px;">
+              <button type="button" id="eservFontPlus" style="background:none; border:none; color:#fff; cursor:pointer; font-weight:700; padding:2px 6px;" title="Increase Font">A+</button>
+              <span style="opacity:0.5;">|</span>
+              <button type="button" id="eservFontNorm" style="background:none; border:none; color:#fff; cursor:pointer; font-weight:700; padding:2px 6px;" title="Normal Font">A</button>
+              <span style="opacity:0.5;">|</span>
+              <button type="button" id="eservFontMinus" style="background:none; border:none; color:#fff; cursor:pointer; font-weight:700; padding:2px 6px;" title="Decrease Font">A-</button>
+            </div>
+            <span style="background: #10b981; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.3px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 5px rgba(16,185,129,0.3);">
+              <span>⚡</span> NO OTP REQUIRED
+            </span>
+          </div>
+
+        </div>
+
+        <!-- Subheader strip -->
+        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px;">
+          <span style="font-weight: 700; color: #fef08a;">
+            நிலப் பதிவேடு - நில உரிமை (பட்டா / சிட்டா / புலப்படம்) விவரங்களை பார்வையிட
+          </span>
+          <span id="eservBannerLoc" style="font-weight: 600; color: #e2e8f0; font-size: 12px;">மாவட்டம்: Ranipet | வட்டம்: Nemili</span>
+        </div>
+      </div>
+
+      <!-- Main Form Card (Matches authentic e-Services layout) -->
+      <div style="background: #eef7fc; border: 1.5px solid #b2d8f0; border-radius: 12px; padding: 22px 26px; box-shadow: 0 4px 12px rgba(14, 61, 89, 0.08);">
+        
+        <!-- Form Fields Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px;">
+          
+          <!-- District -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+              மாவட்டம் <span style="color:#ef4444">*</span> (District)
+            </label>
+            <select id="eservDist" style="padding: 10px 12px; border-radius: 8px; border: 1px solid #94c5e3; background: #fff; color: #0f172a; font-size: 13px; font-weight: 600; outline: none;">
+              <option value="37">Ranipet (37)</option>
+            </select>
+          </div>
+
+          <!-- Taluk -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+              வட்டம் <span style="color:#ef4444">*</span> (Taluk)
+            </label>
+            <select id="eservTaluk" style="padding: 10px 12px; border-radius: 8px; border: 1px solid #94c5e3; background: #fff; color: #0f172a; font-size: 13px; font-weight: 600; outline: none;">
+              <option value="12">Nemili (12)</option>
+            </select>
+          </div>
+
+          <!-- Village -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+              கிராமம் <span style="color:#ef4444">*</span> (Village)
+            </label>
+            <select id="eservVillage" style="padding: 10px 12px; border-radius: 8px; border: 1px solid #94c5e3; background: #fff; color: #0f172a; font-size: 13px; font-weight: 600; outline: none;">
+              <option value="045">Karivedu (045)</option>
+            </select>
+          </div>
+
+        </div>
+
+        <div style="margin: 18px 0; height: 1px; background: #d0e7f7;"></div>
+
+        <!-- Radios: Land Type and View Mode -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+          
+          <!-- Land Type Radio -->
+          <div style="background: #fff; border: 1px solid #c4e1f4; border-radius: 10px; padding: 14px 16px;">
+            <div style="font-weight: 700; font-size: 13px; color: #0e3d59; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>🏡</span> நில வகை <span style="color:#ef4444">*</span> (Land Type)
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
+                <input type="radio" name="eservLandType" value="N" checked style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>நத்தம் (Natham)</span>
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
+                <input type="radio" name="eservLandType" value="R" style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>கிராமப்புறம் (Rural)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- View Mode Radio -->
+          <div style="background: #fff; border: 1px solid #c4e1f4; border-radius: 10px; padding: 14px 16px;">
+            <div style="font-weight: 700; font-size: 13px; color: #0e3d59; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>📑</span> விவரங்களை பார்வையிட <span style="color:#ef4444">*</span> (View By)
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
+                <input type="radio" name="eservViewType" value="patta" checked style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>பட்டா எண் (Patta No)</span>
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; cursor: pointer;">
+                <input type="radio" name="eservViewType" value="survey" style="accent-color: #0284c7; width: 17px; height: 17px;">
+                <span>புல எண் (Survey No)</span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Conditional Input Fields -->
+        <div style="margin-top: 18px; background: #fff; border: 1px solid #c4e1f4; border-radius: 10px; padding: 18px 20px;">
+          
+          <!-- Patta No Input Row -->
+          <div id="eservPattaContainer" style="display: flex; flex-direction: column; gap: 8px; max-width: 400px;">
+            <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+              பட்டா எண் <span style="color:#ef4444">*</span> (Patta Number)
+            </label>
+            <input type="text" id="eservPattaNo" value="1069" placeholder="எ.கா. 1069" maxlength="10" style="padding: 10px 14px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 14px; font-weight: 800; outline: none;">
+            <span style="font-size: 11.5px; color: #64748b;">குறிப்பிட்ட கிராமத்தின் பட்டா எண்ணை உள்ளிடவும்.</span>
+          </div>
+
+          <!-- Survey No & Sub-division Input Row (Hidden initially) -->
+          <div id="eservSurveyContainer" style="display: none; flex-direction: column; gap: 14px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+                  புல எண் <span style="color:#ef4444">*</span> (Survey Number)
+                </label>
+                <input type="text" id="eservSurveyNo" value="134" placeholder="எ.கா. 134" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+                  உட்பிரிவு எண் (Sub-division Number)
+                </label>
+                <input type="text" id="eservSubDivNo" value="172" placeholder="எ.கா. 172" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #94c5e3; background: #f8fafc; color: #0f172a; font-size: 13.5px; font-weight: 700; outline: none;">
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-weight: 700; font-size: 13px; color: #0e3d59;">
+                  பட்டா எண் (Patta No) <span style="font-size:11px; font-weight:400; color:#0284c7;">(பரிந்துரைக்கப்பட்டது)</span>
+                </label>
+                <input type="text" id="eservSurveyPattaNo" value="1069" placeholder="எ.கா. 1069" maxlength="10" style="padding: 10px 12px; border-radius: 8px; border: 1.5px solid #0284c7; background: #f0fdf4; color: #0f172a; font-size: 13.5px; font-weight: 800; outline: none;">
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; border-left: 3px solid #0284c7; padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 12px; color: #475569;">
+              ℹ️ அதிகாரப்பூர்வ சான்றிதழ் அச்சிட பட்டா எண் அவசியமாகும். புல எண் தேர்வு செய்யும்போது தொடர்புடைய பட்டா எண்ணை உள்ளிட்டு சமர்ப்பிக்கலாம்.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Green Banner: OTP Bypass Notice (Replaces the SMS / OTP verification on eservices site) -->
+        <div style="margin-top: 18px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
+          <div style="background: #22c55e; color: #fff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(34,197,94,0.3);">
+            ✓
+          </div>
+          <div>
+            <div style="font-weight: 800; font-size: 13.5px; color: #166534; display: flex; align-items: center; gap: 8px;">
+              <span>கைபேசி எண் &amp; OTP சரிபார்ப்பு முறை தேவையில்லை (OTP Bypassed)</span>
+              <span style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 12px;">Active</span>
+            </div>
+            <div style="font-size: 12px; color: #15803d; margin-top: 2px;">
+              அசல் இணையதளத்தில் (eservices.tn.gov.in) கேட்கப்படும் அலைபேசி எண் மற்றும் OTP தேவையின்றி, நேரடியாக தமிழ்நாடு அரசு நில அளவை சான்றிதழ் PDF-ஐ பதிவிறக்கம் செய்துகொள்ளலாம்.
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons Bar -->
+        <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid #d0e7f7; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="primary" id="eservSubmitBtn" style="padding: 11px 26px; font-size: 14px; font-weight: 800; border-radius: 8px; background: linear-gradient(135deg, #0e7490, #155e75); color: #fff; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(14,116,144,0.35);">
+              <span>📥</span> சமர்ப்பிக்க / Get Official PDF
+            </button>
+            <button type="button" class="ghost" id="eservPreviewBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #94c5e3; background: #fff; cursor: not-allowed; display: inline-flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>👁️</span> புதிய தாவலில் திறக்க (Open in Tab)
+            </button>
+            <button type="button" class="ghost" id="eservToggleEmbedBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #94c5e3; background: #fff; cursor: not-allowed; display: inline-flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>📄</span> மாதிரிக்காட்சி (Toggle Preview)
+            </button>
+          </div>
+
+          <button type="button" class="ghost" id="eservResetBtn" style="padding: 10px 16px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; color: #475569;">
+            🔄 மீட்டமைக்க (Reset)
+          </button>
+        </div>
+
+        <!-- Status Message Box -->
+        <div id="eservStatusBox" style="margin-top: 16px; display: none; padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;"></div>
+
+      </div>
+
+      <!-- Embedded PDF Preview Box -->
+      <div id="eservPreviewBox" style="display: none; background: #fff; border-radius: 12px; border: 1.5px solid #b2d8f0; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">📜</span>
+            <b id="eservPreviewTitle" style="font-size: 14px; color: #0e3d59;">அதிகாரப்பூர்வ பட்டா / சிட்டா சான்றிதழ் பார்வை</b>
+          </div>
+          <a id="eservDirectDlLink" href="#" download="" class="primary" style="padding: 7px 16px; font-size: 12.5px; font-weight: 700; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; background: #0284c7; color: #fff;">
+            ⬇ மீண்டும் பதிவிறக்க (Re-download)
+          </a>
+        </div>
+        <iframe id="eservPdfIframe" style="width: 100%; height: 680px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc;" src="about:blank"></iframe>
+      </div>
+
+    </div>
+  `;
+
+  initEservicesDropdowns();
+}
+
+async function initEservicesDropdowns() {
+  const distSel = document.getElementById('eservDist');
+  const talukSel = document.getElementById('eservTaluk');
+  const villageSel = document.getElementById('eservVillage');
+  const bannerLoc = document.getElementById('eservBannerLoc');
+  const submitBtn = document.getElementById('eservSubmitBtn');
+  const previewBtn = document.getElementById('eservPreviewBtn');
+  const toggleEmbedBtn = document.getElementById('eservToggleEmbedBtn');
+  const resetBtn = document.getElementById('eservResetBtn');
+  const statusBox = document.getElementById('eservStatusBox');
+  const pattaContainer = document.getElementById('eservPattaContainer');
+  const surveyContainer = document.getElementById('eservSurveyContainer');
+
+  // Font resize handler
+  const portalWrap = document.getElementById('eservPortalWrapper');
+  document.getElementById('eservFontPlus')?.addEventListener('click', () => {
+    if (portalWrap) portalWrap.style.fontSize = '15px';
+  });
+  document.getElementById('eservFontNorm')?.addEventListener('click', () => {
+    if (portalWrap) portalWrap.style.fontSize = '13px';
+  });
+  document.getElementById('eservFontMinus')?.addEventListener('click', () => {
+    if (portalWrap) portalWrap.style.fontSize = '11.5px';
+  });
+
+  // Toggle Patta vs Survey view fields
+  document.querySelectorAll('input[name="eservViewType"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const mode = document.querySelector('input[name="eservViewType"]:checked')?.value || 'patta';
+      if (mode === 'patta') {
+        if (pattaContainer) pattaContainer.style.display = 'flex';
+        if (surveyContainer) surveyContainer.style.display = 'none';
+      } else {
+        if (pattaContainer) pattaContainer.style.display = 'none';
+        if (surveyContainer) surveyContainer.style.display = 'flex';
+      }
+    });
+  });
+
+  const updateBanner = () => {
+    const dTxt = distSel?.options[distSel.selectedIndex]?.text || 'Ranipet';
+    const tTxt = talukSel?.options[talukSel.selectedIndex]?.text || 'Nemili';
+    if (bannerLoc) {
+      bannerLoc.textContent = `மாவட்டம்: ${dTxt} | வட்டம்: ${tTxt}`;
+    }
+  };
+
+  const getTahsildarCreds = () => {
+    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary') : {};
+    return {
+      username: sec?.username || 'rpt_panneerselvam',
+      password: sec?.password || 'Taluk@123',
+      roleId: sec?.roleId || '8'
+    };
+  };
+
+  // Helper to load districts
+  const loadDistricts = async () => {
+    if (__chittaDistrictsCache && __chittaDistrictsCache.length) {
+      return __chittaDistrictsCache;
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=districts&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.districts)) {
+        __chittaDistrictsCache = data.districts;
+        return data.districts;
+      }
+    } catch (e) {
+      console.warn('Failed to load districts from API:', e);
+    }
+    return [{ id: '37', name: 'Ranipet' }];
+  };
+
+  // Helper to load taluks for district
+  const loadTaluks = async (distCode) => {
+    if (__chittaTaluksCache[distCode] && __chittaTaluksCache[distCode].length) {
+      return __chittaTaluksCache[distCode];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=taluks&distCode=${encodeURIComponent(distCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.taluks)) {
+        __chittaTaluksCache[distCode] = data.taluks;
+        return data.taluks;
+      }
+    } catch (e) {
+      console.warn(`Failed to load taluks for dist ${distCode}:`, e);
+    }
+    return distCode === '37' ? [
+      { id: '12', name: 'Nemili' },
+      { id: '03', name: 'Arakkonam' },
+      { id: '02', name: 'Arcot' },
+      { id: '13', name: 'Kalavai' },
+      { id: '14', name: 'Sholinghur' },
+      { id: '04', name: 'Walajah' }
+    ] : [];
+  };
+
+  // Helper to load villages for taluk
+  const loadVillages = async (distCode, talukCode) => {
+    const key = `${distCode}_${talukCode}`;
+    if (__chittaVillagesCache[key] && __chittaVillagesCache[key].length) {
+      return __chittaVillagesCache[key];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/chitta?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.villages)) {
+        __chittaVillagesCache[key] = data.villages;
+        return data.villages;
+      }
+    } catch (e) {
+      console.warn(`Failed to load villages for ${key}:`, e);
+    }
+    return (distCode === '37' && talukCode === '12') ? [
+      { id: '045', name: 'Karivedu' },
+      { id: '122', name: 'Nemili' },
+      { id: '034', name: 'Kaveripakkam' },
+      { id: '053', name: 'Panappakkam' },
+      { id: '046', name: 'Avalur' }
+    ] : [];
+  };
+
+  // Populate Districts
+  const districts = await loadDistricts();
+  if (distSel) {
+    distSel.innerHTML = districts.map(d => `<option value="${d.id}" ${d.id === '37' ? 'selected' : ''}>${esc(d.name)} (${d.id})</option>`).join('');
+  }
+
+  // Populate Taluks
+  const populateTaluks = async (distCode, preferredTaluk = '12') => {
+    if (!talukSel) return;
+    talukSel.innerHTML = '<option value="">⏳ ஏற்றுகிறது (Loading)...</option>';
+    const taluks = await loadTaluks(distCode);
+    if (!taluks.length) {
+      talukSel.innerHTML = '<option value="">வட்டம் எதுவும் இல்லை (No taluks found)</option>';
+      return;
+    }
+    talukSel.innerHTML = taluks.map(t => `<option value="${t.id}" ${t.id === preferredTaluk ? 'selected' : ''}>${esc(t.name)} (${t.id})</option>`).join('');
+    if (!talukSel.value && taluks.length) {
+      talukSel.value = taluks[0].id;
+    }
+    updateBanner();
+    await populateVillages(distCode, talukSel.value);
+  };
+
+  // Populate Villages
+  const populateVillages = async (distCode, talukCode, preferredVillage = '045') => {
+    if (!villageSel) return;
+    villageSel.innerHTML = '<option value="">⏳ ஏற்றுகிறது (Loading)...</option>';
+    const villages = await loadVillages(distCode, talukCode);
+    if (!villages.length) {
+      villageSel.innerHTML = '<option value="">கிராமம் எதுவும் இல்லை (No villages found)</option>';
+      return;
+    }
+    villageSel.innerHTML = villages.map(v => `<option value="${v.id}" ${v.id === preferredVillage ? 'selected' : ''}>${esc(v.name)} (${v.id})</option>`).join('');
+    if (!villageSel.value && villages.length) {
+      villageSel.value = villages[0].id;
+    }
+  };
+
+  // Initial Load
+  const initDist = distSel?.value || '37';
+  await populateTaluks(initDist, '12');
+
+  // Events for dropdown changes
+  distSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateTaluks(distSel.value);
+  });
+
+  talukSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateVillages(distSel.value, talukSel.value);
+  });
+
+  // Reset Button
+  resetBtn?.addEventListener('click', async () => {
+    if (distSel) distSel.value = '37';
+    const nathamRadio = document.querySelector('input[name="eservLandType"][value="N"]');
+    if (nathamRadio) nathamRadio.checked = true;
+    const pattaRadio = document.querySelector('input[name="eservViewType"][value="patta"]');
+    if (pattaRadio) {
+      pattaRadio.checked = true;
+      pattaRadio.dispatchEvent(new Event('change'));
+    }
+    const pattaInp = document.getElementById('eservPattaNo');
+    if (pattaInp) pattaInp.value = '1069';
+    const surInp = document.getElementById('eservSurveyNo');
+    if (surInp) surInp.value = '134';
+    const subInp = document.getElementById('eservSubDivNo');
+    if (subInp) subInp.value = '172';
+    const surPattaInp = document.getElementById('eservSurveyPattaNo');
+    if (surPattaInp) surPattaInp.value = '1069';
+
+    await populateTaluks('37', '12');
+    if (statusBox) { statusBox.style.display = 'none'; statusBox.textContent = ''; }
+  });
+
+  // Submit / Get PDF
+  submitBtn?.addEventListener('click', async () => {
+    const distCode = distSel?.value || '37';
+    const talukCode = talukSel?.value || '12';
+    const villageCode = villageSel?.value || '045';
+    const landType = document.querySelector('input[name="eservLandType"]:checked')?.value || 'N';
+    const viewType = document.querySelector('input[name="eservViewType"]:checked')?.value || 'patta';
+
+    let pattaNo = '';
+    if (viewType === 'patta') {
+      pattaNo = (document.getElementById('eservPattaNo')?.value || '').trim();
+    } else {
+      pattaNo = (document.getElementById('eservSurveyPattaNo')?.value || '').trim();
+      if (!pattaNo) {
+        pattaNo = (document.getElementById('eservSurveyNo')?.value || '').trim();
+      }
+    }
+
+    if (!pattaNo) {
+      toast('பட்டா எண் தேவை', 'பட்டா எண்ணை உள்ளிடவும் (Please enter Patta number).', 'warn');
+      if (viewType === 'patta') {
+        document.getElementById('eservPattaNo')?.focus();
+      } else {
+        document.getElementById('eservSurveyPattaNo')?.focus();
+      }
+      return;
+    }
+
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = '#f0fdf4';
+      statusBox.style.color = '#166534';
+      statusBox.style.border = '1px solid #86efac';
+      statusBox.innerHTML = '⏳ <b>இணையவழி சேவை (e-Services):</b> ஒருமுறை கடவுச்சொல் (OTP) இன்றி அதிகாரப்பூர்வ சிட்டா சான்றிதழ் பெறப்படுகிறது (Patta ' + esc(pattaNo) + ')...';
+    }
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.7';
+
+    try {
+      const creds = getTahsildarCreds();
+      const url = `/api/chitta?mode=download&transType=${encodeURIComponent(landType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.success || !data.base64) {
+        throw new Error(data.error || 'e-Services சான்றிதழ் பெற முடியவில்லை (Failed to fetch PDF)');
+      }
+
+      // Base64 to Blob
+      const binaryString = atob(data.base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+
+      if (__eservCurrentPdfBlobUrl) {
+        URL.revokeObjectURL(__eservCurrentPdfBlobUrl);
+      }
+      __eservCurrentPdfBlobUrl = URL.createObjectURL(blob);
+      __eservCurrentFilename = data.filename || `eServices_Patta_${pattaNo}.pdf`;
+
+      // Trigger instant download
+      const dlLink = document.createElement('a');
+      dlLink.href = __eservCurrentPdfBlobUrl;
+      dlLink.download = __eservCurrentFilename;
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      dlLink.remove();
+
+      // UI Update
+      const kb = (blob.size / 1024).toFixed(1);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#ecfdf5';
+        statusBox.style.color = '#065f46';
+        statusBox.style.border = '1px solid #6ee7b7';
+        statusBox.innerHTML = `✓ <b>வெற்றி (Success)!</b> அதிகாரப்பூர்வ சிட்டா PDF பதிவிறக்கப்பட்டது: <b>${esc(__eservCurrentFilename)}</b> (${kb} KB) — OTP சரிபார்ப்பு இல்லை.`;
+      }
+
+      toast('e-Services PDF பெறப்பட்டது', `${__eservCurrentFilename} (${kb} KB)`, 'ok');
+
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        previewBtn.style.opacity = '1';
+        previewBtn.style.cursor = 'pointer';
+      }
+      if (toggleEmbedBtn) {
+        toggleEmbedBtn.disabled = false;
+        toggleEmbedBtn.style.opacity = '1';
+        toggleEmbedBtn.style.cursor = 'pointer';
+      }
+
+      const previewBox = document.getElementById('eservPreviewBox');
+      const previewTitle = document.getElementById('eservPreviewTitle');
+      const directDl = document.getElementById('eservDirectDlLink');
+      const iframe = document.getElementById('eservPdfIframe');
+
+      if (previewTitle) previewTitle.textContent = `📜 அதிகாரப்பூர்வ சான்றிதழ்: ${__eservCurrentFilename} (${kb} KB)`;
+      if (directDl) {
+        directDl.href = __eservCurrentPdfBlobUrl;
+        directDl.download = __eservCurrentFilename;
+      }
+      if (iframe) {
+        iframe.src = __eservCurrentPdfBlobUrl;
+      }
+      if (previewBox) {
+        previewBox.style.display = 'block';
+      }
+
+    } catch (err) {
+      console.error('e-Services download error:', err);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#fef2f2';
+        statusBox.style.color = '#b91c1c';
+        statusBox.style.border = '1px solid #fecaca';
+        statusBox.innerHTML = `✕ <b>பிழை:</b> ${esc(err.message)}`;
+      }
+      toast('பதிவிறக்கம் தோல்வி', err.message, 'err');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  });
+
+  // Preview Button
+  previewBtn?.addEventListener('click', () => {
+    if (__eservCurrentPdfBlobUrl) {
+      window.open(__eservCurrentPdfBlobUrl, '_blank');
+    }
+  });
+
+  // Toggle Inline Preview Button
+  toggleEmbedBtn?.addEventListener('click', () => {
+    const previewBox = document.getElementById('eservPreviewBox');
+    if (previewBox) {
+      previewBox.style.display = (previewBox.style.display === 'none') ? 'block' : 'none';
+    }
+  });
+}
+
 
 /* ============================================================
    NISD — firka report
@@ -6370,6 +6955,10 @@ document.getElementById('pwReset').addEventListener('click', sendOwnReset);
 document.getElementById('usersBtn').addEventListener('click', openUsersPanel);
 document.getElementById('chittaMenuBtn')?.addEventListener('click', () => {
   ADMIN_TAB = 'chitta';
+  openUsersPanel();
+});
+document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
+  ADMIN_TAB = 'eservices';
   openUsersPanel();
 });
 document.getElementById('usersClose').addEventListener('click', closeUsersPanel);
