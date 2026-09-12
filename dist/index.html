@@ -74,12 +74,14 @@
     position:sticky; top:0; z-index:60; backdrop-filter:blur(14px);
     background:var(--topbar-bg);
     border-bottom:1px solid var(--line);
-    width:100%; max-width:100vw; box-sizing:border-box;
+    width:100%; max-width:100%; box-sizing:border-box;
+    overflow-x:hidden;
   }
   .topbar .inner{
     max-width:1360px; width:100%; box-sizing:border-box;
     margin:0 auto; padding:8px 16px;
     display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+    overflow-x:hidden;
   }
   .brand{display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto}
   .brand img{width:32px; height:32px; border-radius:8px; flex:0 0 auto}
@@ -88,7 +90,7 @@
   .brand p{margin:1px 0 0; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .topbar .spacer{flex:1 1 auto; min-width:8px}
   .topbar-controls{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0}
-  .topbar-actions{display:inline-flex; align-items:center; gap:6px; flex-wrap:nowrap; flex-shrink:0}
+  .topbar-actions{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; flex-shrink:1; max-width:100%}
   .taluksel{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap; flex-shrink:0}
   .taluksel select{padding:5px 8px; font-size:12px; border-radius:7px; font-family:inherit; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); font-weight:600; cursor:pointer}
   .topbar .flash-fill-btn{
@@ -116,11 +118,11 @@
     .brand p { display: none; }
   }
   @media (max-width: 860px) {
-    .topbar .inner { padding: 6px 12px; gap: 8px; }
-    .brand h1 { font-size: 13.5px; }
+    .topbar .inner { padding: 6px 10px; gap: 8px; }
+    .brand h1 { font-size: 13px; }
     .topbar .spacer { display: none; }
-    .topbar-controls { width: 100%; justify-content: space-between; }
-    .topbar-actions { width: 100%; justify-content: flex-end; }
+    .topbar-controls { width: 100%; justify-content: space-between; gap: 6px; }
+    .topbar-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
   }
   @media (max-width: 480px) {
     .topbar .flash-fill-btn { font-size: 11px; padding: 0 8px; }
@@ -2159,6 +2161,7 @@ function render(){
 
   buildMatrix(A, cnt, catTotal, colSum, catColSum);
   document.getElementById('exportBtn').disabled = false;
+  applyReportPermissions();
 }
 
 function renderWarnings(A){
@@ -3566,30 +3569,35 @@ function refreshTalukSel(){
   if(!sel) return;
   const mine = myTaluks();
   const list = mine ? mine.slice().sort((a,b)=>a.localeCompare(b)) : allTaluks();
-  if(!TALUK){
-    try{
-      const saved = localStorage.getItem(TALUK_SELECTED_KEY);
-      if(saved && list.some(t => norm(t) === norm(saved))) TALUK = saved;
-      else if(list.includes('Nemili')) TALUK = 'Nemili';
-      else if(list.length) TALUK = list[0];
-    }catch(e){}
+  const saved = (function(){ try { return localStorage.getItem(TALUK_SELECTED_KEY); }catch(e){ return null; } })();
+  if(!TALUK || TALUK === ''){
+    if(saved && list.some(t => norm(t) === norm(saved))) TALUK = list.find(t => norm(t) === norm(saved));
+    else if(saved) TALUK = saved;
+    else if(list.includes('Nemili')) TALUK = 'Nemili';
+    else if(list.length) TALUK = list[0];
   }
   const cur = TALUK;
   const only = list.length === 1;
   sel.innerHTML = (only ? '' : '<option value="">— choose a taluk —</option>') +
     list.map(t => '<option value="'+esc(t)+'"'+(norm(t)===norm(cur)?' selected':'')+'>'+esc(t)+'</option>').join('');
-  if(cur && !list.some(t => norm(t) === norm(cur))){
-    TALUK = list.includes('Nemili') ? 'Nemili' : (list[0] || '');
+  if(cur && list.some(t => norm(t) === norm(cur))){
+    TALUK = list.find(t => norm(t) === norm(cur));
+  } else if(saved && list.some(t => norm(t) === norm(saved))){
+    TALUK = list.find(t => norm(t) === norm(saved));
+  } else if(!TALUK && list.includes('Nemili')){
+    TALUK = 'Nemili';
+  } else if(!TALUK && list.length){
+    TALUK = list[0];
   }
   if(only && list.length) TALUK = list[0];
-  sel.value = TALUK;
+  sel.value = TALUK || '';
   try{ if(TALUK) localStorage.setItem(TALUK_SELECTED_KEY, TALUK); }catch(e){}
   sel.disabled = !list.length || only;
   sel.classList.toggle('needs-pick', !TALUK);
   sel.title = !list.length ? 'No taluk has been assigned to your account yet'
             : only        ? ('Your account covers ' + TALUK + ' only')
             : TALUK       ? ('Showing ' + TALUK)
-                          : 'Choose a taluk before uploading';
+            : 'Choose a taluk before uploading';
 }
 
 /* which taluks does a file actually contain? used to warn about mismatches */
@@ -3661,27 +3669,82 @@ function renderAdmin(){
   });
 }
 
-const TN_CREDS_KEY = 'village_test.tnCreds.v1';
-function getTnCreds(){
+const TN_CREDS_KEY = 'village_test.tnCreds.v2';
+const TN_CREDS_LEGACY_KEY = 'village_test.tnCreds.v1';
+
+function getAllTnCreds() {
+  const defaultPrimary = { username: 'dlurpet', password: '16-03-1992', roleId: '7', label: 'Primary (DLU / NISD & F-Line)' };
+  const defaultSecondary = { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
+
   try {
     const raw = localStorage.getItem(TN_CREDS_KEY);
-    if(raw){
+    if (raw) {
       const parsed = JSON.parse(raw);
-      if(parsed && parsed.username && parsed.password) return parsed;
+      if (parsed && (parsed.primary || parsed.secondary)) {
+        return {
+          primary: Object.assign({}, defaultPrimary, parsed.primary || {}),
+          secondary: Object.assign({}, defaultSecondary, parsed.secondary || {})
+        };
+      }
     }
-  }catch(e){}
-  return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
+    const legacyRaw = localStorage.getItem(TN_CREDS_LEGACY_KEY);
+    if (legacyRaw) {
+      const legacyParsed = JSON.parse(legacyRaw);
+      if (legacyParsed && legacyParsed.username) {
+        return {
+          primary: Object.assign({}, defaultPrimary, legacyParsed),
+          secondary: defaultSecondary
+        };
+      }
+    }
+  } catch(e) {}
+
+  return { primary: defaultPrimary, secondary: defaultSecondary };
 }
-function saveTnCreds(username, password, roleId){
+
+function getTnCreds(type = 'primary') {
+  const creds = getAllTnCreds();
+  if (type === 'secondary' || type === 'isd' || type === 'tahsildar') {
+    return (creds.secondary && creds.secondary.username) ? creds.secondary : creds.primary;
+  }
+  return creds.primary;
+}
+
+function saveAllTnCreds(primaryObj, secondaryObj) {
   try {
-    localStorage.setItem(TN_CREDS_KEY, JSON.stringify({
-      username: (username || 'dlurpet').trim(),
-      password: (password || '16-03-1992').trim(),
-      roleId: (roleId || '7').trim()
-    }));
-  }catch(e){}
+    const payload = {
+      primary: {
+        username: (primaryObj?.username || 'dlurpet').trim(),
+        password: (primaryObj?.password || '16-03-1992').trim(),
+        roleId: (primaryObj?.roleId || '7').trim()
+      },
+      secondary: {
+        username: (secondaryObj?.username || '').trim(),
+        password: (secondaryObj?.password || '').trim(),
+        roleId: (secondaryObj?.roleId || '7').trim()
+      }
+    };
+    localStorage.setItem(TN_CREDS_KEY, JSON.stringify(payload));
+    localStorage.setItem(TN_CREDS_LEGACY_KEY, JSON.stringify(payload.primary));
+  } catch(e) {}
 }
+
+function saveTnCreds(usernameOrObj, password, roleId) {
+  if (typeof usernameOrObj === 'object' && usernameOrObj !== null) {
+    if (usernameOrObj.primary || usernameOrObj.secondary) {
+      saveAllTnCreds(usernameOrObj.primary, usernameOrObj.secondary);
+      return;
+    }
+    saveAllTnCreds(usernameOrObj, getAllTnCreds().secondary);
+    return;
+  }
+  saveAllTnCreds({ username: usernameOrObj, password, roleId }, getAllTnCreds().secondary);
+}
+
 window.getTnCreds = getTnCreds;
+window.getAllTnCreds = getAllTnCreds;
+window.saveAllTnCreds = saveAllTnCreds;
+window.saveTnCreds = saveTnCreds;
 
 function openAdmin(){
   renderAdmin();
@@ -3748,6 +3811,7 @@ function renderOptDrops(){
     inp.addEventListener('change', e => loadFile(inp.dataset.cat, e.target.files[0]));
   });
   grid.querySelectorAll('[data-optslot]').forEach(d => wireDrop(d));
+  applyReportPermissions();
 }
 
 /* ============================================================
@@ -3818,9 +3882,16 @@ async function onSignedIn(session){
     await sb.auth.signOut();
     return;
   }
+  // Enforce site_access: village-auto-test vs village-applications
+  if(ME.site_access && ME.site_access !== 'both' && ME.site_access !== 'village-auto-test'){
+    gateMsg('err', '<b>Access Restricted:</b> Your account (<b>' + esc(session.user.email) + '</b>) is restricted to <b>' + esc(ME.site_access) + '</b> only.<br>You do not have permission to access <b>village-auto-test</b>.');
+    await sb.auth.signOut();
+    return;
+  }
   showGate(false);
   renderWhoAmI();
   applyTalukPermissions();
+  applyReportPermissions();
   await restoreFromCloud();
 }
 
@@ -3885,6 +3956,40 @@ function applyTalukPermissions(){
   const before = TALUK;
   refreshTalukSel();
   if(TALUK !== before) refreshTitles();
+}
+
+function applyReportPermissions(){
+  if(!ME) return;
+  const access = (ME.report_access || 'combined').toLowerCase();
+
+  const isdCard = document.getElementById('isdCard');
+  const nisdCard = document.getElementById('nisdCard');
+  const isdDrops = document.querySelectorAll('[data-optslot="1"], [data-drop="isdRuralPdf"], [data-drop="isdNatham"]');
+  const nisdDrops = document.querySelectorAll('[data-nisdslot="1"], [data-drop="nisdFirka"]');
+
+  if(access === 'nisd'){
+    // NISD Only: Hide ISD reports and drops
+    if(isdCard) isdCard.style.display = 'none';
+    if(nisdCard) nisdCard.style.display = '';
+    isdDrops.forEach(el => el.style.display = 'none');
+    nisdDrops.forEach(el => el.style.display = '');
+  } else if(access === 'isd'){
+    // ISD Only: Hide NISD reports and drops
+    if(isdCard) isdCard.style.display = '';
+    if(nisdCard) nisdCard.style.display = 'none';
+    isdDrops.forEach(el => el.style.display = '');
+    nisdDrops.forEach(el => el.style.display = 'none');
+  } else {
+    // Combined / All
+    if(isdCard) isdCard.style.display = '';
+    if(nisdCard) nisdCard.style.display = '';
+    isdDrops.forEach(el => el.style.display = '');
+    nisdDrops.forEach(el => el.style.display = '');
+  }
+
+  if(typeof window.__applyReportAccessFilter === 'function') {
+    window.__applyReportAccessFilter(access);
+  }
 }
 
 /* ---------- saving an upload ---------- */
@@ -4096,7 +4201,9 @@ async function renderUsers(){
   let h = '<div class="addrow">' +
     '<div class="f"><label>Email</label><input type="email" id="nuEmail" placeholder="name@example.com"></div>' +
     '<div class="f"><label>Name</label><input type="text" id="nuName" placeholder="optional"></div>' +
-    '<div class="f" style="flex:0 0 110px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
+    '<div class="f" style="flex:0 0 100px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
+    '<div class="f" style="flex:0 0 135px"><label>Report Access</label><select id="nuReport"><option value="combined" selected>Combined (All)</option><option value="nisd">NISD Only</option><option value="isd">ISD Only</option></select></div>' +
+    '<div class="f" style="flex:0 0 150px"><label>Site Access</label><select id="nuSite"><option value="both" selected>Both Sites</option><option value="village-auto-test">village-auto-test</option><option value="village-applications">village-applications</option></select></div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
       talukPicker([], 'id="nuTaluks"') + '</div>' +
     '<button class="primary" id="nuAdd">Add user</button></div>';
@@ -4104,14 +4211,24 @@ async function renderUsers(){
   h += '<p class="fstate" style="margin:0 0 10px">A person you add here can set their own password on the sign-in page using that email. ' +
        'Nobody else can get in.</p>';
 
-  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th>Taluks allowed</th><th>Status</th><th></th></tr></thead><tbody>';
+  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th>Report Access</th><th>Site Access</th><th>Taluks allowed</th><th>Status</th><th></th></tr></thead><tbody>';
   (users||[]).forEach(u=>{
     const isMe = ME && u.id === ME.id;
+    const rAcc = u.report_access || 'combined';
+    const sAcc = u.site_access || 'both';
     h += '<tr class="'+(u.active?'':'off')+'" data-id="'+esc(u.id)+'">' +
       '<td class="who"><b>'+esc(u.full_name || u.email)+'</b><small>'+esc(u.email)+'</small></td>' +
       '<td><select data-act="role"'+(isMe?' disabled title="You cannot change your own role"':'')+'>' +
         '<option value="user"'+(u.role==='user'?' selected':'')+'>User</option>' +
         '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select></td>' +
+      '<td><select data-act="report"'+(u.role==='admin'?' disabled title="Admin always has full access"':'')+'>' +
+        '<option value="combined"'+(rAcc==='combined'?' selected':'')+'>Combined (All)</option>' +
+        '<option value="nisd"'+(rAcc==='nisd'?' selected':'')+'>NISD Only</option>' +
+        '<option value="isd"'+(rAcc==='isd'?' selected':'')+'>ISD Only</option></select></td>' +
+      '<td><select data-act="site"'+(u.role==='admin'?' disabled title="Admin always has access to both sites"':'')+'>' +
+        '<option value="both"'+(sAcc==='both'?' selected':'')+'>Both Sites</option>' +
+        '<option value="village-auto-test"'+(sAcc==='village-auto-test'?' selected':'')+'>village-auto-test</option>' +
+        '<option value="village-applications"'+(sAcc==='village-applications'?' selected':'')+'>village-applications</option></select></td>' +
       '<td>'+(u.role === 'admin'
                ? '<span class="fstate">every taluk (admin)</span>'
                : talukPicker(u.taluks, 'data-act="taluks"'))+'</td>' +
@@ -4127,6 +4244,8 @@ async function renderUsers(){
     h += '<tr class="off" data-invite="'+esc(i.email)+'">' +
       '<td class="who"><b>'+esc(i.full_name || i.email)+'</b><small>'+esc(i.email)+'</small></td>' +
       '<td><span class="fstate">'+esc(i.role)+'</span></td>' +
+      '<td><span class="fstate">'+esc(i.report_access || 'combined')+'</span></td>' +
+      '<td><span class="fstate">'+esc(i.site_access || 'both')+'</span></td>' +
       '<td><span class="fstate">'+(i.taluks && i.taluks.length ? esc(i.taluks.join(', ')) : 'All')+'</span></td>' +
       '<td><span style="color:var(--warn)">Invited</span></td>' +
       '<td style="text-align:right"><button class="ghost" data-act="uninvite">Remove</button></td></tr>';
@@ -4139,7 +4258,9 @@ async function renderUsers(){
   box.querySelectorAll('[data-act]').forEach(el=>{
     const tr = el.closest('tr');
     const id = tr.dataset.id, inviteEmail = tr.dataset.invite;
-    if(el.dataset.act === 'role')  el.addEventListener('change', ()=> patchUser(id, {role: el.value}));
+    if(el.dataset.act === 'role')   el.addEventListener('change', ()=> patchUser(id, {role: el.value}));
+    if(el.dataset.act === 'report') el.addEventListener('change', ()=> patchUser(id, {report_access: el.value}));
+    if(el.dataset.act === 'site')   el.addEventListener('change', ()=> patchUser(id, {site_access: el.value}));
     /* keep = do not redraw the table, so several boxes can be ticked in a row */
     if(el.dataset.act === 'taluks') el.addEventListener('change', ()=> patchUser(id, {taluks: pickedTaluks(el)}, true));
     if(el.dataset.act === 'toggle')el.addEventListener('click', ()=> patchUser(id, {active: el.textContent === 'Enable'}));
@@ -4167,11 +4288,15 @@ async function addUser(){
   const email = document.getElementById('nuEmail').value.trim().toLowerCase();
   if(!email || email.indexOf('@') < 0){ toast('Enter an email', 'A valid email address is needed.', 'warn'); return; }
   const taluks = pickedTaluks(document.getElementById('nuTaluks'));
+  const report_access = document.getElementById('nuReport')?.value || 'combined';
+  const site_access = document.getElementById('nuSite')?.value || 'both';
   const { error } = await sb.from('isd_invites').upsert({
     email,
     full_name: document.getElementById('nuName').value.trim() || null,
     role: document.getElementById('nuRole').value,
     taluks,
+    report_access,
+    site_access,
     created_by: ME.id,
   }, {onConflict:'email'});
   if(error){ toast('Could not add the user', error.message, 'err'); return; }
@@ -4181,9 +4306,16 @@ async function addUser(){
 async function patchUser(id, patch, keep){
   const { error } = await sb.from('isd_users').update(patch).eq('id', id);
   if(error){ toast('Could not update', error.message, 'err'); return; }
-  const what = patch.taluks
-    ? (patch.taluks.length ? 'Taluks: ' + patch.taluks.join(', ') : 'No limit — every taluk.')
-    : 'Account updated.';
+  let what = 'Account updated.';
+  if (patch.taluks) {
+    what = patch.taluks.length ? 'Taluks: ' + patch.taluks.join(', ') : 'No limit — every taluk.';
+  } else if (patch.report_access) {
+    what = 'Report access set to: ' + patch.report_access;
+  } else if (patch.site_access) {
+    what = 'Site access set to: ' + patch.site_access;
+  } else if (patch.role) {
+    what = 'Role set to: ' + patch.role;
+  }
   toast('Saved', what + ' It applies the next time they sign in or reload.', 'ok');
   if(!keep) renderUsers();
 }
@@ -4266,143 +4398,245 @@ function renderTnCredsTab() {
     return;
   }
 
-  const creds = getTnCreds();
+  const allCreds = getAllTnCreds();
+  const c1 = allCreds.primary;
+  const c2 = allCreds.secondary;
 
   box.innerHTML = `
-    <div style="max-width: 820px; margin: 10px auto 30px; display: flex; flex-direction: column; gap: 24px;">
-      <div style="background: var(--surface-2); padding: 26px; border-radius: 16px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line-2);">
+    <div style="max-width: 860px; margin: 10px auto 30px; display: flex; flex-direction: column; gap: 22px;">
+      
+      <!-- Top Overview Banner -->
+      <div style="background: var(--surface-2); padding: 18px 22px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+        <div>
+          <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+            <span>🔑 Tamil Nilam Dual Portal Credentials Hub</span>
+          </h3>
+          <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
+            Manage two distinct portal logins: <b>ID 1</b> (General DLU for NISD/F-Line) and <b>ID 2</b> (Tahsildar for ISD Rural drilldown).
+          </p>
+        </div>
+        <button type="button" class="primary" id="tnSaveCredsBtn" style="padding: 10px 22px; font-size: 13.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          💾 Save All Credentials
+        </button>
+      </div>
+
+      <!-- CARD 1: PRIMARY DLU LOGIN (NISD & FLINE) -->
+      <div style="background: var(--surface-2); padding: 22px 24px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-2);">
           <div>
-            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px;">
-              <span>🔑 Tamil Nilam Portal Account Credentials</span>
-            </h3>
-            <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
-              Manage username, password & role ID used for automated report fetching (ISD, NISD & F-Line).
+            <b style="font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+              <span>🏛️ ID 1: Primary Portal Login (DLU — NISD &amp; F-Line)</span>
+            </b>
+            <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">
+              Used to automate OPT (NISD Rural &amp; Natham) and F-Line / F-Line Appeal reports.
             </p>
           </div>
-          <span class="pill live" style="background: #10b98120; color: #10b981; border: 1px solid #10b98140; font-weight: 600; padding: 5px 12px; border-radius: 99px;">
-            <i class="d" style="background: #10b981;"></i> Active Sync
-          </span>
+          <span class="pill" style="font-size: 11px; font-weight: 600; background: #2563eb15; color: #2563eb; border: 1px solid #2563eb30;">DLU Scope</span>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Username / Emp Value</label>
-            <input type="text" id="tnCredUser" value="${esc(creds.username || 'dlurpet')}" placeholder="e.g. dlurpet" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Username / Emp Value (ID 1)</label>
+            <input type="text" id="tnCredUser1" value="${esc(c1.username || 'dlurpet')}" placeholder="e.g. dlurpet" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Password</label>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Password (ID 1)</label>
             <div style="position: relative; display: flex; align-items: center;">
-              <input type="password" id="tnCredPass" value="${esc(creds.password || '16-03-1992')}" placeholder="Portal Password" style="width: 100%; padding: 10px 42px 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
-              <button type="button" id="tnTogglePass" title="Toggle password visibility" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted); padding: 4px;">👁️</button>
+              <input type="password" id="tnCredPass1" value="${esc(c1.password || '16-03-1992')}" placeholder="Portal Password" style="width: 100%; padding: 9px 38px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+              <button type="button" id="tnTogglePass1" title="Toggle password" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px;">👁️</button>
             </div>
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Role ID</label>
-            <input type="text" id="tnCredRole" value="${esc(creds.roleId || '7')}" placeholder="e.g. 7" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink);">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Role ID</label>
+            <input type="text" id="tnCredRole1" value="${esc(c1.roleId || '7')}" placeholder="e.g. 7" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-weight: 600; font-size: 13px; color: var(--ink);">Target District</label>
-            <input type="text" value="Ranipet (37)" readonly style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13.5px; color: var(--muted); cursor: not-allowed;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Target District</label>
+            <input type="text" value="Ranipet (37)" readonly style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13px; color: var(--muted); cursor: not-allowed;">
           </div>
         </div>
 
-        <div style="margin-top: 22px; display: flex; align-items: center; justify-content: space-between; padding-top: 18px; border-top: 1px solid var(--line-2);">
-          <div style="display: flex; gap: 12px;">
-            <button type="button" class="primary" id="tnSaveCredsBtn" style="padding: 10px 22px; font-size: 13.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              💾 Save Credentials
-            </button>
-            <button type="button" class="ghost" id="tnTestCredsBtn" style="padding: 10px 20px; font-size: 13.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              ⚡ Test Connection
-            </button>
-          </div>
-          <span id="tnCredsStatus" style="font-size: 13px; font-weight: 600; color: var(--muted);"></span>
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2);">
+          <button type="button" class="ghost" id="tnTestCredsBtn1" style="padding: 7px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            ⚡ Test ID 1 Connection
+          </button>
+          <span id="tnCredsStatus1" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
         </div>
       </div>
 
-      <div style="background: var(--surface-2); padding: 22px 26px; border-radius: 16px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between;">
+      <!-- CARD 2: SECONDARY TAHSILDAR LOGIN (ISD RURAL / DRILLDOWN) -->
+      <div style="background: var(--surface-2); padding: 22px 24px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-2);">
+          <div>
+            <b style="font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+              <span>📋 ID 2: Tahsildar Login (ISD Rural — drilldowntasildar.html)</span>
+            </b>
+            <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">
+              Used to pull and parse ISD Rural Application Status from <code>drilldowntasildar.html</code>.
+            </p>
+          </div>
+          <span class="pill" style="font-size: 11px; font-weight: 600; background: #8b5cf615; color: #8b5cf6; border: 1px solid #8b5cf630;">Tahsildar Scope</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Tahsildar Username / Emp ID (ID 2)</label>
+            <input type="text" id="tnCredUser2" value="${esc(c2.username || '')}" placeholder="e.g. thlnemili" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Password (ID 2)</label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="tnCredPass2" value="${esc(c2.password || '')}" placeholder="Tahsildar Portal Password" style="width: 100%; padding: 9px 38px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+              <button type="button" id="tnTogglePass2" title="Toggle password" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px;">👁️</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Role ID (ID 2)</label>
+            <input type="text" id="tnCredRole2" value="${esc(c2.roleId || '7')}" placeholder="e.g. 7" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Target District</label>
+            <input type="text" value="Ranipet (37)" readonly style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13px; color: var(--muted); cursor: not-allowed;">
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2);">
+          <button type="button" class="ghost" id="tnTestCredsBtn2" style="padding: 7px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            ⚡ Test ID 2 Connection
+          </button>
+          <span id="tnCredsStatus2" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
+        </div>
+      </div>
+
+      <!-- BOTTOM ACTIONS & FLASH FILL SHORTCUT -->
+      <div style="background: var(--surface-2); padding: 18px 24px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
         <div>
-          <b style="font-size: 14.5px; color: var(--ink); display: flex; align-items: center; gap: 6px;">⚡ Quick Actions: 1-Click Flash Fill</b>
-          <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">Automatically pull and populate all 4 requirement datasets for the current taluk using these credentials.</p>
+          <b style="font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 6px;">⚡ Quick Actions: 1-Click Flash Fill</b>
+          <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">Automate pulling NISD, ISD &amp; F-Line reports for the selected taluk using the above credentials.</p>
         </div>
-        <button type="button" class="tn-auto-btn flash-fill-btn" id="tnCredsFlashFillBtn" style="padding: 10px 20px; font-size: 13.5px; font-weight: 700;">
-          ⚡ Run 1-Click Flash Fill All Now
-        </button>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span id="tnCredsStatus" style="font-size: 12.5px; font-weight: 600; color: var(--muted);"></span>
+          <button type="button" class="tn-auto-btn flash-fill-btn" id="tnCredsFlashFillBtn" style="padding: 8px 18px; font-size: 12.5px; font-weight: 700;">
+            ⚡ Open Flash Fill Control Center
+          </button>
+        </div>
       </div>
+
     </div>
   `;
 
-  // Toggle Password Visibility
-  const passInp = document.getElementById('tnCredPass');
-  const toggleBtn = document.getElementById('tnTogglePass');
-  if (toggleBtn && passInp) {
-    toggleBtn.addEventListener('click', () => {
-      const isPass = passInp.type === 'password';
-      passInp.type = isPass ? 'text' : 'password';
-      toggleBtn.textContent = isPass ? '🙈' : '👁️';
+  // Toggle Password 1
+  const pass1 = document.getElementById('tnCredPass1');
+  const tBtn1 = document.getElementById('tnTogglePass1');
+  if (tBtn1 && pass1) {
+    tBtn1.addEventListener('click', () => {
+      const isP = pass1.type === 'password';
+      pass1.type = isP ? 'text' : 'password';
+      tBtn1.textContent = isP ? '🙈' : '👁️';
     });
   }
 
-  // Save Credentials Click
+  // Toggle Password 2
+  const pass2 = document.getElementById('tnCredPass2');
+  const tBtn2 = document.getElementById('tnTogglePass2');
+  if (tBtn2 && pass2) {
+    tBtn2.addEventListener('click', () => {
+      const isP = pass2.type === 'password';
+      pass2.type = isP ? 'text' : 'password';
+      tBtn2.textContent = isP ? '🙈' : '👁️';
+    });
+  }
+
+  // Save All Credentials
   const saveBtn = document.getElementById('tnSaveCredsBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
-      const username = document.getElementById('tnCredUser').value.trim();
-      const password = document.getElementById('tnCredPass').value;
-      const roleId = document.getElementById('tnCredRole').value.trim();
+      const u1 = document.getElementById('tnCredUser1').value.trim();
+      const p1 = document.getElementById('tnCredPass1').value;
+      const r1 = document.getElementById('tnCredRole1').value.trim() || '7';
 
-      if (!username || !password) {
-        toast('Missing Information', 'Username and Password cannot be empty.', 'warn');
+      const u2 = document.getElementById('tnCredUser2').value.trim();
+      const p2 = document.getElementById('tnCredPass2').value;
+      const r2 = document.getElementById('tnCredRole2').value.trim() || '7';
+
+      if (!u1 || !p1) {
+        toast('Missing Information', 'ID 1 Username and Password are required.', 'warn');
         return;
       }
 
-      const newCreds = { username, password, roleId: roleId || '7' };
-      saveTnCreds(newCreds);
+      saveAllTnCreds(
+        { username: u1, password: p1, roleId: r1 },
+        { username: u2, password: p2, roleId: r2 }
+      );
 
-      toast('Credentials Saved', 'Tamil Nilam credentials updated successfully!', 'ok');
+      toast('Credentials Saved', 'Tamil Nilam credentials (both IDs) updated successfully!', 'ok');
       const statusEl = document.getElementById('tnCredsStatus');
       if (statusEl) {
         statusEl.style.color = '#10b981';
-        statusEl.textContent = '✓ Saved successfully!';
+        statusEl.textContent = '✓ Saved both credentials!';
       }
     });
   }
 
-  // Test Connection Click
-  const testBtn = document.getElementById('tnTestCredsBtn');
-  if (testBtn) {
-    testBtn.addEventListener('click', async () => {
-      const username = document.getElementById('tnCredUser').value.trim();
-      const password = document.getElementById('tnCredPass').value;
-      const roleId = document.getElementById('tnCredRole').value.trim();
-      const statusEl = document.getElementById('tnCredsStatus');
-
-      if (statusEl) {
-        statusEl.style.color = '#3b82f6';
-        statusEl.textContent = '⏳ Testing connection to Tamil Nilam portal...';
-      }
+  // Test Connection 1 (Primary)
+  const testBtn1 = document.getElementById('tnTestCredsBtn1');
+  if (testBtn1) {
+    testBtn1.addEventListener('click', async () => {
+      const u = document.getElementById('tnCredUser1').value.trim();
+      const p = document.getElementById('tnCredPass1').value;
+      const r = document.getElementById('tnCredRole1').value.trim() || '7';
+      const st = document.getElementById('tnCredsStatus1');
+      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing ID 1 connection...'; }
 
       try {
-        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&roleId=${encodeURIComponent(roleId)}`);
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.taluks)) {
-          if (statusEl) {
-            statusEl.style.color = '#10b981';
-            statusEl.textContent = `✓ Connection successful! Retrieved ${data.taluks.length} taluks from Tamil Nilam.`;
-          }
-          toast('Connection Successful', `Connected to Tamil Nilam portal as "${username}"`, 'ok');
+          if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
+          toast('ID 1 Connected', `Connected as "${u}"`, 'ok');
         } else {
-          throw new Error(data.error || 'Failed to authenticate with Tamil Nilam');
+          throw new Error(data.error || 'Authentication failed');
         }
       } catch (err) {
-        if (statusEl) {
-          statusEl.style.color = '#ef4444';
-          statusEl.textContent = `✕ Connection failed: ${err.message}`;
+        if (st) { st.style.color = '#ef4444'; st.textContent = `✕ Failed: ${err.message}`; }
+        toast('ID 1 Failed', err.message, 'err');
+      }
+    });
+  }
+
+  // Test Connection 2 (Secondary)
+  const testBtn2 = document.getElementById('tnTestCredsBtn2');
+  if (testBtn2) {
+    testBtn2.addEventListener('click', async () => {
+      const u = document.getElementById('tnCredUser2').value.trim();
+      const p = document.getElementById('tnCredPass2').value;
+      const r = document.getElementById('tnCredRole2').value.trim() || '7';
+      const st = document.getElementById('tnCredsStatus2');
+      if (!u || !p) {
+        if (st) { st.style.color = '#f59e0b'; st.textContent = '⚠ Enter ID 2 username & password first'; }
+        toast('Enter ID 2 Credentials', 'Please enter Tahsildar username and password to test.', 'warn');
+        return;
+      }
+      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing ID 2 connection...'; }
+
+      try {
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.taluks)) {
+          if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
+          toast('ID 2 Connected', `Connected as "${u}"`, 'ok');
+        } else {
+          throw new Error(data.error || 'Authentication failed');
         }
-        toast('Connection Failed', err.message, 'err');
+      } catch (err) {
+        if (st) { st.style.color = '#ef4444'; st.textContent = `✕ Failed: ${err.message}`; }
+        toast('ID 2 Failed', err.message, 'err');
       }
     });
   }
@@ -4813,6 +5047,7 @@ function renderNisdDrops(){
     inp.addEventListener('change', e => loadFile(inp.dataset.cat, e.target.files[0]));
   });
   grid.querySelectorAll('[data-nisdslot]').forEach(d => wireDrop(d));
+  applyReportPermissions();
 }
 
 function applyNisdAdmin(){

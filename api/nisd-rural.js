@@ -185,6 +185,65 @@ function fetchMasterRaw(path, inputObj, userId = 'dlurpet', password = '16-03-19
   });
 }
 
+function fetchAppCountVillageThl(distCode, talukCode, fromDate, toDate, userId = 'rpt_panneerselvam', password = 'Taluk@123', roleId = '8', timeoutMs = 35000) {
+  return new Promise((resolve, reject) => {
+    const s1 = crypto.createHash('sha1').update(password).digest('hex');
+    const t = Date.now().toString();
+    const fromStr = formatDateToDDMMYYYY(fromDate);
+    const toStr = formatDateToDDMMYYYY(toDate);
+    const inputObj = {
+      DistrictCode: String(distCode),
+      talukCode: String(talukCode).padStart(2, '0'),
+      fromdate: fromStr,
+      todate: toStr
+    };
+    const inputVal = JSON.stringify(inputObj);
+    const finalVal = userId + t + inputVal;
+    const hash = crypto.createHmac('sha256', s1).update(finalVal).digest('hex');
+
+    const options = {
+      hostname: 'tamilnilam.tn.gov.in',
+      port: 443,
+      path: '/Tnilam_Service_N/Report_Service/getAppCountforVillage_thl?jsoncallback=cb',
+      method: 'POST',
+      headers: {
+        'emp_value': userId,
+        'signature': hash,
+        'timestamp': t,
+        'roleId': String(roleId || '8'),
+        'inputVal': inputVal,
+        'Referer': 'https://tamilnilam.tn.gov.in/Revenue/drilldowntasildar.html',
+        'Origin': 'https://tamilnilam.tn.gov.in',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(inputVal),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      rejectUnauthorized: false
+    };
+
+    const req = https.request(options, res => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const jsonStr = body.replace(/^cb\(/, '').replace(/\);?$/, '');
+          const data = JSON.parse(jsonStr);
+          resolve(data);
+        } catch (err) {
+          reject(new Error(`Failed to parse Tamil Nilam drilldown response: ${body.substring(0, 300)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Tamil Nilam drilldown request timed out after ${timeoutMs}ms.`));
+    });
+    req.write(inputVal);
+    req.end();
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -247,6 +306,97 @@ module.exports = async (req, res) => {
         distCode,
         talukCode,
         villages: list
+      });
+      return;
+    }
+
+    // ISD RURAL APPLICATION STATUS (from drilldowntasildar.html)
+    if (mode === 'isd_status' || mode === 'drilldown') {
+      const u2 = params.username || 'rpt_panneerselvam';
+      const p2 = params.password || 'Taluk@123';
+      const r2 = params.roleId || '8';
+      const fromStr = formatDateToDDMMYYYY(params.fromDate || '2026-01-01');
+      const toStr = formatDateToDDMMYYYY(params.toDate || new Date());
+
+      const rawData = await fetchAppCountVillageThl(distCode, talukCode, fromStr, toStr, u2, p2, r2, 35000);
+
+      const vMap = new Map();
+      let sno = 1;
+      let grandAll = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
+      let grandInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
+      let grandNotInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
+
+      (Array.isArray(rawData) ? rawData : []).forEach(item => {
+        const vCode = item.village_code;
+        const vName = (item.village_name || '').trim();
+        if (!vMap.has(vCode)) {
+          vMap.set(vCode, {
+            sno: sno++,
+            code: vCode,
+            village: vName,
+            village_tname: (item.village_tname || '').trim(),
+            approved: 0,
+            pending: 0,
+            rejected: 0,
+            returned: 0,
+            total: 0,
+            inv: null,
+            notinv: null
+          });
+        }
+        const entry = vMap.get(vCode);
+        const appr = parseInt(item.approved || '0', 10);
+        const pend = parseInt(item.pending || '0', 10);
+        const rej = parseInt(item.rejected || '0', 10);
+        const ret = parseInt(item.returned || '0', 10);
+        const tot = parseInt(item.total || '0', 10);
+
+        entry.approved += appr;
+        entry.pending += pend;
+        entry.rejected += rej;
+        entry.returned += ret;
+        entry.total += tot;
+
+        grandAll.approved += appr;
+        grandAll.pending += pend;
+        grandAll.rejected += rej;
+        grandAll.returned += ret;
+        grandAll.total += tot;
+
+        if (item.scode === '0105') { // Involving Sub-Division
+          entry.inv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
+          grandInv.approved += appr;
+          grandInv.pending += pend;
+          grandInv.rejected += rej;
+          grandInv.returned += ret;
+          grandInv.total += tot;
+        } else if (item.scode === '0103') { // Not Involving Sub-Division
+          entry.notinv = { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot };
+          grandNotInv.approved += appr;
+          grandNotInv.pending += pend;
+          grandNotInv.rejected += rej;
+          grandNotInv.returned += ret;
+          grandNotInv.total += tot;
+        }
+      });
+
+      const villagesList = Array.from(vMap.values());
+      const period = `APPLICATION STATUS FROM: ${fromStr} TO: ${toStr}`;
+
+      res.status(200).json({
+        success: true,
+        distCode,
+        talukCode,
+        period,
+        asOn: `AND PENDING AS ON: ${toStr}`,
+        villages: villagesList,
+        totalVillages: villagesList.length,
+        grand: {
+          all: grandAll,
+          inv: grandInv,
+          notinv: grandNotInv
+        },
+        name: `TamilNilam_Auto_ISD_Status_${talukCode}.json`
       });
       return;
     }

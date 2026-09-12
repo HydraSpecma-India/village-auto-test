@@ -81,14 +81,22 @@
   talukCache.set("37", INITIAL_RANIPET_TALUKS);
   villageCache.set("37_12", NEMILI_VILLAGES);
 
-  function getTnCreds() {
+  function getTnCreds(type = 'primary') {
     if (typeof window.getTnCreds === 'function') {
-      return window.getTnCreds();
+      return window.getTnCreds(type);
     }
     try {
-      const raw = localStorage.getItem('village_test.tnCreds.v1');
-      if (raw) return JSON.parse(raw);
+      const raw = localStorage.getItem('village_test.tnCreds.v2') || localStorage.getItem('village_test.tnCreds.v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (type === 'secondary' && parsed.secondary) return parsed.secondary;
+        if (parsed.primary) return parsed.primary;
+        return parsed;
+      }
     } catch (e) {}
+    if (type === 'secondary') {
+      return { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8' };
+    }
     return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
   }
 
@@ -276,7 +284,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
+                <tr data-ff-group="nisd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_nisd_rural" checked></td>
                   <td><b>NISD Rural</b><br><small style="color:var(--muted)">VAO Pending (12d / 10d / &lt;10d)</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
@@ -285,16 +293,16 @@
                   <td><input type="text" id="ff_to_nisd_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_nisd_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
-                <tr>
+                <tr data-ff-group="isd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_isd_rural" checked></td>
-                  <td><b>ISD Rural</b><br><small style="color:var(--muted)">Surveyor &amp; VAO (30d+ / 25-29d / &lt;25d)</small></td>
+                  <td><b>ISD Rural</b><br><small style="color:var(--muted)">Surveyor &amp; VAO + Application Status PDF</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
                   <td>ISD (Surveyor &amp; VAO)</td>
                   <td><input type="text" id="ff_from_isd_rural" class="tn-ff-date-input" value="01-01-2025"></td>
                   <td><input type="text" id="ff_to_isd_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_isd_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
-                <tr>
+                <tr data-ff-group="nisd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_nisd_natham" checked></td>
                   <td><b>NISD Natham</b><br><small style="color:var(--muted)">VAO Pending (12d / 10d / &lt;10d)</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
@@ -303,7 +311,7 @@
                   <td><input type="text" id="ff_to_nisd_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_nisd_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
-                <tr>
+                <tr data-ff-group="isd">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_isd_natham" checked></td>
                   <td><b>ISD Natham</b><br><small style="color:var(--muted)">Surveyor &amp; VAO Pending</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
@@ -312,7 +320,7 @@
                   <td><input type="text" id="ff_to_isd_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_isd_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
-                <tr>
+                <tr data-ff-group="fline">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_fline_rural" checked></td>
                   <td><b>F-Line Rural</b><br><small style="color:var(--muted)">Field Line Demarcation</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
@@ -330,7 +338,7 @@
                   <td><input type="text" id="ff_to_fline_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_fline_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
-                <tr>
+                <tr data-ff-group="fline">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_fline_natham" checked></td>
                   <td><b>F-Line Natham</b><br><small style="color:var(--muted)">Field Line Natham</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
@@ -413,11 +421,11 @@
     const clean = raw.replace(/[^a-z0-9]/g, '');
     const codeMap = {
       '12': 'nemili',
-      '01': 'arakkonam', '1': 'arakkonam', '03': 'arakkonam', '3': 'arakkonam',
+      '03': 'arakkonam', '3': 'arakkonam', '01': 'arakkonam',
       '02': 'arcot', '2': 'arcot',
       '13': 'kalavai',
-      '04': 'sholinghur', '4': 'sholinghur', '14': 'sholinghur',
-      '05': 'walajah', '5': 'walajah'
+      '14': 'sholinghur',
+      '04': 'walajah', '4': 'walajah', '05': 'walajah', '5': 'walajah'
     };
     if (codeMap[clean]) return codeMap[clean];
     const alphaOnly = raw.replace(/[^a-z]/g, '');
@@ -494,7 +502,38 @@
     const talukSel = document.getElementById('tnTalukSel');
     const headerTalukSel = document.getElementById('talukSel');
 
+    function applyReportAccessFilter() {
+      const access = (window.ME?.report_access || 'combined').toLowerCase();
+      const nisdRows = document.querySelectorAll('tr[data-ff-group="nisd"]');
+      const isdRows = document.querySelectorAll('tr[data-ff-group="isd"]');
+
+      if (access === 'nisd') {
+        nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+        isdRows.forEach(r => { r.style.display = 'none'; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = false; });
+        const isdRadio = document.getElementById('tnRadioIsd');
+        const nisdRadio = document.getElementById('tnRadioNisd');
+        if (isdRadio) { isdRadio.disabled = true; isdRadio.parentElement.style.display = 'none'; }
+        if (nisdRadio) { nisdRadio.checked = true; nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
+      } else if (access === 'isd') {
+        nisdRows.forEach(r => { r.style.display = 'none'; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = false; });
+        isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+        const isdRadio = document.getElementById('tnRadioIsd');
+        const nisdRadio = document.getElementById('tnRadioNisd');
+        if (nisdRadio) { nisdRadio.disabled = true; nisdRadio.parentElement.style.display = 'none'; }
+        if (isdRadio) { isdRadio.checked = true; isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
+      } else {
+        nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+        isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+        const isdRadio = document.getElementById('tnRadioIsd');
+        const nisdRadio = document.getElementById('tnRadioNisd');
+        if (isdRadio) { isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
+        if (nisdRadio) { nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
+      }
+    }
+    window.__applyReportAccessFilter = applyReportAccessFilter;
+
     function openModal() {
+      applyReportAccessFilter();
       const topTalukSel = document.getElementById('talukSel');
       const activeTaluk = topTalukSel?.value || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
       if (talukSel) setSelectByTaluk(talukSel, activeTaluk);
@@ -511,8 +550,9 @@
         if (ffTalukSel) {
           setSelectByTaluk(ffTalukSel, activeTaluk);
         }
-        // Ensure all 6 checkboxes are checked by default
+        // Ensure checkboxes default based on report permissions
         document.querySelectorAll('input[type="checkbox"][id^="ff_chk_"]').forEach(c => c.checked = true);
+        applyReportAccessFilter();
         // Reset all status badges to Ready
         document.querySelectorAll('.tn-ff-status-badge').forEach(b => { b.textContent = 'Ready'; b.className = 'tn-ff-status-badge'; });
         // Ensure button is ready for confirmation click
@@ -1644,6 +1684,38 @@
           }
         }
 
+        // Auto-pull ISD Rural Application Status (drilldowntasildar) if rural
+        if (landCategory === 'rural') {
+          try {
+            showStatus('Pulling ISD Rural Application Status from drilldowntasildar (Tahsildar login)...', 'info');
+            const secCreds = getTnCreds('secondary');
+            const isdStatusUrl = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
+            const stRes = await fetch(isdStatusUrl).then(r => r.json());
+            if (stRes && stRes.success && Array.isArray(stRes.villages)) {
+              const vMap = new Map();
+              stRes.villages.forEach(v => vMap.set(v.village, v));
+              const parsedPdf = {
+                name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
+                villages: vMap,
+                grand: stRes.grand || {}
+              };
+              window.store['isdRuralPdf'] = parsedPdf;
+              if (typeof window.markLoaded === 'function') {
+                window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+              }
+              if (typeof window.saveToCloud === 'function') {
+                try {
+                  const blob = new Blob([JSON.stringify(stRes)], { type: 'application/json' });
+                  blob.name = parsedPdf.name;
+                  await window.saveToCloud('isdRuralPdf', blob, parsedPdf);
+                } catch(e) {}
+              }
+            }
+          } catch(errStatus) {
+            console.warn('ISD status fetch note:', errStatus);
+          }
+        }
+
         if (typeof window.updateRail === 'function') window.updateRail();
         if (typeof window.render === 'function') window.render();
 
@@ -1904,15 +1976,28 @@
         );
       }
 
-      // 2. ISD Rural
+      // 2. ISD Rural (OPT applications + Application Status PDF)
       if (isChk('isd_rural')) {
         setStatus('isd_rural', 'Pulling...', 'loading');
         const { fromDate, toDate } = getRowDates('isd_rural');
+        const secCreds = getTnCreds('secondary');
+        const isdStatusParams = `username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&mode=isd_status&fromDate=${fromDate}&toDate=${toDate}`;
+
         fetchTasks.push(
-          fetch(`/api/nisd-rural?landCategory=rural&flag=I&fromDate=${fromDate}&toDate=${toDate}&${credParams}`)
-            .then(r => r.json())
-            .then(res => ({ key: 'isd_rural', res, fromDate, toDate }))
-            .catch(e => ({ key: 'isd_rural', error: e.message }))
+          Promise.all([
+            fetch(`/api/nisd-rural?landCategory=rural&flag=I&fromDate=${fromDate}&toDate=${toDate}&${credParams}`)
+              .then(r => r.json())
+              .catch(e => ({ success: false, error: e.message })),
+            fetch(`/api/nisd-rural?${isdStatusParams}`)
+              .then(r => r.json())
+              .catch(e => ({ success: false, error: e.message }))
+          ]).then(([optRes, isdStatusRes]) => ({
+            key: 'isd_rural',
+            res: optRes,
+            isdStatusRes,
+            fromDate,
+            toDate
+          })).catch(e => ({ key: 'isd_rural', error: e.message }))
         );
       }
 
@@ -2029,8 +2114,26 @@
             window.markLoaded('opt1', d25.name, isd25.rows.length, false);
             window.markLoaded('opt2', d30.name, isd30.rows.length, false);
           }
-          setStatus('isd_rural', `✓ ${rawApps.length} apps`, 'ok');
-          summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
+
+          // Handle Application Status PDF from drilldowntasildar
+          let statusPdfMsg = '';
+          if (item.isdStatusRes && item.isdStatusRes.success && Array.isArray(item.isdStatusRes.villages)) {
+            const vMap = new Map();
+            item.isdStatusRes.villages.forEach(v => vMap.set(v.village, v));
+            const parsedPdf = {
+              name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
+              villages: vMap,
+              grand: item.isdStatusRes.grand || {}
+            };
+            window.store['isdRuralPdf'] = parsedPdf;
+            if (typeof window.markLoaded === 'function') {
+              window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+            }
+            statusPdfMsg = ` + ${vMap.size} villages PDF`;
+          }
+
+          setStatus('isd_rural', `✓ ${rawApps.length} apps${statusPdfMsg}`, 'ok');
+          summaryStats.push(`ISD Rural: ${rawApps.length} apps${statusPdfMsg}`);
         }
 
         if (item.key === 'nisd_natham') {
@@ -2139,6 +2242,30 @@
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();
       if (typeof window.render === 'function') window.render();
+
+      if (typeof window.saveToCloud === 'function') {
+        const slotsToSave = [
+          { kind: 'opt0', data: window.store['opt0'], name: `TamilNilam_Auto_ISD_Rural_Below25Days.json` },
+          { kind: 'opt1', data: window.store['opt1'], name: `TamilNilam_Auto_ISD_Rural_25to29Days.json` },
+          { kind: 'opt2', data: window.store['opt2'], name: `TamilNilam_Auto_ISD_Rural_30DaysAbove.json` },
+          { kind: 'isdRuralPdf', data: window.store['isdRuralPdf'], name: `TamilNilam_Auto_ISD_Status_${talukName}.json` },
+          { kind: 'isdNatham', data: window.store['isdNatham'], name: `TamilNilam_Auto_ISD_Natham.json` },
+          { kind: 'flineRural', data: window.store['flineRural'], name: `TamilNilam_Auto_FLine_Rural.json` },
+          { kind: 'flineNatham', data: window.store['flineNatham'], name: `TamilNilam_Auto_FLine_Natham.json` },
+          { kind: 'nisd_1', data: window.store['nisd_1'], name: `TamilNilam_Auto_NISD_Natham.json` }
+        ];
+        for (const s of slotsToSave) {
+          if (s.data) {
+            try {
+              const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
+              blob.name = s.name;
+              await window.saveToCloud(s.kind, blob, s.data);
+            } catch (e) {
+              console.warn('Cloud save note for', s.kind, e);
+            }
+          }
+        }
+      }
 
       showStatus(`✓ Flash Fill Complete for ${talukName}! ${summaryStats.join(' | ')}`, 'info');
       if (typeof window.toast === 'function') {
