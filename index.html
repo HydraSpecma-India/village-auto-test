@@ -930,7 +930,7 @@
       </div>
       <button class="iconbtn" id="acctBtn" title="My account" aria-label="My account" style="display:none">&#128273;</button>
       <button class="iconbtn" id="usersBtn" title="Users &amp; stored files" aria-label="Users" style="display:none">&#128100;</button>
-      <button class="iconbtn" id="adminBtn" title="Admin — set the day ranges" aria-label="Admin settings">&#9881;</button>
+      <button class="iconbtn" id="adminBtn" title="Admin — set the day ranges" aria-label="Admin settings" style="display:none">&#9881;</button>
       <button class="iconbtn" id="signOutBtn" title="Sign out" aria-label="Sign out" style="display:none">&#9099;</button>
       <button class="iconbtn" id="themeBtn" title="Toggle dark / light theme" aria-label="Toggle theme">&#9789;</button>
     </div>
@@ -3777,6 +3777,8 @@ window.saveAllTnCreds = saveAllTnCreds;
 window.saveTnCreds = saveTnCreds;
 
 function openAdmin(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin) return;
   renderAdmin();
   document.getElementById('adminPanel').hidden = false;
   document.getElementById('adminBack').hidden = false;
@@ -3907,9 +3909,9 @@ async function onSignedIn(session){
     gateMsg('err', 'Signed in, but your account could not be loaded: ' + esc(e.message));
     return;
   }
-  if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'admin', active: true, site_access: 'both', report_access: 'combined', taluks: [] };
+  if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'user', active: true, site_access: 'both', report_access: 'combined', taluks: [] };
   ME.active = true;
-  ME.role = 'admin';
+  if(!ME.role) ME.role = 'user';
   ME.site_access = 'both';
   ME.report_access = 'combined';
   ME.taluks = [];
@@ -3923,12 +3925,21 @@ async function onSignedIn(session){
 function renderWhoAmI(){
   const box = document.getElementById('whoami');
   if(!box || !ME) return;
-  box.innerHTML = '<img src="/logo.jpg" alt="Profile" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid var(--line-2);"><span class="rolechip' + (ME.role === 'admin' ? ' admin' : '') + '">' + esc(ME.role) + '</span>' +
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  box.innerHTML = '<img src="' + TN_GOV_EMBLEM_B64 + '" alt="Profile" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid var(--line-2);"><span class="rolechip' + (isAdmin ? ' admin' : '') + '">' + esc(ME.role) + '</span>' +
                   '<b>' + esc(ME.full_name || ME.email) + '</b>';
   box.style.display = 'inline-flex';
   document.getElementById('signOutBtn').style.display = 'inline-flex';
   document.getElementById('acctBtn').style.display = 'inline-flex';
-  document.getElementById('usersBtn').style.display = 'inline-flex';
+  const usersBtn = document.getElementById('usersBtn');
+  if(usersBtn){
+    usersBtn.style.display = 'inline-flex';
+    usersBtn.title = isAdmin ? 'Users, stored files & credentials' : 'Chitta & e-Services Extract';
+  }
+  const adminBtn = document.getElementById('adminBtn');
+  if(adminBtn){
+    adminBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+  }
 }
 
 /* ---------- my account ---------- */
@@ -4133,8 +4144,10 @@ let ADMIN_TAB = 'users';
 
 function openUsersPanel(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if(!isAdmin || ADMIN_TAB === 'creds'){
-    ADMIN_TAB = 'users';
+  if(!isAdmin){
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds'){
+      ADMIN_TAB = 'chitta';
+    }
   }
   const panel = document.getElementById('usersPanel');
   const back = document.getElementById('usersBack');
@@ -4147,6 +4160,10 @@ function openUsersPanel(){
     back.removeAttribute('hidden');
     back.hidden = false;
     back.style.display = 'block';
+  }
+  const titleEl = document.querySelector('#usersPanel .full-page-head h2 span:last-child');
+  if(titleEl){
+    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Chitta & e-Services Extract Hub';
   }
   renderAdminTabs();
 }
@@ -4166,17 +4183,37 @@ function closeUsersPanel(){
 }
 function renderAdminTabs(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
+  const filesBtn = document.querySelector('#usersTabs button[data-tab="files"]');
   const credsBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
+  
+  if(usersBtn){
+    usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  }
+  if(filesBtn){
+    filesBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  }
   if(credsBtn){
     credsBtn.style.display = isAdmin ? 'inline-block' : 'none';
   }
-  if(!isAdmin && ADMIN_TAB === 'creds'){
-    ADMIN_TAB = 'users';
+  
+  if(!isAdmin && (ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds')){
+    ADMIN_TAB = 'chitta';
   }
+  
   document.querySelectorAll('#usersTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab === ADMIN_TAB));
-  if(ADMIN_TAB === 'users') renderUsers();
-  else if(ADMIN_TAB === 'files') renderFiles();
-  else if(ADMIN_TAB === 'creds') renderTnCredsTab();
+  if(ADMIN_TAB === 'users'){
+    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    renderUsers();
+  }
+  else if(ADMIN_TAB === 'files'){
+    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    renderFiles();
+  }
+  else if(ADMIN_TAB === 'creds'){
+    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    renderTnCredsTab();
+  }
   else if(ADMIN_TAB === 'chitta') renderChittaTab();
   else if(ADMIN_TAB === 'eservices') renderEservicesTab();
 }
@@ -4193,6 +4230,8 @@ const talukPicker = (sel, attrs)=>{
 const pickedTaluks = el => el ? Array.from(el.querySelectorAll('input:checked')).map(i=>i.value) : [];
 
 async function renderUsers(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
   const box = document.getElementById('usersBody');
   if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected to the account service.</div>'; return; }
   box.innerHTML = '<div class="empty">Loading…</div>';
@@ -4326,6 +4365,8 @@ async function patchUser(id, patch, keep){
 
 /* ---------- stored files ---------- */
 async function renderFiles(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
   const box = document.getElementById('usersBody');
   if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected.</div>'; return; }
   box.innerHTML = '<div class="empty">Loading…</div>';
@@ -7355,8 +7396,12 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   const b = e.target.closest('button[data-tab]');
   if(b){
     const tab = b.dataset.tab;
-    const isAdmin = true;
-    ADMIN_TAB = tab;
+    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if(!isAdmin && (tab === 'users' || tab === 'files' || tab === 'creds')){
+      ADMIN_TAB = 'chitta';
+    } else {
+      ADMIN_TAB = tab;
+    }
     renderAdminTabs();
   }
 });
