@@ -1305,8 +1305,15 @@ const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf
 const OPT = {status:'pending', userSource:'village', fuzzy:true};
 
 /* selected taluk. Every upload belongs to one taluk, so a taluk has to be
-   chosen before any file can be loaded. '' means nothing chosen yet. */
-let TALUK = '';
+   chosen before any file can be loaded. Persisted in localStorage so it stays selected. */
+const TALUK_SELECTED_KEY = 'village_test.selectedTaluk.v1';
+let TALUK = (function(){
+  try{
+    const saved = localStorage.getItem(TALUK_SELECTED_KEY);
+    if(saved) return saved;
+  }catch(e){}
+  return 'Nemili';
+})();
 const TALUK_LIST_KEY = 'village_test.taluks.v1';
 const TALUK_DEFAULT = ['Arakkonam','Arcot','Kalavai','Nemili','Sholinghur','Walajah'];
 let TALUK_LIST = (function(){
@@ -3567,17 +3574,27 @@ function mayUseTaluk(name){
 
 function refreshTalukSel(){
   const sel = document.getElementById('talukSel');
+  if(!sel) return;
   const mine = myTaluks();
-  /* a restricted person sees exactly what the admin granted — nothing else,
-     even when other taluks turn up inside the files or in the cloud */
   const list = mine ? mine.slice().sort((a,b)=>a.localeCompare(b)) : allTaluks();
+  if(!TALUK){
+    try{
+      const saved = localStorage.getItem(TALUK_SELECTED_KEY);
+      if(saved && list.some(t => norm(t) === norm(saved))) TALUK = saved;
+      else if(list.includes('Nemili')) TALUK = 'Nemili';
+      else if(list.length) TALUK = list[0];
+    }catch(e){}
+  }
   const cur = TALUK;
   const only = list.length === 1;
   sel.innerHTML = (only ? '' : '<option value="">— choose a taluk —</option>') +
     list.map(t => '<option value="'+esc(t)+'"'+(norm(t)===norm(cur)?' selected':'')+'>'+esc(t)+'</option>').join('');
-  if(cur && !list.some(t => norm(t) === norm(cur))){ TALUK = ''; }
-  if(only) TALUK = list[0];                  /* one taluk — there is nothing to choose */
+  if(cur && !list.some(t => norm(t) === norm(cur))){
+    TALUK = list.includes('Nemili') ? 'Nemili' : (list[0] || '');
+  }
+  if(only && list.length) TALUK = list[0];
   sel.value = TALUK;
+  try{ if(TALUK) localStorage.setItem(TALUK_SELECTED_KEY, TALUK); }catch(e){}
   sel.disabled = !list.length || only;
   sel.classList.toggle('needs-pick', !TALUK);
   sel.title = !list.length ? 'No taluk has been assigned to your account yet'
@@ -3953,6 +3970,15 @@ async function restoreFromCloud(){
     if(error) throw error;
     CLOUD_TALUKS.clear();
     (data || []).forEach(row=>{ if(row.taluk) CLOUD_TALUKS.add(row.taluk); });
+    if(!TALUK){
+      try{
+        const saved = localStorage.getItem(TALUK_SELECTED_KEY);
+        if(saved && CLOUD_TALUKS.has(saved)) TALUK = saved;
+        else if(CLOUD_TALUKS.has('Nemili')) TALUK = 'Nemili';
+        else if(CLOUD_TALUKS.size > 0) TALUK = Array.from(CLOUD_TALUKS)[0];
+        else TALUK = 'Nemili';
+      }catch(e){ TALUK = 'Nemili'; }
+    }
     let n = 0;
     (data || []).forEach(row=>{
       const known = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0;
@@ -5571,6 +5597,7 @@ document.getElementById('talukSel').addEventListener('change', async e=>{
     return;
   }
   TALUK = e.target.value;
+  try{ if(TALUK) localStorage.setItem(TALUK_SELECTED_KEY, TALUK); }catch(err){}
   refreshTitles();
   clearLoadedFiles();
   if(!TALUK){

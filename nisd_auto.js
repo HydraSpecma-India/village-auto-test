@@ -407,6 +407,72 @@
 
   let _openFFModal = null; // module-scoped reference for handleFlashFillAll
 
+  function resolveTalukName(val) {
+    if (!val) return '';
+    const raw = String(val).trim().toLowerCase();
+    const clean = raw.replace(/[^a-z0-9]/g, '');
+    const codeMap = {
+      '12': 'nemili',
+      '01': 'arakkonam', '1': 'arakkonam', '03': 'arakkonam', '3': 'arakkonam',
+      '02': 'arcot', '2': 'arcot',
+      '13': 'kalavai',
+      '04': 'sholinghur', '4': 'sholinghur', '14': 'sholinghur',
+      '05': 'walajah', '5': 'walajah'
+    };
+    if (codeMap[clean]) return codeMap[clean];
+    const alphaOnly = raw.replace(/[^a-z]/g, '');
+    if (alphaOnly.length >= 3) return alphaOnly;
+    return clean;
+  }
+
+  function setSelectByTaluk(sel, targetVal) {
+    if (!sel || !sel.options || !targetVal) return false;
+    const targetRaw = String(targetVal).trim();
+    if (!targetRaw || targetRaw.includes('choose a taluk') || targetRaw.includes('All taluks')) return false;
+    const targetNorm = targetRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const targetName = resolveTalukName(targetRaw);
+
+    // Pass 1: exact value match
+    for (let i = 0; i < sel.options.length; i++) {
+      const opt = sel.options[i];
+      if (opt.value && opt.value.toLowerCase() === targetRaw.toLowerCase()) {
+        sel.selectedIndex = i;
+        sel.value = opt.value;
+        return true;
+      }
+    }
+
+    // Pass 2: code or name match via resolveTalukName
+    for (let i = 0; i < sel.options.length; i++) {
+      const opt = sel.options[i];
+      const optValNorm = String(opt.value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const optTextNorm = String(opt.text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const optName = resolveTalukName(opt.text || opt.value);
+
+      if (optValNorm === targetNorm) {
+        sel.selectedIndex = i;
+        sel.value = opt.value;
+        return true;
+      }
+      if (targetName && optName && targetName === optName) {
+        sel.selectedIndex = i;
+        sel.value = opt.value;
+        return true;
+      }
+      if (targetName && (optTextNorm.includes(targetName) || optValNorm.includes(targetName))) {
+        sel.selectedIndex = i;
+        sel.value = opt.value;
+        return true;
+      }
+      if (optName && targetNorm.includes(optName)) {
+        sel.selectedIndex = i;
+        sel.value = opt.value;
+        return true;
+      }
+    }
+    return false;
+  }
+
   function bindEvents() {
     const backdrop = document.getElementById('tnModalBackdrop');
     const closeBtn = document.getElementById('tnCloseModal');
@@ -424,8 +490,14 @@
     const ffSetAllToBtn = document.getElementById('tnFFSetAllTo');
     const ffToggleAllBtn = document.getElementById('tnFFToggleAll');
     const ffTalukSel = document.getElementById('tnFFTalukSel');
+    const distSel = document.getElementById('tnDistSel');
+    const talukSel = document.getElementById('tnTalukSel');
+    const headerTalukSel = document.getElementById('talukSel');
 
     function openModal() {
+      const topTalukSel = document.getElementById('talukSel');
+      const activeTaluk = topTalukSel?.value || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+      if (talukSel) setSelectByTaluk(talukSel, activeTaluk);
       if (backdrop) backdrop.classList.add('open');
     }
     function closeModal() {
@@ -435,8 +507,9 @@
     function openFFModal() {
       if (ffBackdrop) {
         const topTalukSel = document.getElementById('talukSel') || document.getElementById('tnTalukSel');
-        if (topTalukSel && ffTalukSel && topTalukSel.value) {
-          ffTalukSel.value = topTalukSel.value;
+        const activeTaluk = topTalukSel ? (topTalukSel.options[topTalukSel.selectedIndex]?.text || topTalukSel.value) : 'Nemili';
+        if (ffTalukSel) {
+          setSelectByTaluk(ffTalukSel, activeTaluk);
         }
         // Ensure all 6 checkboxes are checked by default
         document.querySelectorAll('input[type="checkbox"][id^="ff_chk_"]').forEach(c => c.checked = true);
@@ -490,28 +563,64 @@
 
     if (ffRunBtn) ffRunBtn.addEventListener('click', handleFlashFillExecute);
 
-    // --- Automation Center modal controls ---
-    const distSel = document.getElementById('tnDistSel');
-    const talukSel = document.getElementById('tnTalukSel');
-    const headerTalukSel = document.getElementById('talukSel');
-
     // 3-Way Taluk Synchronization
+    let isSyncingTaluk = false;
+
+    function syncTalukSelection(sourceElement) {
+      if (isSyncingTaluk) return;
+      isSyncingTaluk = true;
+      try {
+        let selectedValue = '';
+        let selectedText = '';
+        if (sourceElement && sourceElement.selectedIndex >= 0) {
+          const opt = sourceElement.options[sourceElement.selectedIndex];
+          selectedValue = sourceElement.value;
+          selectedText = opt ? opt.text : selectedValue;
+        }
+        const targetDesc = selectedText || selectedValue;
+        if (!targetDesc) return;
+
+        if (sourceElement !== headerTalukSel && headerTalukSel) {
+          const changed = setSelectByTaluk(headerTalukSel, targetDesc);
+          if (changed) {
+            headerTalukSel.dispatchEvent(new Event('change'));
+          }
+        }
+        if (sourceElement !== talukSel && talukSel) {
+          setSelectByTaluk(talukSel, targetDesc);
+          if (typeof onTalukChange === 'function') onTalukChange();
+        }
+        if (sourceElement !== ffTalukSel && ffTalukSel) {
+          setSelectByTaluk(ffTalukSel, targetDesc);
+        }
+      } finally {
+        isSyncingTaluk = false;
+      }
+    }
+
     if (headerTalukSel) {
       headerTalukSel.addEventListener('change', () => {
-        const val = headerTalukSel.value;
-        if (talukSel && talukSel.value !== val) talukSel.value = val;
-        if (ffTalukSel && ffTalukSel.value !== val) ffTalukSel.value = val;
-        if (typeof onTalukChange === 'function') onTalukChange();
+        syncTalukSelection(headerTalukSel);
       });
     }
     if (ffTalukSel) {
       ffTalukSel.addEventListener('change', () => {
-        const val = ffTalukSel.value;
-        if (headerTalukSel && headerTalukSel.value !== val) headerTalukSel.value = val;
-        if (talukSel && talukSel.value !== val) talukSel.value = val;
-        if (typeof onTalukChange === 'function') onTalukChange();
+        syncTalukSelection(ffTalukSel);
       });
     }
+    if (talukSel) {
+      talukSel.addEventListener('change', () => {
+        syncTalukSelection(talukSel);
+      });
+    }
+
+    // Initial taluk synchronization on load
+    const initialTaluk = (headerTalukSel && headerTalukSel.value) ? headerTalukSel.value : (localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili');
+    if (headerTalukSel && (!headerTalukSel.value || headerTalukSel.value === '')) {
+      setSelectByTaluk(headerTalukSel, initialTaluk);
+    }
+    if (talukSel) setSelectByTaluk(talukSel, initialTaluk);
+    if (ffTalukSel) setSelectByTaluk(ffTalukSel, initialTaluk);
 
     const nisdRadio = document.getElementById('tnRadioNisd');
     const isdRadio = document.getElementById('tnRadioIsd');
@@ -521,14 +630,6 @@
     const svcFlineRadio = document.getElementById('tnSvcFline');
 
     if (distSel) distSel.addEventListener('change', onDistrictChange);
-    if (talukSel) {
-      talukSel.addEventListener('change', () => {
-        onTalukChange();
-        const val = talukSel.value;
-        if (headerTalukSel && headerTalukSel.value !== val) headerTalukSel.value = val;
-        if (ffTalukSel && ffTalukSel.value !== val) ffTalukSel.value = val;
-      });
-    }
 
     if (nisdRadio) nisdRadio.addEventListener('change', onOptTypeChange);
     if (isdRadio) isdRadio.addEventListener('change', onOptTypeChange);
@@ -658,6 +759,9 @@
 
       if (taluks && taluks.length) {
         talukSel.innerHTML = taluks.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
+        const topTalukSel = document.getElementById('talukSel');
+        const activeTaluk = topTalukSel?.value || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+        setSelectByTaluk(talukSel, activeTaluk);
       } else {
         talukSel.innerHTML = '<option value="">-- No Taluks Found --</option>';
       }
