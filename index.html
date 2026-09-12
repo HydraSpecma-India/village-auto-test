@@ -989,8 +989,9 @@
         </div>
         <div class="drop" data-drop="isdRuralPdf">
           <span class="ic" style="background:#dc2626">PDF</span>
-          <span class="lab"><b>ISD Rural — Application Status</b><small>PDF, or the page saved as .html / .xls · reads the "Involving Sub-Division" row</small></span>
+          <span class="lab"><b>ISD Rural — Application Status</b><small>PDF from drilldowntasildar.html (Tahsildar ID 2)</small></span>
           <input type="file" data-cat="isdRuralPdf" accept=".pdf,.html,.htm,.xls,.xlsx">
+          <button type="button" class="tmpl" id="pullIsdRuralPdfBtn" title="Auto-pull ISD Rural Application Status directly from Tamil Nilam drilldowntasildar.html" style="background:var(--accent); color:#fff; font-weight:700; border-color:var(--accent-2); padding:4px 10px; border-radius:6px; font-size:11.5px; margin-right:6px; cursor:pointer;">⚡ Auto Pull PDF</button>
           <span class="badge" data-badge="isdRuralPdf">not loaded</span>
         </div>
         <div class="drop" data-drop="nisdFirka">
@@ -3705,7 +3706,7 @@ function getAllTnCreds() {
 function getTnCreds(type = 'primary') {
   const creds = getAllTnCreds();
   if (type === 'secondary' || type === 'isd' || type === 'tahsildar') {
-    return (creds.secondary && creds.secondary.username) ? creds.secondary : creds.primary;
+    return (creds.secondary && creds.secondary.username && creds.secondary.password) ? creds.secondary : { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
   }
   return creds.primary;
 }
@@ -3719,9 +3720,9 @@ function saveAllTnCreds(primaryObj, secondaryObj) {
         roleId: (primaryObj?.roleId || '7').trim()
       },
       secondary: {
-        username: (secondaryObj?.username || '').trim(),
-        password: (secondaryObj?.password || '').trim(),
-        roleId: (secondaryObj?.roleId || '7').trim()
+        username: (secondaryObj?.username || 'rpt_panneerselvam').trim(),
+        password: (secondaryObj?.password || 'Taluk@123').trim(),
+        roleId: (secondaryObj?.roleId || '8').trim()
       }
     };
     localStorage.setItem(TN_CREDS_KEY, JSON.stringify(payload));
@@ -3997,36 +3998,43 @@ function applyReportPermissions(){
    downloaded again) and the parsed rows as JSON (so the dashboard can load
    instantly without re-parsing). Re-uploading the same kind replaces both. */
 function serialiseParsed(kind, parsed){
+  if(!parsed) return null;
   if(kind === 'isdRuralPdf'){
-    return {type:'pdf', villages: Array.from(parsed.villages.values()), grand: parsed.grand};
+    const vArr = parsed.villages instanceof Map ? Array.from(parsed.villages.values()) : (Array.isArray(parsed.villages) ? parsed.villages : []);
+    return {type:'pdf', villages: vArr, grand: parsed.grand || {}};
   }
-  if(OPT_KEYS.indexOf(kind) >= 0) return {type:'opt', rows: parsed.rows, footer: parsed.footer};
-  if(NISD_KEYS.indexOf(kind) >= 0 && parsed.rows) return {type:'nisdrange', rows: parsed.rows, footer: parsed.footer, period: parsed.period, asOn: parsed.asOn};
-  if(kind === 'nisdFirka') return {type:'rows', rows: parsed.rows};
-  return {type:'sheet', header: parsed.header, objs: parsed.objs};
+  if(OPT_KEYS.indexOf(kind) >= 0) return {type:'opt', rows: parsed.rows || [], footer: parsed.footer};
+  if(NISD_KEYS.indexOf(kind) >= 0 && parsed.rows) return {type:'nisdrange', rows: parsed.rows || [], footer: parsed.footer, period: parsed.period || '', asOn: parsed.asOn || ''};
+  if(kind === 'nisdFirka') return {type:'rows', rows: parsed.rows || []};
+  return {type:'sheet', header: parsed.header || [], objs: parsed.objs || [], period: parsed.period || '', asOn: parsed.asOn || ''};
 }
 function reviveParsed(kind, payload){
   if(!payload) return null;
   if(payload.type === 'pdf'){
     const m = new Map();
-    (payload.villages||[]).forEach(v => m.set(v.village, v));
+    (payload.villages||[]).forEach(v => {
+      const name = v.village || v.label || v.village_name || '';
+      if(name) m.set(name, v);
+    });
     return {villages:m, grand: payload.grand || {}};
   }
   if(payload.type === 'opt')   return {rows: payload.rows || [], footer: payload.footer || null};
   if(payload.type === 'nisdrange') return {rows: payload.rows || [], footer: payload.footer || null, period: payload.period || '', asOn: payload.asOn || ''};
   if(payload.type === 'rows')  return {rows: payload.rows || []};
-  if(payload.type === 'sheet') return {header: payload.header || [], objs: payload.objs || []};
+  if(payload.type === 'sheet') return {header: payload.header || [], objs: payload.objs || [], period: payload.period || '', asOn: payload.asOn || ''};
   return null;
 }
 function rowCountOf(kind, parsed){
-  if(kind === 'isdRuralPdf') return parsed.villages.size;
-  if(parsed.rows) return parsed.rows.length;
-  return parsed.objs.length;
+  if(!parsed) return 0;
+  if(kind === 'isdRuralPdf') return (parsed.villages && parsed.villages.size) || (Array.isArray(parsed.villages) ? parsed.villages.length : 0);
+  if(parsed.rows && Array.isArray(parsed.rows)) return parsed.rows.length;
+  if(parsed.objs && Array.isArray(parsed.objs)) return parsed.objs.length;
+  return 0;
 }
 
-async function saveToCloud(kind, file, parsed){
+async function saveToCloud(kind, file, parsed, explicitTaluk){
   if(!CLOUD_ON || !ME || RESTORING) return;
-  const taluk = kindTaluk();
+  const taluk = explicitTaluk || kindTaluk();
   const path  = 'test_datasets/' + (taluk ? taluk.replace(/[^A-Za-z0-9]+/g,'_') : 'all') + '/' + kind + '/' + file.name;
   cloudPill('syncing', 'saving…');
   try{
@@ -4042,7 +4050,7 @@ async function saveToCloud(kind, file, parsed){
     }, {onConflict:'kind,taluk'});
     if(error) throw error;
     cloudPill('saved', 'saved');
-    toast('Saved to the cloud', FILE_NAMES[kind] + (taluk ? ' · ' + taluk : '') + ' — it will load automatically next time.', 'ok');
+    toast('Saved to the cloud', (FILE_NAMES[kind] || kind) + (taluk ? ' · ' + taluk : '') + ' — it will load automatically next time.', 'ok');
   }catch(e){
     cloudPill('off', 'not saved');
     toast('Could not save to the cloud', e.message || String(e), 'err');
@@ -4070,19 +4078,24 @@ async function restoreFromCloud(){
     }
     let n = 0;
     (data || []).forEach(row=>{
-      const known = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0;
-      if(!known) return;
-      if((row.taluk || '') !== (TALUK || '')) return;          /* another taluk's set */
+      const isKnown = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0 || row.kind === 'nisd_1';
+      if(!isKnown) return;
+      if(norm(row.taluk || '') !== norm(TALUK || '')) return;          /* another taluk's set */
       const parsed = reviveParsed(row.kind, row.payload);
       if(!parsed) return;
       parsed.name = row.file_name;
       parsed.fromCloud = true;
       parsed.uploadedAt = row.uploaded_at;
       store[row.kind] = parsed;
-      markLoaded(row.kind, row.file_name, rowCountOf(row.kind, parsed), true);
       n++;
     });
     refreshTalukSel(); refreshTitles(); updateRail();
+    if(typeof renderNisdDrops === 'function') renderNisdDrops();
+    (data || []).forEach(row=>{
+      if(norm(row.taluk || '') === norm(TALUK || '') && store[row.kind]){
+        markLoaded(row.kind, row.file_name, rowCountOf(row.kind, store[row.kind]), true);
+      }
+    });
     if(n) render();
     cloudPill(n ? 'saved' : '', n ? n + ' file' + (n!==1?'s':'') + ' loaded' : 'nothing stored yet');
     if(n) toast('Loaded from the cloud', n + ' file' + (n!==1?'s':'') + ' stored for ' + TALUK + ' — no need to upload again.', 'ok');
@@ -5945,8 +5958,18 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   }
 });
 
-/* reload the taluk-specific files when the taluk changes */
-document.getElementById('talukSel').addEventListener('change', ()=>{ if(CLOUD_ON && ME) restoreFromCloud(); });
+const pullPdfBtn = document.getElementById('pullIsdRuralPdfBtn');
+if(pullPdfBtn){
+  pullPdfBtn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    e.preventDefault();
+    if(typeof window.__pullIsdRuralPdfStandalone === 'function'){
+      await window.__pullIsdRuralPdfStandalone();
+    } else {
+      toast('Automation Helper Loading', 'Please wait a moment for the automation module to initialize.', 'warn');
+    }
+  });
+}
 
 initCloud();
 

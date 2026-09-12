@@ -89,7 +89,12 @@
       const raw = localStorage.getItem('village_test.tnCreds.v2') || localStorage.getItem('village_test.tnCreds.v1');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (type === 'secondary' && parsed.secondary) return parsed.secondary;
+        if (type === 'secondary') {
+          if (parsed.secondary && parsed.secondary.username && parsed.secondary.password) {
+            return parsed.secondary;
+          }
+          return { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8' };
+        }
         if (parsed.primary) return parsed.primary;
         return parsed;
       }
@@ -253,11 +258,11 @@
                 <label style="font-size:12px; font-weight:700; color:var(--ink-2);">Target Taluk:</label>
                 <select id="tnFFTalukSel" class="tn-ff-select" style="font-weight:700; font-size:12.5px;">
                   <option value="12" selected>Nemili (12)</option>
-                  <option value="01">Arakkonam (01)</option>
+                  <option value="03">Arakkonam (03)</option>
                   <option value="02">Arcot (02)</option>
-                  <option value="03">Kalavai (03)</option>
-                  <option value="04">Sholinghur (04)</option>
-                  <option value="05">Walajah (05)</option>
+                  <option value="13">Kalavai (13)</option>
+                  <option value="14">Sholinghur (14)</option>
+                  <option value="04">Walajah (04)</option>
                 </select>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
@@ -1849,18 +1854,23 @@
         if (typeof window.saveToCloud === 'function') {
           try {
             showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
-            const slots = [
-              { kind: 'nisd_0_0', data: data12, name: `TamilNilam_Auto_NISD_${landCategory}_12DaysAbove.json` },
-              { kind: 'nisd_0_1', data: data10, name: `TamilNilam_Auto_NISD_${landCategory}_10to11Days.json` },
-              { kind: 'nisd_0_2', data: dataBelow10, name: `TamilNilam_Auto_NISD_${landCategory}_Below10Days.json` }
-            ];
+            const slots = [];
+            if (landCategory === 'natham') {
+              slots.push({ kind: 'nisd_1', data: nisd1DetailObj, name: `TamilNilam_Auto_NISD_Natham_${activeTaluk}.json` });
+            } else {
+              slots.push(
+                { kind: 'nisd_0_0', data: data12, name: `TamilNilam_Auto_NISD_Rural_12DaysAbove_${activeTaluk}.json` },
+                { kind: 'nisd_0_1', data: data10, name: `TamilNilam_Auto_NISD_Rural_10to11Days_${activeTaluk}.json` },
+                { kind: 'nisd_0_2', data: dataBelow10, name: `TamilNilam_Auto_NISD_Rural_Below10Days_${activeTaluk}.json` }
+              );
+            }
             if (window.store.nisdFirka) {
-              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_${landCategory}_Village_Firka.json` });
+              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_${landCategory}_Village_Firka_${activeTaluk}.json` });
             }
             for (const s of slots) {
               const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
               blob.name = s.name;
-              await window.saveToCloud(s.kind, blob, s.data);
+              await window.saveToCloud(s.kind, blob, s.data, activeTaluk);
             }
           } catch (cloudErr) {
             console.warn('Supabase cloud save note:', cloudErr);
@@ -2161,9 +2171,22 @@
               'Pending At': app.role_name || app.pending_at || 'VAO',
               'RTR-STR': 'STR',
               'Application Status': 'Pending'
-            }))
+            })),
+            period: `APPLICATION FROM: ${item.fromDate} TO: ${item.toDate}`,
+            asOn: `AND PENDING AS ON: ${item.toDate}`
           };
           window.store['nisd_1'] = nisd1DetailObj;
+
+          if (!window.store.nisdFirka) {
+            const allVillages = Array.from(new Set(vaoApps.map(app => (app.village_name || app.village || '').trim()))).filter(Boolean);
+            window.store.nisdFirka = {
+              name: `Auto Village Firka (${talukName})`,
+              rows: allVillages.map(v => ({ village: v, firka: 'General' }))
+            };
+            if (typeof window.markLoaded === 'function') {
+              window.markLoaded('nisdFirka', window.store.nisdFirka.name, allVillages.length, false);
+            }
+          }
 
           if (typeof window.markLoaded === 'function') {
             window.markLoaded('nisd_1', nisd1DetailObj.name, nisd1DetailObj.objs.length, false);
@@ -2239,27 +2262,51 @@
 
       ensureVillageAndVaoDetails(allAppVillages);
 
+      // Sync active TALUK across window and header
+      if (talukName) {
+        window.TALUK = talukName;
+        try { localStorage.setItem('village_test.selectedTaluk.v1', talukName); } catch (e) {}
+        const topTalukSel = document.getElementById('talukSel');
+        if (topTalukSel) setSelectByTaluk(topTalukSel, talukName);
+        if (typeof window.refreshTitles === 'function') window.refreshTitles();
+      }
+
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();
       if (typeof window.render === 'function') window.render();
 
       if (typeof window.saveToCloud === 'function') {
         const slotsToSave = [
-          { kind: 'opt0', data: window.store['opt0'], name: `TamilNilam_Auto_ISD_Rural_Below25Days.json` },
-          { kind: 'opt1', data: window.store['opt1'], name: `TamilNilam_Auto_ISD_Rural_25to29Days.json` },
-          { kind: 'opt2', data: window.store['opt2'], name: `TamilNilam_Auto_ISD_Rural_30DaysAbove.json` },
+          { kind: 'opt0', data: window.store['opt0'], name: `TamilNilam_Auto_ISD_Rural_Below25Days_${talukName}.json` },
+          { kind: 'opt1', data: window.store['opt1'], name: `TamilNilam_Auto_ISD_Rural_25to29Days_${talukName}.json` },
+          { kind: 'opt2', data: window.store['opt2'], name: `TamilNilam_Auto_ISD_Rural_30DaysAbove_${talukName}.json` },
           { kind: 'isdRuralPdf', data: window.store['isdRuralPdf'], name: `TamilNilam_Auto_ISD_Status_${talukName}.json` },
-          { kind: 'isdNatham', data: window.store['isdNatham'], name: `TamilNilam_Auto_ISD_Natham.json` },
-          { kind: 'flineRural', data: window.store['flineRural'], name: `TamilNilam_Auto_FLine_Rural.json` },
-          { kind: 'flineNatham', data: window.store['flineNatham'], name: `TamilNilam_Auto_FLine_Natham.json` },
-          { kind: 'nisd_1', data: window.store['nisd_1'], name: `TamilNilam_Auto_NISD_Natham.json` }
+          { kind: 'isdNatham', data: window.store['isdNatham'], name: `TamilNilam_Auto_ISD_Natham_${talukName}.json` },
+          { kind: 'flineRural', data: window.store['flineRural'], name: `TamilNilam_Auto_FLine_Rural_${talukName}.json` },
+          { kind: 'flineNatham', data: window.store['flineNatham'], name: `TamilNilam_Auto_FLine_Natham_${talukName}.json` },
+          { kind: 'nisd_1', data: window.store['nisd_1'], name: `TamilNilam_Auto_NISD_Natham_${talukName}.json` }
         ];
+        if (window.store.nisdFirka) {
+          slotsToSave.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_Village_Firka_${talukName}.json` });
+        }
+        if (window.store.village) {
+          slotsToSave.push({ kind: 'village', data: window.store.village, name: `TamilNilam_Auto_Village_Details_${talukName}.json` });
+        }
+        if (window.store.vaoDetails) {
+          slotsToSave.push({ kind: 'vaoDetails', data: window.store.vaoDetails, name: `TamilNilam_Auto_VAO_Details_${talukName}.json` });
+        }
         for (const s of slotsToSave) {
           if (s.data) {
             try {
-              const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
+              let blobContent;
+              if (s.kind === 'isdRuralPdf' && s.data.villages instanceof Map) {
+                blobContent = JSON.stringify({ villages: Array.from(s.data.villages.values()), grand: s.data.grand || {} });
+              } else {
+                blobContent = JSON.stringify(s.data);
+              }
+              const blob = new Blob([blobContent], { type: 'application/json' });
               blob.name = s.name;
-              await window.saveToCloud(s.kind, blob, s.data);
+              await window.saveToCloud(s.kind, blob, s.data, talukName);
             } catch (e) {
               console.warn('Cloud save note for', s.kind, e);
             }
@@ -2305,9 +2352,91 @@
     if (b) b.style.display = 'none';
   }
 
-  function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  // Dedicated Standalone Pull for ISD Rural Application Status PDF (drilldowntasildar.html)
+  window.__pullIsdRuralPdfStandalone = async function() {
+    const badge = document.querySelector('[data-badge="isdRuralPdf"]');
+    const drop = document.querySelector('[data-drop="isdRuralPdf"]');
+    const activeTaluk = (typeof window.talukName === 'function' && window.talukName()) || window.TALUK || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+    const talukCode = resolveTalukCode(activeTaluk) || '12';
+
+    const secCreds = getTnCreds('secondary');
+    const u = secCreds.username || 'rpt_panneerselvam';
+    const p = secCreds.password || 'Taluk@123';
+    const r = secCreds.roleId || '8';
+
+    if (badge) {
+      badge.className = 'badge';
+      badge.textContent = '⏳ pulling…';
+    }
+    if (drop) {
+      drop.classList.remove('done', 'bad');
+    }
+    if (typeof window.toast === 'function') {
+      window.toast('Pulling ISD Rural Status', `Fetching drilldowntasildar data for ${activeTaluk} from Tamil Nilam portal...`, 'info');
+    }
+
+    try {
+      const fromDate = '01-01-2025';
+      const toDate = (function() {
+        const d = new Date();
+        return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+      })();
+
+      const url = `/api/nisd-rural?mode=isd_status&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(activeTaluk)}&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}&fromDate=${fromDate}&toDate=${toDate}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch drilldowntasildar status from Tamil Nilam');
+      }
+
+      const vMap = new Map();
+      (data.villages || []).forEach(v => {
+        if (v.village) vMap.set(v.village, v);
+      });
+
+      const parsedPdf = {
+        name: `Auto ISD Status (${vMap.size} villages)`,
+        villages: vMap,
+        grand: data.grand || {}
+      };
+
+      if (!window.store) window.store = {};
+      window.store['isdRuralPdf'] = parsedPdf;
+
+      if (typeof window.markLoaded === 'function') {
+        window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+      }
+      if (typeof window.updateRail === 'function') window.updateRail();
+      if (typeof window.render === 'function') window.render();
+
+      // Auto-save to Supabase Cloud
+      if (typeof window.saveToCloud === 'function') {
+        try {
+          const fileName = `TamilNilam_Auto_ISD_Status_${activeTaluk}.json`;
+          const blob = new Blob([JSON.stringify({ villages: Array.from(vMap.values()), grand: parsedPdf.grand })], { type: 'application/json' });
+          blob.name = fileName;
+          await window.saveToCloud('isdRuralPdf', blob, parsedPdf, activeTaluk);
+        } catch (cloudErr) {
+          console.warn('Supabase cloud save note:', cloudErr);
+        }
+      }
+
+      if (typeof window.toast === 'function') {
+        window.toast('ISD Rural Status Loaded', `Successfully pulled ${vMap.size} villages for ${activeTaluk} from drilldowntasildar.html!`, 'ok');
+      }
+    } catch (err) {
+      console.error('ISD Rural PDF pull error:', err);
+      if (badge) {
+        badge.className = 'badge err';
+        badge.textContent = 'error';
+      }
+      if (drop) drop.classList.add('bad');
+      if (typeof window.toast === 'function') {
+        window.toast('ISD Rural Pull Failed', err.message || 'Could not pull status from Tamil Nilam', 'err');
+      }
+    }
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectUI);
