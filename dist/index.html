@@ -923,35 +923,8 @@
 
   <div class="card no-print">
     <h2><span class="step">1</span> Upload source files <span class="grow"></span><span style="text-transform:none; letter-spacing:0; font-size:11.5px">Drag &amp; drop supported · nothing leaves your browser</span></h2>
+    
     <div class="uploads">
-      <div class="drop" data-drop="village">
-        <span class="ic" style="background:#64748b">V</span>
-        <span class="lab"><b>Village Details</b><small>all taluks · S.No · Taluk · Village · Name (surveyor)</small></span>
-        <input type="file" data-cat="village" accept=".xlsx,.xls,.csv">
-        <button class="tmpl" type="button" data-tmpl="village">Template</button>
-        <span class="badge" data-badge="village">not loaded</span>
-      </div>
-      <div class="drop" data-drop="vaoDetails">
-        <span class="ic" style="background:#0ea5e9">VA</span>
-        <span class="lab"><b>VAO Details</b><small>all taluks · S.No · Taluk · Village · Name (VAO)</small></span>
-        <input type="file" data-cat="vaoDetails" accept=".xlsx,.xls,.csv">
-        <button class="tmpl" type="button" data-tmpl="vaoDetails">Template</button>
-        <span class="badge" data-badge="vaoDetails">not loaded</span>
-      </div>
-      <div class="drop" data-drop="isdRuralPdf">
-        <span class="ic" style="background:#dc2626">PDF</span>
-        <span class="lab"><b>ISD Rural — Application Status</b><small>PDF, or the page saved as .html / .xls · reads the "Involving Sub-Division" row</small></span>
-        <input type="file" data-cat="isdRuralPdf" accept=".pdf,.html,.htm,.xls,.xlsx">
-        <span class="badge" data-badge="isdRuralPdf">not loaded</span>
-      </div>
-      <!-- OPT Pending slots are generated from the configured day ranges -->
-      <div class="drop" data-drop="nisdFirka">
-        <span class="ic" style="background:#0f766e">FK</span>
-        <span class="lab"><b>NISD — Village / Firka list</b><small>S.No · Village Name · Firka (ZDT / HQDT)</small></span>
-        <input type="file" data-cat="nisdFirka" accept=".xlsx,.xls,.csv">
-        <button class="tmpl" type="button" data-tmpl="nisdFirka">Template</button>
-        <span class="badge" data-badge="nisdFirka">not loaded</span>
-      </div>
       <div class="drop" data-drop="isdNatham">
         <span class="ic" style="background:var(--g-nat)">IN</span>
         <span class="lab"><b>ISD — Natham</b><small>Excel · Village · Application Date · Status</small></span>
@@ -972,6 +945,45 @@
         <input type="file" data-cat="flineNatham" accept=".xlsx,.xls,.csv">
         <button class="tmpl" type="button" data-tmpl="flineNatham">Template</button>
         <span class="badge" data-badge="flineNatham">not loaded</span>
+      </div>
+    </div>
+
+    <!-- Separate Section for Manual Reference & Master Data Files -->
+    <div style="margin-top:22px; padding-top:16px; border-top:1px dashed var(--line-2,#334155);">
+      <div style="margin-bottom:12px;">
+        <h3 style="font-size:13.5px; font-weight:700; margin:0; color:#f59e0b; display:flex; align-items:center; gap:6px;">
+          <span>📁</span> Manual Master Data &amp; Reference Uploads (Excel / PDF)
+        </h3>
+        <p style="font-size:11.5px; color:var(--muted,#94a3b8); margin:3px 0 0;">These 4 reference files (Surveyor/VAO mappings, PDF application status, Firka lists) are manually uploaded reference sheets and are <b>NOT</b> auto-pulled or overwritten by Auto/Flash Fill.</p>
+      </div>
+      <div class="uploads uploads-manual">
+        <div class="drop" data-drop="village">
+          <span class="ic" style="background:#64748b">V</span>
+          <span class="lab"><b>Village Details</b><small>all taluks · S.No · Taluk · Village · Name (surveyor)</small></span>
+          <input type="file" data-cat="village" accept=".xlsx,.xls,.csv">
+          <button class="tmpl" type="button" data-tmpl="village">Template</button>
+          <span class="badge" data-badge="village">not loaded</span>
+        </div>
+        <div class="drop" data-drop="vaoDetails">
+          <span class="ic" style="background:#0ea5e9">VA</span>
+          <span class="lab"><b>VAO Details</b><small>all taluks · S.No · Taluk · Village · Name (VAO)</small></span>
+          <input type="file" data-cat="vaoDetails" accept=".xlsx,.xls,.csv">
+          <button class="tmpl" type="button" data-tmpl="vaoDetails">Template</button>
+          <span class="badge" data-badge="vaoDetails">not loaded</span>
+        </div>
+        <div class="drop" data-drop="isdRuralPdf">
+          <span class="ic" style="background:#dc2626">PDF</span>
+          <span class="lab"><b>ISD Rural — Application Status</b><small>PDF, or the page saved as .html / .xls · reads the "Involving Sub-Division" row</small></span>
+          <input type="file" data-cat="isdRuralPdf" accept=".pdf,.html,.htm,.xls,.xlsx">
+          <span class="badge" data-badge="isdRuralPdf">not loaded</span>
+        </div>
+        <div class="drop" data-drop="nisdFirka">
+          <span class="ic" style="background:#0f766e">FK</span>
+          <span class="lab"><b>NISD — Village / Firka list</b><small>S.No · Village Name · Firka (ZDT / HQDT)</small></span>
+          <input type="file" data-cat="nisdFirka" accept=".xlsx,.xls,.csv">
+          <button class="tmpl" type="button" data-tmpl="nisdFirka">Template</button>
+          <span class="badge" data-badge="nisdFirka">not loaded</span>
+        </div>
       </div>
     </div>
     <p class="tmplnote">The <b>ISD Rural report</b> is built from the <b>OPT Pending</b> exports (one per day range) plus the <b>Application Status PDF</b>. Village Details supplies surveyor names, VAO Details supplies VAO names. The <b>ISD Natham</b> and <b>F Line</b> Excel files feed the separate combined dashboard further down; dates are read as <code class="k">DD-MM-YYYY</code> and only rows whose <code class="k">Application Status</code> starts with <b>Pending</b> are counted there.</p>
