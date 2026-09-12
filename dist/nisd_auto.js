@@ -587,7 +587,11 @@
     function openModal() {
       applyReportAccessFilter();
       const topTalukSel = document.getElementById('talukSel');
-      const activeTaluk = topTalukSel?.value || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+      const mine = (typeof window.myTaluks === 'function') ? window.myTaluks() : null;
+      let activeTaluk = topTalukSel?.value || (mine && mine[0]) || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+      if (mine && mine.length && typeof window.mayUseTaluk === 'function' && !window.mayUseTaluk(activeTaluk)) {
+        activeTaluk = mine[0];
+      }
       if (talukSel) setSelectByTaluk(talukSel, activeTaluk);
       if (backdrop) backdrop.classList.add('open');
     }
@@ -598,8 +602,20 @@
     function openFFModal() {
       if (ffBackdrop) {
         const topTalukSel = document.getElementById('talukSel') || document.getElementById('tnTalukSel');
-        const activeTaluk = topTalukSel ? (topTalukSel.options[topTalukSel.selectedIndex]?.text || topTalukSel.value) : 'Nemili';
+        const mine = (typeof window.myTaluks === 'function') ? window.myTaluks() : null;
+        let activeTaluk = topTalukSel ? (topTalukSel.options[topTalukSel.selectedIndex]?.text || topTalukSel.value) : 'Nemili';
+        if (mine && mine.length && typeof window.mayUseTaluk === 'function' && !window.mayUseTaluk(activeTaluk)) {
+          activeTaluk = mine[0];
+        }
         if (ffTalukSel) {
+          if (mine && mine.length) {
+            Array.from(ffTalukSel.options).forEach(opt => {
+              const cleanName = (opt.text || '').replace(/\s*\(\d+\)\s*$/, '').trim();
+              const allowed = mine.some(m => cleanName.toLowerCase() === m.toLowerCase() || opt.value === m);
+              opt.hidden = !allowed;
+              opt.disabled = !allowed;
+            });
+          }
           setSelectByTaluk(ffTalukSel, activeTaluk);
         }
         // Ensure checkboxes default based on report permissions
@@ -679,6 +695,13 @@
         }
         const targetDesc = selectedText || selectedValue;
         if (!targetDesc) return;
+        if (typeof window.mayUseTaluk === 'function') {
+          const clean = targetDesc.replace(/\s*\(\d+\)\s*$/, '').trim();
+          if (!window.mayUseTaluk(clean)) {
+            console.warn('Taluk change blocked: not authorized for', clean);
+            return;
+          }
+        }
 
         if (sourceElement !== headerTalukSel && headerTalukSel) {
           const changed = setSelectByTaluk(headerTalukSel, targetDesc);
@@ -879,9 +902,21 @@
       }
 
       if (taluks && taluks.length) {
-        talukSel.innerHTML = taluks.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
+        let availableTaluks = taluks;
+        const mine = (typeof window.myTaluks === 'function') ? window.myTaluks() : null;
+        if (mine && mine.length) {
+          availableTaluks = taluks.filter(t => {
+            const cleanName = (t.name || '').replace(/\s*\(\d+\)\s*$/, '').trim();
+            return mine.some(m => cleanName.toLowerCase() === m.toLowerCase() || t.name.toLowerCase().includes(m.toLowerCase()) || t.code === m);
+          });
+          if (!availableTaluks.length) availableTaluks = taluks;
+        }
+        talukSel.innerHTML = availableTaluks.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
         const topTalukSel = document.getElementById('talukSel');
-        const activeTaluk = topTalukSel?.value || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+        let activeTaluk = topTalukSel?.value || (mine && mine[0]) || localStorage.getItem('village_test.selectedTaluk.v1') || 'Nemili';
+        if (mine && mine.length && typeof window.mayUseTaluk === 'function' && !window.mayUseTaluk(activeTaluk)) {
+          activeTaluk = mine[0];
+        }
         setSelectByTaluk(talukSel, activeTaluk);
       } else {
         talukSel.innerHTML = '<option value="">-- No Taluks Found --</option>';

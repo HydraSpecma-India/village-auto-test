@@ -3577,8 +3577,14 @@ function allTaluks(){
 
 /* does this row belong to the selected taluk? */
 function inTaluk(value){
-  if(!TALUK) return true;
+  const mine = myTaluks();
   const t = String(value==null?'':value).trim();
+  if(mine && mine.length){
+    if(t && !mine.some(m => normTaluk(m) === normTaluk(t))) return false;
+    if(TALUK && !mayUseTaluk(TALUK)) return false;
+    return normTaluk(t || TALUK || mine[0]) === normTaluk(TALUK || mine[0]);
+  }
+  if(!TALUK) return true;
   if(!t) return true;                       /* no taluk on the row — keep it */
   return normTaluk(t) === normTaluk(TALUK);
 }
@@ -3591,8 +3597,13 @@ function myTaluks(){
   return t.length ? t : null;
 }
 function mayUseTaluk(name){
-  return true;
+  if(!name) return false;
+  const mine = myTaluks();
+  if(!mine || !mine.length) return true;
+  return mine.some(t => normTaluk(t) === normTaluk(name));
 }
+window.myTaluks = myTaluks;
+window.mayUseTaluk = mayUseTaluk;
 
 function refreshTalukSel(){
   const sel = document.getElementById('talukSel');
@@ -3600,23 +3611,25 @@ function refreshTalukSel(){
   const mine = myTaluks();
   const list = mine ? mine.slice().sort((a,b)=>a.localeCompare(b)) : allTaluks();
   const saved = (function(){ try { return localStorage.getItem(TALUK_SELECTED_KEY); }catch(e){ return null; } })();
-  if(!TALUK || TALUK === ''){
-    if(saved && list.some(t => norm(t) === norm(saved))) TALUK = list.find(t => norm(t) === norm(saved));
-    else if(saved) TALUK = saved;
-    else if(list.includes('Nemili')) TALUK = 'Nemili';
-    else if(list.length) TALUK = list[0];
+  
+  if(!TALUK || TALUK === '' || !mayUseTaluk(TALUK)){
+    if(saved && list.some(t => norm(t) === norm(saved)) && mayUseTaluk(saved)) {
+      TALUK = list.find(t => norm(t) === norm(saved));
+    } else if(list.length) {
+      TALUK = list[0];
+    } else {
+      TALUK = '';
+    }
   }
   const cur = TALUK;
   const only = list.length === 1;
-  sel.innerHTML = (only ? '' : '<option value="">— choose a taluk —</option>') +
+  sel.innerHTML = (only ? '' : (mine ? '' : '<option value="">— choose a taluk —</option>')) +
     list.map(t => '<option value="'+esc(t)+'"'+(norm(t)===norm(cur)?' selected':'')+'>'+esc(t)+'</option>').join('');
   if(cur && list.some(t => norm(t) === norm(cur))){
     TALUK = list.find(t => norm(t) === norm(cur));
-  } else if(saved && list.some(t => norm(t) === norm(saved))){
+  } else if(saved && list.some(t => norm(t) === norm(saved)) && mayUseTaluk(saved)){
     TALUK = list.find(t => norm(t) === norm(saved));
-  } else if(!TALUK && list.includes('Nemili')){
-    TALUK = 'Nemili';
-  } else if(!TALUK && list.length){
+  } else if(list.length){
     TALUK = list[0];
   }
   if(only && list.length) TALUK = list[0];
@@ -3912,9 +3925,9 @@ async function onSignedIn(session){
   if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'user', active: true, site_access: 'both', report_access: 'combined', taluks: [] };
   ME.active = true;
   if(!ME.role) ME.role = 'user';
-  ME.site_access = 'both';
-  ME.report_access = 'combined';
-  ME.taluks = [];
+  if(!Array.isArray(ME.taluks)) ME.taluks = (ME.taluks ? [ME.taluks] : []);
+  ME.site_access = ME.site_access || 'both';
+  ME.report_access = ME.report_access || 'combined';
   showGate(false);
   renderWhoAmI();
   applyTalukPermissions();
@@ -4085,7 +4098,12 @@ async function restoreFromCloud(){
     if(error) throw error;
     CLOUD_TALUKS.clear();
     (data || []).forEach(row=>{ if(row.taluk) CLOUD_TALUKS.add(row.taluk); });
-    if(!TALUK){
+    const mine = myTaluks();
+    if(mine && mine.length){
+      if(!TALUK || !mayUseTaluk(TALUK)){
+        TALUK = mine[0];
+      }
+    } else if(!TALUK || !mayUseTaluk(TALUK)){
       try{
         const saved = localStorage.getItem(TALUK_SELECTED_KEY);
         if(saved && CLOUD_TALUKS.has(saved)) TALUK = saved;
@@ -7408,8 +7426,11 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
 
 async function pullIsdRuralPdfDirect() {
   const badge = document.querySelector('[data-badge="isdRuralPdf"]');
-  const drop = document.querySelector('[data-drop="isdRuralPdf"]');
-  const activeTaluk = (typeof talukName === 'function' && talukName()) || TALUK || localStorage.getItem(TALUK_SELECTED_KEY) || 'Nemili';
+  const mine = (typeof myTaluks === 'function') ? myTaluks() : null;
+  let activeTaluk = (typeof talukName === 'function' && talukName()) || TALUK || (mine && mine[0]) || localStorage.getItem(TALUK_SELECTED_KEY) || 'Nemili';
+  if (mine && mine.length && !mayUseTaluk(activeTaluk)) {
+    activeTaluk = mine[0];
+  }
   const cleanTaluk = cleanTalukName(activeTaluk);
   const talukCode = resolveTalukCode(cleanTaluk);
 
