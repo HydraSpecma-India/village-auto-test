@@ -873,17 +873,6 @@
       <input type="text" id="talukListInput" placeholder="Arakkonam | Arcot | Kalavai | Nemili | Sholinghur | Walajah"></div>
     <p class="fstate" style="margin:6px 0 0">One taluk per entry, separated by <b>|</b>. Each taluk keeps its own set of uploads.</p>
   </div>
-  
-  <div class="acat" style="margin:0 20px 14px">
-    <h3><i style="background:#8b5cf6"></i>Tamil Nilam Portal Credentials</h3>
-    <div class="frow"><label>Username</label>
-      <input type="text" id="tnUsernameInput" placeholder="dlurpet" value="dlurpet"></div>
-    <div class="frow"><label>Password</label>
-      <input type="password" id="tnPasswordInput" placeholder="16-03-1992" value="16-03-1992" style="flex:1 1 auto; font:inherit; font-size:13px; padding:7px 10px; border-radius:7px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink);"></div>
-    <div class="frow"><label>Role ID</label>
-      <input type="text" id="tnRoleIdInput" placeholder="7" value="7"></div>
-    <p class="fstate" style="margin:6px 0 0">Credentials used for automated Tamil Nilam report fetching. Update here whenever portal password changes.</p>
-  </div>
   <div class="acat" style="margin:0 20px 14px">
     <h3><i style="background:#0f766e"></i>NISD range columns</h3>
     <div class="frow"><label>Labels</label>
@@ -3695,11 +3684,6 @@ function saveTnCreds(username, password, roleId){
 window.getTnCreds = getTnCreds;
 
 function openAdmin(){
-  const creds = getTnCreds();
-  const uEl = document.getElementById("tnUsernameInput"); if(uEl) uEl.value = creds.username;
-  const pEl = document.getElementById("tnPasswordInput"); if(pEl) pEl.value = creds.password;
-  const rEl = document.getElementById("tnRoleIdInput"); if(rEl) rEl.value = creds.roleId;
-
   renderAdmin();
   document.getElementById('adminPanel').hidden = false;
   document.getElementById('adminBack').hidden = false;
@@ -4377,14 +4361,6 @@ function renderTnCredsTab() {
 
       const newCreds = { username, password, roleId: roleId || '7' };
       saveTnCreds(newCreds);
-
-      // Sync with admin drawer inputs if rendered
-      const tnU = document.getElementById('tnUsernameInput');
-      const tnP = document.getElementById('tnPasswordInput');
-      const tnR = document.getElementById('tnRoleIdInput');
-      if (tnU) tnU.value = username;
-      if (tnP) tnP.value = password;
-      if (tnR) tnR.value = roleId;
 
       toast('Credentials Saved', 'Tamil Nilam credentials updated successfully!', 'ok');
       const statusEl = document.getElementById('tnCredsStatus');
