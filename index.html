@@ -1140,13 +1140,14 @@
 /* ============================================================
    Category definitions — ISD first, then F Line
    ============================================================ */
-const CATS = [
+const CATS_ALL = [
   {key:'isdNatham',   label:'ISD (Natham)',    g:'g-nat', s:'s-nat', t:'t-nat', color:'#DB7FA6'},
   {key:'flineRural',  label:'F Line (Rural)',  g:'g-fr',  s:'s-fr',  t:'t-fr',  color:'#7FB85C'},
   {key:'flineNatham', label:'F Line (Natham)', g:'g-fn',  s:'s-fn',  t:'t-fn',  color:'#8E7CC3'},
 ];
-const CATS_ISD   = CATS.slice(0,1);
-const CATS_FLINE = CATS.slice(1,3);
+let CATS = CATS_ALL.slice();
+let CATS_ISD   = CATS_ALL.slice(0,1);
+let CATS_FLINE = CATS_ALL.slice(1,3);
 const CAT_KEYS   = ['isdRural','isdNatham','flineRural','flineNatham'];
 const CAT_LABELS = {isdRural:'ISD (Rural)', isdNatham:'ISD (Natham)', flineRural:'F Line (Rural)', flineNatham:'F Line (Natham)'};
 
@@ -3605,6 +3606,35 @@ function mayUseTaluk(name){
 window.myTaluks = myTaluks;
 window.mayUseTaluk = mayUseTaluk;
 
+/* Menu-by-menu access control: 'isd', 'nisd', 'fline', 'chitta', 'eservices' */
+const ALL_MENUS = [
+  { key: 'isd', label: 'ISD' },
+  { key: 'nisd', label: 'NISD' },
+  { key: 'fline', label: 'F-Line' },
+  { key: 'chitta', label: 'Chitta Extract' },
+  { key: 'eservices', label: 'e-Services (No OTP)' }
+];
+const ALL_MENU_KEYS = ALL_MENUS.map(m => m.key);
+
+function userMenus(){
+  if(!ME || ME.role === 'admin') return ALL_MENU_KEYS.slice();
+  if(Array.isArray(ME.menu_access) && ME.menu_access.length){
+    return ME.menu_access;
+  }
+  const r = String(ME.report_access || 'combined').toLowerCase().trim();
+  if(r === 'isd') return ['isd'];
+  if(r === 'nisd') return ['nisd'];
+  if(r === 'fline') return ['fline'];
+  return ALL_MENU_KEYS.slice();
+}
+function hasMenu(key){
+  if(!ME || ME.role === 'admin') return true;
+  return userMenus().includes(key);
+}
+window.ALL_MENUS = ALL_MENUS;
+window.userMenus = userMenus;
+window.hasMenu = hasMenu;
+
 function refreshTalukSel(){
   const sel = document.getElementById('talukSel');
   if(!sel) return;
@@ -3928,6 +3958,12 @@ async function onSignedIn(session){
   if(!Array.isArray(ME.taluks)) ME.taluks = (ME.taluks ? [ME.taluks] : []);
   ME.site_access = ME.site_access || 'both';
   ME.report_access = ME.report_access || 'combined';
+  if(!Array.isArray(ME.menu_access)){
+    if (ME.report_access === 'isd') ME.menu_access = ['isd'];
+    else if (ME.report_access === 'nisd') ME.menu_access = ['nisd'];
+    else if (ME.report_access === 'fline') ME.menu_access = ['fline'];
+    else ME.menu_access = ['isd', 'nisd', 'fline', 'chitta', 'eservices'];
+  }
   showGate(false);
   renderWhoAmI();
   applyTalukPermissions();
@@ -4008,18 +4044,70 @@ function applyTalukPermissions(){
 }
 
 function applyReportPermissions(){
+  const canIsd = hasMenu('isd');
+  const canNisd = hasMenu('nisd');
+  const canFline = hasMenu('fline');
+  const canChitta = hasMenu('chitta');
+  const canEservices = hasMenu('eservices');
+
+  // Update active CATS for summary table
+  CATS = CATS_ALL.filter(c => {
+    if(c.key === 'isdNatham') return canIsd;
+    if(c.key === 'flineRural' || c.key === 'flineNatham') return canFline;
+    return true;
+  });
+  CATS_ISD = CATS.filter(c => c.key === 'isdNatham');
+  CATS_FLINE = CATS.filter(c => c.key === 'flineRural' || c.key === 'flineNatham');
+
+  // 1. Cards visibility
   const isdCard = document.getElementById('isdCard');
   const nisdCard = document.getElementById('nisdCard');
+  const summaryCard = document.getElementById('summaryCard');
+  const statsCard = document.getElementById('statsCard');
+  const chartCard = document.getElementById('chartCard');
+
+  if(isdCard) isdCard.style.display = canIsd ? '' : 'none';
+  if(nisdCard) nisdCard.style.display = canNisd ? '' : 'none';
+  if(summaryCard) summaryCard.style.display = (canIsd || canFline) ? '' : 'none';
+  if(statsCard) statsCard.style.display = (canIsd || canFline) ? '' : 'none';
+  if(chartCard) chartCard.style.display = (canIsd || canFline) ? '' : 'none';
+
+  // 2. Upload drops visibility
   const isdDrops = document.querySelectorAll('[data-optslot="1"], [data-drop="isdRuralPdf"], [data-drop="isdNatham"]');
-  const nisdDrops = document.querySelectorAll('[data-nisdslot="1"], [data-drop="nisdFirka"]');
+  const nisdDrops = document.querySelectorAll('[data-nisdslot="1"], [data-drop="nisdFirka"], [data-drop="nisd_1"]');
+  const flineDrops = document.querySelectorAll('[data-drop="flineRural"], [data-drop="flineNatham"]');
+  const refDrops = document.querySelectorAll('[data-drop="village"], [data-drop="vaoDetails"]');
 
-  if(isdCard) isdCard.style.display = '';
-  if(nisdCard) nisdCard.style.display = '';
-  isdDrops.forEach(el => el.style.display = '');
-  nisdDrops.forEach(el => el.style.display = '');
+  isdDrops.forEach(el => el.style.display = canIsd ? '' : 'none');
+  nisdDrops.forEach(el => el.style.display = canNisd ? '' : 'none');
+  flineDrops.forEach(el => el.style.display = canFline ? '' : 'none');
+  refDrops.forEach(el => el.style.display = (canIsd || canNisd || canFline) ? '' : 'none');
 
+  // 3. Topbar buttons
+  const chittaBtn = document.getElementById('chittaMenuBtn');
+  const eservicesBtn = document.getElementById('eservicesMenuBtn');
+  const ffBtn = document.getElementById('tnFlashFillBtn');
+  if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
+  if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
+  if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
+
+  // 4. Print layout sections
+  const printIsdWrap = document.getElementById('printIsdWrap');
+  const printFlineWrap = document.getElementById('printFlineWrap');
+  const printFlineNWrap = document.getElementById('printFlineNWrap');
+  if(printIsdWrap) printIsdWrap.style.display = canIsd ? '' : 'none';
+  if(printFlineWrap) printFlineWrap.style.display = canFline ? '' : 'none';
+  if(printFlineNWrap) printFlineNWrap.style.display = canFline ? '' : 'none';
+
+  // 5. Hub Tabs
+  const chittaTabBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
+  const eservicesTabBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
+  if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
+  if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
+
+  // 6. Tell nisd_auto.js to filter modals
   if(typeof window.__applyReportAccessFilter === 'function') {
-    window.__applyReportAccessFilter('combined');
+    window.__applyReportAccessFilter();
   }
 }
 
@@ -4097,21 +4185,23 @@ async function restoreFromCloud(){
     const { data, error } = await sb.from('isd_test_datasets').select('*');
     if(error) throw error;
     CLOUD_TALUKS.clear();
-    (data || []).forEach(row=>{ if(row.taluk) CLOUD_TALUKS.add(row.taluk); });
+    (data || []).forEach(row=>{ if(row.taluk) CLOUD_TALUKS.add(cleanTalukName(row.taluk)); });
     const mine = myTaluks();
     if(mine && mine.length){
       if(!TALUK || !mayUseTaluk(TALUK)){
         TALUK = mine[0];
       }
-    } else if(!TALUK || !mayUseTaluk(TALUK)){
-      try{
-        const saved = localStorage.getItem(TALUK_SELECTED_KEY);
-        if(saved && CLOUD_TALUKS.has(saved)) TALUK = saved;
-        else if(CLOUD_TALUKS.has('Nemili')) TALUK = 'Nemili';
+    } else {
+      const saved = (function(){ try { return localStorage.getItem(TALUK_SELECTED_KEY); }catch(e){ return null; } })();
+      if(saved && mayUseTaluk(saved)){
+        TALUK = cleanTalukName(saved);
+      } else if(!TALUK || !mayUseTaluk(TALUK)){
+        if(CLOUD_TALUKS.has('Nemili')) TALUK = 'Nemili';
         else if(CLOUD_TALUKS.size > 0) TALUK = Array.from(CLOUD_TALUKS)[0];
         else TALUK = 'Nemili';
-      }catch(e){ TALUK = 'Nemili'; }
+      }
     }
+    try{ if(TALUK) localStorage.setItem(TALUK_SELECTED_KEY, TALUK); }catch(e){}
     let n = 0;
     (data || []).forEach(row=>{
       const isKnown = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0 || row.kind === 'nisd_1';
@@ -4201,39 +4291,60 @@ function closeUsersPanel(){
 }
 function renderAdminTabs(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const canChitta = hasMenu('chitta');
+  const canEservices = hasMenu('eservices');
+
   const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
   const filesBtn = document.querySelector('#usersTabs button[data-tab="files"]');
   const credsBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
+  const chittaBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
+  const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   
-  if(usersBtn){
-    usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  }
-  if(filesBtn){
-    filesBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  }
-  if(credsBtn){
-    credsBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  }
+  if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(filesBtn) filesBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(credsBtn) credsBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
+  if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
   
-  if(!isAdmin && (ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds')){
-    ADMIN_TAB = 'chitta';
+  if(!isAdmin){
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds'){
+      if(canChitta) ADMIN_TAB = 'chitta';
+      else if(canEservices) ADMIN_TAB = 'eservices';
+      else ADMIN_TAB = 'none';
+    } else if(ADMIN_TAB === 'chitta' && !canChitta){
+      if(canEservices) ADMIN_TAB = 'eservices';
+      else ADMIN_TAB = 'none';
+    } else if(ADMIN_TAB === 'eservices' && !canEservices){
+      if(canChitta) ADMIN_TAB = 'chitta';
+      else ADMIN_TAB = 'none';
+    }
   }
   
   document.querySelectorAll('#usersTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab === ADMIN_TAB));
   if(ADMIN_TAB === 'users'){
-    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    if(!isAdmin){ renderAdminTabs(); return; }
     renderUsers();
   }
   else if(ADMIN_TAB === 'files'){
-    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    if(!isAdmin){ renderAdminTabs(); return; }
     renderFiles();
   }
   else if(ADMIN_TAB === 'creds'){
-    if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+    if(!isAdmin){ renderAdminTabs(); return; }
     renderTnCredsTab();
   }
-  else if(ADMIN_TAB === 'chitta') renderChittaTab();
-  else if(ADMIN_TAB === 'eservices') renderEservicesTab();
+  else if(ADMIN_TAB === 'chitta'){
+    if(!isAdmin && !canChitta){ renderAdminTabs(); return; }
+    renderChittaTab();
+  }
+  else if(ADMIN_TAB === 'eservices'){
+    if(!isAdmin && !canEservices){ renderAdminTabs(); return; }
+    renderEservicesTab();
+  }
+  else {
+    const box = document.getElementById('usersBody');
+    if(box) box.innerHTML = '<div class="empty">You do not have access to any tools in this hub. Contact an administrator.</div>';
+  }
 }
 
 /* A person can be given any number of taluks. Nothing ticked means no limit. */
@@ -4246,6 +4357,19 @@ const talukPicker = (sel, attrs)=>{
     '</div>';
 };
 const pickedTaluks = el => el ? Array.from(el.querySelectorAll('input:checked')).map(i=>i.value) : [];
+
+const menuPicker = (sel, attrs)=>{
+  const current = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+  const has = k => current.includes(k);
+  return '<div class="tkpick menupick" '+(attrs||'')+' style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">' +
+    ALL_MENUS.map(m=>
+      '<label style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; cursor:pointer; background:var(--surface-2,#1e293b); padding:2px 7px; border-radius:5px; border:1px solid var(--line-2,#334155); color:var(--ink);">' +
+        '<input type="checkbox" value="'+m.key+'"'+(has(m.key)?' checked':'')+'> '+m.label+
+      '</label>'
+    ).join('') +
+    '</div>';
+};
+const pickedMenus = el => el ? Array.from(el.querySelectorAll('input:checked')).map(i=>i.value) : [];
 
 async function renderUsers(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
@@ -4263,8 +4387,9 @@ async function renderUsers(){
     '<div class="f"><label>Email</label><input type="email" id="nuEmail" placeholder="name@example.com"></div>' +
     '<div class="f"><label>Name</label><input type="text" id="nuName" placeholder="optional"></div>' +
     '<div class="f" style="flex:0 0 100px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
-    '<div class="f" style="flex:0 0 135px"><label>Report Access</label><select id="nuReport"><option value="combined" selected>Combined (All)</option><option value="nisd">NISD Only</option><option value="isd">ISD Only</option></select></div>' +
     '<div class="f" style="flex:0 0 150px"><label>Site Access</label><select id="nuSite"><option value="both" selected>Both Sites</option><option value="village-auto-test">village-auto-test</option><option value="village-applications">village-applications</option></select></div>' +
+    '<div class="f" style="flex:1 1 100%"><label>Menu Access <span class="fstate" style="text-transform:none">— choose which menus this person can access</span></label>' +
+      menuPicker(['isd','nisd','fline','chitta','eservices'], 'id="nuMenus"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
       talukPicker([], 'id="nuTaluks"') + '</div>' +
     '<button class="primary" id="nuAdd">Add user</button></div>';
@@ -4272,20 +4397,19 @@ async function renderUsers(){
   h += '<p class="fstate" style="margin:0 0 10px">A person you add here can set their own password on the sign-in page using that email. ' +
        'Nobody else can get in.</p>';
 
-  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th>Report Access</th><th>Site Access</th><th>Taluks allowed</th><th>Status</th><th></th></tr></thead><tbody>';
+  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th style="min-width:270px">Menu Access</th><th>Site Access</th><th>Taluks allowed</th><th>Status</th><th></th></tr></thead><tbody>';
   (users||[]).forEach(u=>{
     const isMe = ME && u.id === ME.id;
-    const rAcc = u.report_access || 'combined';
     const sAcc = u.site_access || 'both';
+    const currentMenus = u.menu_access || (u.report_access === 'isd' ? ['isd'] : u.report_access === 'nisd' ? ['nisd'] : ['isd','nisd','fline','chitta','eservices']);
     h += '<tr class="'+(u.active?'':'off')+'" data-id="'+esc(u.id)+'">' +
       '<td class="who"><b>'+esc(u.full_name || u.email)+'</b><small>'+esc(u.email)+'</small></td>' +
       '<td><select data-act="role"'+(isMe?' disabled title="You cannot change your own role"':'')+'>' +
         '<option value="user"'+(u.role==='user'?' selected':'')+'>User</option>' +
         '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select></td>' +
-      '<td><select data-act="report"'+(u.role==='admin'?' disabled title="Admin always has full access"':'')+'>' +
-        '<option value="combined"'+(rAcc==='combined'?' selected':'')+'>Combined (All)</option>' +
-        '<option value="nisd"'+(rAcc==='nisd'?' selected':'')+'>NISD Only</option>' +
-        '<option value="isd"'+(rAcc==='isd'?' selected':'')+'>ISD Only</option></select></td>' +
+      '<td>'+(u.role === 'admin'
+               ? '<span class="fstate">all menus (admin)</span>'
+               : menuPicker(currentMenus, 'data-act="menus"'))+'</td>' +
       '<td><select data-act="site"'+(u.role==='admin'?' disabled title="Admin always has access to both sites"':'')+'>' +
         '<option value="both"'+(sAcc==='both'?' selected':'')+'>Both Sites</option>' +
         '<option value="village-auto-test"'+(sAcc==='village-auto-test'?' selected':'')+'>village-auto-test</option>' +
@@ -4305,7 +4429,7 @@ async function renderUsers(){
     h += '<tr class="off" data-invite="'+esc(i.email)+'">' +
       '<td class="who"><b>'+esc(i.full_name || i.email)+'</b><small>'+esc(i.email)+'</small></td>' +
       '<td><span class="fstate">'+esc(i.role)+'</span></td>' +
-      '<td><span class="fstate">'+esc(i.report_access || 'combined')+'</span></td>' +
+      '<td><span class="fstate">'+(i.menu_access && i.menu_access.length ? esc(i.menu_access.join(', ')) : esc(i.report_access || 'all'))+'</span></td>' +
       '<td><span class="fstate">'+esc(i.site_access || 'both')+'</span></td>' +
       '<td><span class="fstate">'+(i.taluks && i.taluks.length ? esc(i.taluks.join(', ')) : 'All')+'</span></td>' +
       '<td><span style="color:var(--warn)">Invited</span></td>' +
@@ -4320,7 +4444,11 @@ async function renderUsers(){
     const tr = el.closest('tr');
     const id = tr.dataset.id, inviteEmail = tr.dataset.invite;
     if(el.dataset.act === 'role')   el.addEventListener('change', ()=> patchUser(id, {role: el.value}));
-    if(el.dataset.act === 'report') el.addEventListener('change', ()=> patchUser(id, {report_access: el.value}));
+    if(el.dataset.act === 'menus')  el.addEventListener('change', ()=> {
+      const pm = pickedMenus(el);
+      const repAcc = pm.includes('isd') && !pm.includes('nisd') ? 'isd' : pm.includes('nisd') && !pm.includes('isd') ? 'nisd' : 'combined';
+      patchUser(id, { menu_access: pm, report_access: repAcc }, true);
+    });
     if(el.dataset.act === 'site')   el.addEventListener('change', ()=> patchUser(id, {site_access: el.value}));
     /* keep = do not redraw the table, so several boxes can be ticked in a row */
     if(el.dataset.act === 'taluks') el.addEventListener('change', ()=> patchUser(id, {taluks: pickedTaluks(el)}, true));
@@ -4349,14 +4477,16 @@ async function addUser(){
   const email = document.getElementById('nuEmail').value.trim().toLowerCase();
   if(!email || email.indexOf('@') < 0){ toast('Enter an email', 'A valid email address is needed.', 'warn'); return; }
   const taluks = pickedTaluks(document.getElementById('nuTaluks'));
-  const report_access = document.getElementById('nuReport')?.value || 'combined';
+  const menu_access = pickedMenus(document.getElementById('nuMenus'));
+  const repAcc = menu_access.includes('isd') && !menu_access.includes('nisd') ? 'isd' : menu_access.includes('nisd') && !menu_access.includes('isd') ? 'nisd' : 'combined';
   const site_access = document.getElementById('nuSite')?.value || 'both';
   const { error } = await sb.from('isd_invites').upsert({
     email,
     full_name: document.getElementById('nuName').value.trim() || null,
     role: document.getElementById('nuRole').value,
     taluks,
-    report_access,
+    menu_access: menu_access.length ? menu_access : ['isd','nisd','fline','chitta','eservices'],
+    report_access: repAcc,
     site_access,
     created_by: ME.id,
   }, {onConflict:'email'});
@@ -4370,6 +4500,8 @@ async function patchUser(id, patch, keep){
   let what = 'Account updated.';
   if (patch.taluks) {
     what = patch.taluks.length ? 'Taluks: ' + patch.taluks.join(', ') : 'No limit — every taluk.';
+  } else if (patch.menu_access) {
+    what = 'Menu access: ' + (patch.menu_access.length ? patch.menu_access.join(', ') : 'None');
   } else if (patch.report_access) {
     what = 'Report access set to: ' + patch.report_access;
   } else if (patch.site_access) {
@@ -7401,10 +7533,18 @@ document.getElementById('pwSave').addEventListener('click', changePassword);
 document.getElementById('pwReset').addEventListener('click', sendOwnReset);
 document.getElementById('usersBtn').addEventListener('click', openUsersPanel);
 document.getElementById('chittaMenuBtn')?.addEventListener('click', () => {
+  if(!hasMenu('chitta')){
+    toast('Access restricted', 'Your account does not have access to Chitta Extract.', 'warn');
+    return;
+  }
   ADMIN_TAB = 'chitta';
   openUsersPanel();
 });
 document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
+  if(!hasMenu('eservices')){
+    toast('Access restricted', 'Your account does not have access to e-Services (No OTP).', 'warn');
+    return;
+  }
   ADMIN_TAB = 'eservices';
   openUsersPanel();
 });
@@ -7416,10 +7556,17 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
     const tab = b.dataset.tab;
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
     if(!isAdmin && (tab === 'users' || tab === 'files' || tab === 'creds')){
-      ADMIN_TAB = 'chitta';
-    } else {
-      ADMIN_TAB = tab;
+      return;
     }
+    if(tab === 'chitta' && !hasMenu('chitta')){
+      toast('Access restricted', 'You do not have Chitta Extract access.', 'warn');
+      return;
+    }
+    if(tab === 'eservices' && !hasMenu('eservices')){
+      toast('Access restricted', 'You do not have e-Services (No OTP) access.', 'warn');
+      return;
+    }
+    ADMIN_TAB = tab;
     renderAdminTabs();
   }
 });
@@ -7476,6 +7623,10 @@ async function pullIsdRuralPdfDirect() {
     };
 
     store['isdRuralPdf'] = parsedPdf;
+
+    if (typeof window.ensureVillageAndVaoDetails === 'function') {
+      window.ensureVillageAndVaoDetails(Array.from(vMap.keys()), cleanTaluk);
+    }
 
     markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
     updateRail();

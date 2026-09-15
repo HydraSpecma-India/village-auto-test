@@ -568,19 +568,65 @@
     const headerTalukSel = document.getElementById('talukSel');
 
     function applyReportAccessFilter() {
-      // Full access across all reports and groups
+      const canIsd = typeof window.hasMenu === 'function' ? window.hasMenu('isd') : true;
+      const canNisd = typeof window.hasMenu === 'function' ? window.hasMenu('nisd') : true;
+      const canFline = typeof window.hasMenu === 'function' ? window.hasMenu('fline') : true;
+
       const nisdRows = document.querySelectorAll('tr[data-ff-group="nisd"]');
       const isdRows = document.querySelectorAll('tr[data-ff-group="isd"], tr[data-ff-group="isd_pdf"]');
       const flineRows = document.querySelectorAll('tr[data-ff-group="fline"]');
 
-      nisdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-      isdRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
-      flineRows.forEach(r => { r.style.display = ''; const c = r.querySelector('input[type="checkbox"]'); if (c) c.checked = true; });
+      nisdRows.forEach(r => {
+        r.style.display = canNisd ? '' : 'none';
+        const c = r.querySelector('input[type="checkbox"]');
+        if (c) c.checked = canNisd;
+      });
+      isdRows.forEach(r => {
+        r.style.display = canIsd ? '' : 'none';
+        const c = r.querySelector('input[type="checkbox"]');
+        if (c) c.checked = canIsd;
+      });
+      flineRows.forEach(r => {
+        r.style.display = canFline ? '' : 'none';
+        const c = r.querySelector('input[type="checkbox"]');
+        if (c) c.checked = canFline;
+      });
 
       const isdRadio = document.getElementById('tnRadioIsd');
       const nisdRadio = document.getElementById('tnRadioNisd');
-      if (isdRadio) { isdRadio.disabled = false; isdRadio.parentElement.style.display = ''; }
-      if (nisdRadio) { nisdRadio.disabled = false; nisdRadio.parentElement.style.display = ''; }
+      const svcFlineRadio = document.getElementById('tnSvcFline');
+      const svcOptRadio = document.getElementById('tnSvcOpt');
+      const svcIsdPdfRadio = document.getElementById('tnSvcIsdPdf');
+
+      if (isdRadio) {
+        isdRadio.disabled = !canIsd;
+        if (isdRadio.parentElement) isdRadio.parentElement.style.display = canIsd ? '' : 'none';
+      }
+      if (nisdRadio) {
+        nisdRadio.disabled = !canNisd;
+        if (nisdRadio.parentElement) nisdRadio.parentElement.style.display = canNisd ? '' : 'none';
+      }
+      if (svcFlineRadio) {
+        svcFlineRadio.disabled = !canFline;
+        if (svcFlineRadio.parentElement) svcFlineRadio.parentElement.style.display = canFline ? '' : 'none';
+      }
+      if (svcIsdPdfRadio) {
+        svcIsdPdfRadio.disabled = !canIsd;
+        if (svcIsdPdfRadio.parentElement) svcIsdPdfRadio.parentElement.style.display = canIsd ? '' : 'none';
+      }
+      if (svcOptRadio) {
+        const canOpt = canIsd || canNisd;
+        svcOptRadio.disabled = !canOpt;
+        if (svcOptRadio.parentElement) svcOptRadio.parentElement.style.display = canOpt ? '' : 'none';
+      }
+
+      // Ensure a valid service radio is checked
+      const checkedSvc = document.querySelector('input[name="tnServiceGroup"]:checked');
+      if (!checkedSvc || (checkedSvc.value === 'FLINE' && !canFline) || (checkedSvc.value === 'ISD_PDF' && !canIsd) || (checkedSvc.value === 'OPT' && !canIsd && !canNisd)) {
+        if (canIsd && svcIsdPdfRadio) { svcIsdPdfRadio.checked = true; svcIsdPdfRadio.dispatchEvent(new Event('change')); }
+        else if (canNisd && svcOptRadio) { svcOptRadio.checked = true; if (nisdRadio) nisdRadio.checked = true; svcOptRadio.dispatchEvent(new Event('change')); }
+        else if (canFline && svcFlineRadio) { svcFlineRadio.checked = true; svcFlineRadio.dispatchEvent(new Event('change')); }
+      }
     }
     window.__applyReportAccessFilter = applyReportAccessFilter;
 
@@ -1691,15 +1737,16 @@
     }
   }
 
-  function ensureVillageAndVaoDetails(allVillages) {
+  async function ensureVillageAndVaoDetails(allVillages, explicitTaluk) {
     if (!window.store) window.store = {};
     const list = Array.from(new Set(allVillages.map(v => String(v || '').trim()))).filter(Boolean);
     if (!list.length) return;
+    const tName = explicitTaluk || (typeof window.talukName === 'function' ? window.talukName() : window.TALUK) || 'Nemili';
 
     if (!window.store.village) {
       const vRows = list.map(v => ({ 'Village Name': v, 'Surveyor Name': 'Surveyor' }));
       const data = {
-        name: 'Auto Village Details',
+        name: `Auto Village Details (${tName})`,
         header: ['Village Name', 'Surveyor Name'],
         objs: vRows
       };
@@ -1707,12 +1754,19 @@
       if (typeof window.markLoaded === 'function') {
         window.markLoaded('village', data.name, vRows.length, false);
       }
+      if (typeof window.saveToCloud === 'function') {
+        try {
+          const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+          blob.name = `TamilNilam_Auto_Village_Details_${tName}.json`;
+          window.saveToCloud('village', blob, data, tName);
+        } catch (e) {}
+      }
     }
 
     if (!window.store.vaoDetails) {
       const vaoRows = list.map(v => ({ 'Village Name': v, 'VAO Name': 'VAO' }));
       const data = {
-        name: 'Auto VAO Details',
+        name: `Auto VAO Details (${tName})`,
         header: ['Village Name', 'VAO Name'],
         objs: vaoRows
       };
@@ -1720,8 +1774,16 @@
       if (typeof window.markLoaded === 'function') {
         window.markLoaded('vaoDetails', data.name, vaoRows.length, false);
       }
+      if (typeof window.saveToCloud === 'function') {
+        try {
+          const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+          blob.name = `TamilNilam_Auto_VAO_Details_${tName}.json`;
+          window.saveToCloud('vaoDetails', blob, data, tName);
+        } catch (e) {}
+      }
     }
   }
+  window.ensureVillageAndVaoDetails = ensureVillageAndVaoDetails;
 
   async function handleApplyToDashboard() {
     if (!currentReportData) {
@@ -1732,6 +1794,16 @@
     const talukSel = document.getElementById('tnTalukSel') || document.getElementById('talukSel') || document.getElementById('tnFFTalukSel');
     const talukCode = talukSel ? talukSel.value : '';
     const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
+    const rawTalukText = talukOption ? talukOption.text : (talukSel ? talukSel.value : '');
+    const talukName = resolveTalukName(rawTalukText) || (typeof window.cleanTalukName === 'function' ? window.cleanTalukName(rawTalukText) : rawTalukText) || (typeof window.talukName === 'function' ? window.talukName() : window.TALUK) || 'Nemili';
+
+    // Synchronize active taluk with dashboard
+    window.TALUK = talukName;
+    try { localStorage.setItem('village_test.selectedTaluk.v1', talukName); } catch (e) {}
+    const topTalukSel = document.getElementById('talukSel');
+    if (topTalukSel) setSelectByTaluk(topTalukSel, talukName);
+    if (typeof window.refreshTitles === 'function') window.refreshTitles();
+
     const serviceGroup = currentReportData.serviceGroup || 'OPT';
     const landCategory = currentReportData.landCategory || 'rural';
 
@@ -1743,21 +1815,24 @@
           if (v.village) vMap.set(v.village, v);
         });
         const parsedPdf = {
-          name: `TamilNilam_Auto_ISD_Status_${talukName || 'Nemili'}.json`,
+          name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
           villages: vMap,
           grand: currentReportData.grand || {}
         };
         window.store['isdRuralPdf'] = parsedPdf;
+
+        ensureVillageAndVaoDetails(Array.from(vMap.keys()), talukName);
+
         if (typeof window.markLoaded === 'function') window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
         if (typeof window.updateRail === 'function') window.updateRail();
         if (typeof window.render === 'function') window.render();
 
         if (typeof window.saveToCloud === 'function') {
           try {
-            const fileName = `TamilNilam_Auto_ISD_Status_${talukName || 'Nemili'}.json`;
+            const fileName = `TamilNilam_Auto_ISD_Status_${talukName}.json`;
             const blob = new Blob([JSON.stringify({ villages: Array.from(vMap.values()), grand: parsedPdf.grand })], { type: 'application/json' });
             blob.name = fileName;
-            await window.saveToCloud('isdRuralPdf', blob, parsedPdf, talukName || 'Nemili');
+            await window.saveToCloud('isdRuralPdf', blob, parsedPdf, talukName);
           } catch (cloudErr) {
             console.warn('Supabase cloud save note:', cloudErr);
           }
@@ -1835,8 +1910,8 @@
           try {
             showStatus('Syncing & replacing F-Line dataset in Supabase Cloud...', 'info');
             const blob = new Blob([JSON.stringify(flineData)], { type: 'application/json' });
-            blob.name = `TamilNilam_Auto_FLINE_${landCategory}_${reportType}.json`;
-            await window.saveToCloud(storeKey, blob, flineData);
+            blob.name = `TamilNilam_Auto_FLINE_${landCategory}_${reportType}_${talukName}.json`;
+            await window.saveToCloud(storeKey, blob, flineData, talukName);
           } catch (cloudErr) {
             console.warn('Supabase cloud save note:', cloudErr);
           }
@@ -1946,7 +2021,7 @@
                 try {
                   const blob = new Blob([JSON.stringify(stRes)], { type: 'application/json' });
                   blob.name = parsedPdf.name;
-                  await window.saveToCloud('isdRuralPdf', blob, parsedPdf);
+                  await window.saveToCloud('isdRuralPdf', blob, parsedPdf, talukName);
                 } catch(e) {}
               }
             }
@@ -1963,14 +2038,14 @@
           try {
             showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
             const slots = [
-              { kind: 'opt0', data: dataBelow25, name: `TamilNilam_Auto_ISD_${landCategory}_Below25Days.json` },
-              { kind: 'opt1', data: data25Above, name: `TamilNilam_Auto_ISD_${landCategory}_25to29Days.json` },
-              { kind: 'opt2', data: data30Above, name: `TamilNilam_Auto_ISD_${landCategory}_30DaysAbove.json` }
+              { kind: 'opt0', data: dataBelow25, name: `TamilNilam_Auto_ISD_${landCategory}_Below25Days_${talukName}.json` },
+              { kind: 'opt1', data: data25Above, name: `TamilNilam_Auto_ISD_${landCategory}_25to29Days_${talukName}.json` },
+              { kind: 'opt2', data: data30Above, name: `TamilNilam_Auto_ISD_${landCategory}_30DaysAbove_${talukName}.json` }
             ];
             for (const s of slots) {
               const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
               blob.name = s.name;
-              await window.saveToCloud(s.kind, blob, s.data);
+              await window.saveToCloud(s.kind, blob, s.data, talukName);
             }
           } catch (cloudErr) {
             console.warn('Supabase cloud save note:', cloudErr);
@@ -2090,21 +2165,21 @@
             showStatus('Syncing & replacing dataset in Supabase Cloud...', 'info');
             const slots = [];
             if (landCategory === 'natham') {
-              slots.push({ kind: 'nisd_1', data: nisd1DetailObj, name: `TamilNilam_Auto_NISD_Natham_${activeTaluk}.json` });
+              slots.push({ kind: 'nisd_1', data: nisd1DetailObj, name: `TamilNilam_Auto_NISD_Natham_${talukName}.json` });
             } else {
               slots.push(
-                { kind: 'nisd_0_0', data: data12, name: `TamilNilam_Auto_NISD_Rural_12DaysAbove_${activeTaluk}.json` },
-                { kind: 'nisd_0_1', data: data10, name: `TamilNilam_Auto_NISD_Rural_10to11Days_${activeTaluk}.json` },
-                { kind: 'nisd_0_2', data: dataBelow10, name: `TamilNilam_Auto_NISD_Rural_Below10Days_${activeTaluk}.json` }
+                { kind: 'nisd_0_0', data: data12, name: `TamilNilam_Auto_NISD_Rural_12DaysAbove_${talukName}.json` },
+                { kind: 'nisd_0_1', data: data10, name: `TamilNilam_Auto_NISD_Rural_10to11Days_${talukName}.json` },
+                { kind: 'nisd_0_2', data: dataBelow10, name: `TamilNilam_Auto_NISD_Rural_Below10Days_${talukName}.json` }
               );
             }
             if (window.store.nisdFirka) {
-              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_${landCategory}_Village_Firka_${activeTaluk}.json` });
+              slots.push({ kind: 'nisdFirka', data: window.store.nisdFirka, name: `TamilNilam_Auto_NISD_${landCategory}_Village_Firka_${talukName}.json` });
             }
             for (const s of slots) {
               const blob = new Blob([JSON.stringify(s.data)], { type: 'application/json' });
               blob.name = s.name;
-              await window.saveToCloud(s.kind, blob, s.data, activeTaluk);
+              await window.saveToCloud(s.kind, blob, s.data, talukName);
             }
           } catch (cloudErr) {
             console.warn('Supabase cloud save note:', cloudErr);
@@ -2651,6 +2726,8 @@
 
       if (!window.store) window.store = {};
       window.store['isdRuralPdf'] = parsedPdf;
+
+      ensureVillageAndVaoDetails(Array.from(vMap.keys()), activeTaluk);
 
       if (typeof window.markLoaded === 'function') {
         window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
