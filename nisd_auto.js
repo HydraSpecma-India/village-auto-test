@@ -1741,14 +1741,26 @@
     if (!window.store) window.store = {};
     const list = Array.from(new Set(allVillages.map(v => String(v || '').trim()))).filter(Boolean);
     if (!list.length) return;
-    const tName = explicitTaluk || (typeof window.talukName === 'function' ? window.talukName() : window.TALUK) || 'Nemili';
+    const rawTName = explicitTaluk || window.TALUK || (typeof window.talukName === 'function' ? window.talukName() : '') || 'Arakkonam';
+    const tName = cleanTalukTitle(rawTName);
 
-    if (!window.store.village) {
-      const vRows = list.map(v => ({ 'Village Name': v, 'Surveyor Name': 'Surveyor' }));
+    const existingVillageRows = window.store.village?.objs || [];
+    const hasCurrentTalukVillages = existingVillageRows.some(r => {
+      const rowTaluk = r.Taluk || r.taluk || '';
+      return (rowTaluk && norm(rowTaluk) === norm(tName)) || list.includes(r['Village Name'] || r.Village);
+    });
+
+    if (!window.store.village || !hasCurrentTalukVillages) {
+      const vRows = list.map(v => ({ 'Village Name': v, 'Taluk': tName, 'Surveyor Name': 'Surveyor' }));
+      const otherTalukRows = existingVillageRows.filter(r => {
+        const rowTaluk = r.Taluk || r.taluk || '';
+        return rowTaluk && norm(rowTaluk) !== norm(tName) && !list.includes(r['Village Name'] || r.Village);
+      });
       const data = {
         name: `Auto Village Details (${tName})`,
-        header: ['Village Name', 'Surveyor Name'],
-        objs: vRows
+        taluk: tName,
+        header: ['Village Name', 'Taluk', 'Surveyor Name'],
+        objs: [...otherTalukRows, ...vRows]
       };
       window.store.village = data;
       if (typeof window.markLoaded === 'function') {
@@ -1763,12 +1775,23 @@
       }
     }
 
-    if (!window.store.vaoDetails) {
-      const vaoRows = list.map(v => ({ 'Village Name': v, 'VAO Name': 'VAO' }));
+    const existingVaoRows = window.store.vaoDetails?.objs || [];
+    const hasCurrentTalukVao = existingVaoRows.some(r => {
+      const rowTaluk = r.Taluk || r.taluk || '';
+      return (rowTaluk && norm(rowTaluk) === norm(tName)) || list.includes(r['Village Name'] || r.Village);
+    });
+
+    if (!window.store.vaoDetails || !hasCurrentTalukVao) {
+      const vaoRows = list.map(v => ({ 'Village Name': v, 'Taluk': tName, 'VAO Name': 'VAO' }));
+      const otherTalukVao = existingVaoRows.filter(r => {
+        const rowTaluk = r.Taluk || r.taluk || '';
+        return rowTaluk && norm(rowTaluk) !== norm(tName) && !list.includes(r['Village Name'] || r.Village);
+      });
       const data = {
         name: `Auto VAO Details (${tName})`,
-        header: ['Village Name', 'VAO Name'],
-        objs: vaoRows
+        taluk: tName,
+        header: ['Village Name', 'Taluk', 'VAO Name'],
+        objs: [...otherTalukVao, ...vaoRows]
       };
       window.store.vaoDetails = data;
       if (typeof window.markLoaded === 'function') {
@@ -1861,7 +1884,7 @@
     try {
       if (!window.store) window.store = {};
       const allAppVillages = Array.from(new Set(rawApps.map(a => (a.village_name || a.village || '').trim()))).filter(Boolean);
-      ensureVillageAndVaoDetails(allAppVillages);
+      ensureVillageAndVaoDetails(allAppVillages, talukName);
 
       if (serviceGroup === 'FLINE') {
         const reportType = currentReportData.reportType || 'FLINE';
@@ -2436,8 +2459,11 @@
             if (typeof window.markLoaded === 'function') {
               window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
             }
-            setStatus('isd_rural_pdf', `✓ ${vMap.size} villages`, 'ok');
-            summaryStats.push(`ISD Rural PDF: ${vMap.size} villages`);
+            const grandAll = item.res.grand?.all?.pending ?? item.res.grand?.all?.total ?? 0;
+            const grandInv = item.res.grand?.inv?.pending ?? item.res.grand?.inv?.total ?? 0;
+            const grandNotInv = item.res.grand?.notinv?.pending ?? item.res.grand?.notinv?.total ?? 0;
+            setStatus('isd_rural_pdf', `✓ ${grandAll} Pending (${grandInv} Inv + ${grandNotInv} Not Inv)`, 'ok');
+            summaryStats.push(`ISD Rural PDF: ${grandAll} pending (${grandInv} Inv + ${grandNotInv} Not Inv) across ${vMap.size} villages`);
           } else {
             setStatus('isd_rural_pdf', 'Error: ' + (item.res?.error || 'Failed'), 'err');
           }
@@ -2584,7 +2610,36 @@
         }
       });
 
-      ensureVillageAndVaoDetails(allAppVillages);
+      // If ISD OPT was not checked or empty, but ISD PDF was pulled, synthesize baseline opt0 bucket from PDF
+      if (window.store['isdRuralPdf'] && (!window.store['opt0'] || !window.store['opt0'].rows || !window.store['opt0'].rows.length)) {
+        const vList = Array.from(window.store['isdRuralPdf'].villages.values());
+        const synRows = vList.map(v => {
+          const vName = v.village || '';
+          const pend = (v.inv && v.inv.pending != null) ? v.inv.pending : (v.pending || 0);
+          return {
+            label: vName, village: vName, taluk: talukName,
+            surv: pend, vao: 0, lrd: 0, dis: 0, thl: 0, all: pend,
+            rtr: 0, str: pend, total: pend,
+            total_sur: pend, total_vao: 0, total_lrd: 0, total_dis: 0, total_thl: 0
+          };
+        }).filter(r => r.total > 0);
+        const synFooter = {
+          label: 'Total', village: 'Total', taluk: talukName,
+          surv: synRows.reduce((s, r) => s + r.surv, 0),
+          vao: 0, lrd: 0, dis: 0, thl: 0,
+          all: synRows.reduce((s, r) => s + r.all, 0),
+          total: synRows.reduce((s, r) => s + r.total, 0),
+          total_sur: synRows.reduce((s, r) => s + r.total_sur, 0),
+          total_vao: 0, total_lrd: 0, total_dis: 0, total_thl: 0
+        };
+        const dBelow25 = { name: `Auto PDF Involving (${synFooter.total} apps)`, rows: synRows, footer: synFooter };
+        window.store['opt0'] = dBelow25;
+        window.store['opt1'] = { name: `Auto 25-29 Days (0 apps)`, rows: [], footer: null };
+        window.store['opt2'] = { name: `Auto 30+ Days (0 apps)`, rows: [], footer: null };
+        if (typeof window.markLoaded === 'function') {
+          window.markLoaded('opt0', dBelow25.name, synRows.length, false);
+        }
+      }
 
       // Sync active TALUK across window and header
       if (talukName) {
@@ -2594,6 +2649,8 @@
         if (topTalukSel) setSelectByTaluk(topTalukSel, talukName);
         if (typeof window.refreshTitles === 'function') window.refreshTitles();
       }
+
+      ensureVillageAndVaoDetails(allAppVillages, talukName);
 
       if (typeof window.renderNisdDrops === 'function') window.renderNisdDrops();
       if (typeof window.updateRail === 'function') window.updateRail();

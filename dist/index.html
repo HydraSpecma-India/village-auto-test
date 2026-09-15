@@ -3132,13 +3132,13 @@ function addVillage(rec, village){
 }
 
 function isdReady(){
-  return !!(store.village && store.vaoDetails && OPT_KEYS.some(k => store[k]));
+  return !!((store.village && store.vaoDetails && OPT_KEYS.some(k => store[k])) || store.isdRuralPdf);
 }
 function isdMissing(){
   const m = [];
   if(!store.village) m.push('village');
   if(!store.vaoDetails) m.push('vaoDetails');
-  if(!OPT_KEYS.some(k => store[k])) m.push(OPT_KEYS[0]);
+  if(!OPT_KEYS.some(k => store[k]) && !store.isdRuralPdf) m.push(OPT_KEYS[0]);
   return m;
 }
 
@@ -3146,19 +3146,21 @@ function aggregateIsdRural(){
   if(!isdReady()) return {ready:false, missing:isdMissing()};
 
   const villageL = (()=>{
+    if(!store.village) return new Map();
     const {header, objs} = store.village;
     const vK = findKey(header, ['Village','Village Name','VillageName']);
     const uK = findKeyStrict(header, ['Name','User name','User Name','Username','Surveyor Name','Surveyor','Officer','User']);
     const tK = talukKeyOf(header);
-    return makeLookup(objs.filter(o => !tK || inTaluk(o[tK]))
+    return makeLookup((objs||[]).filter(o => !tK || inTaluk(o[tK]))
       .map(o => [o[vK], String(o[uK]==null?'':o[uK]).trim()]).filter(p => p[0] && p[1]));
   })();
   const vaoL = (()=>{
+    if(!store.vaoDetails) return new Map();
     const {header, objs} = store.vaoDetails;
     const vK = findKey(header, ['Village Name','Village','VillageName']);
     const nK = findKeyStrict(header, ['VAO Name','VAO','Name','User name']);
     const tK = talukKeyOf(header);
-    return makeLookup(objs.filter(o => !tK || inTaluk(o[tK]))
+    return makeLookup((objs||[]).filter(o => !tK || inTaluk(o[tK]))
       .map(o => [o[vK], String(o[nK]==null?'':o[nK]).trim()]).filter(p => p[0] && p[1]));
   })();
 
@@ -3168,6 +3170,40 @@ function aggregateIsdRural(){
   const pendingByVillage = new Map();   // village key -> {surv, vao, label}
 
   const get = (bag, name) => bag[name] = bag[name] || blankRow();
+
+  // If OPT slots are empty but store.isdRuralPdf is loaded, synthesize baseline pending from PDF
+  const hasOptRows = OPT_SLOTS.some(slot => store[slot.key] && store[slot.key].rows && store[slot.key].rows.length);
+  if(!hasOptRows && store.isdRuralPdf && store.isdRuralPdf.villages){
+    const pdfVillages = store.isdRuralPdf.villages instanceof Map
+      ? Array.from(store.isdRuralPdf.villages.values())
+      : (Array.isArray(store.isdRuralPdf.villages) ? store.isdRuralPdf.villages : []);
+    if(pdfVillages.length > 0){
+      const synSlot = OPT_SLOTS[0];
+      loadedSlots.push(synSlot);
+      const bk = bucketsFor('isdRural')[0].key;
+      let sSum = 0, vSum = 0;
+
+      pdfVillages.forEach(pv => {
+        const label = pv.village || pv.village_name || '';
+        const pend = (pv.inv && pv.inv.pending != null) ? pv.inv.pending : (pv.pending || 0);
+        if(!pend) return;
+
+        const pk = norm(label) || label;
+        const p = pendingByVillage.get(pk) || {surv:0, vao:0, label:label};
+        p.surv += pend; pendingByVillage.set(pk, p);
+
+        sSum += pend;
+        const name = lookupVillage(label, villageL);
+        if(!name) noSurveyor.add(label);
+        const sName = name || 'Surveyor — ' + label;
+        const rec = get(surveyors, sName), v = addVillage(rec, label);
+        rec.b[bk] += pend; rec.pending += pend;
+        v.b[bk]   += pend; v.pending   += pend;
+      });
+
+      slotTotals[synSlot.key] = {surv:sSum, vao:vSum};
+    }
+  }
 
   OPT_SLOTS.forEach((slot, i)=>{
     const f = store[slot.key];
@@ -3197,17 +3233,17 @@ function aggregateIsdRural(){
         sSum += surv;
         const name = lookupVillage(label, villageL);
         if(!name) noSurveyor.add(label);
-        else{
-          const rec = get(surveyors, name), v = addVillage(rec, label);
-          rec.b[bk] += surv; rec.pending += surv;
-          v.b[bk]   += surv; v.pending   += surv;
-        }
+        const sName = name || 'Surveyor — ' + label;
+        const rec = get(surveyors, sName), v = addVillage(rec, label);
+        rec.b[bk] += surv; rec.pending += surv;
+        v.b[bk]   += surv; v.pending   += surv;
       }
       if(vao > 0){
         vSum += vao;
         const name = lookupVillage(label, vaoL);
         if(!name) noVao.add(label);
-        const rec = get(vaos, name || 'VAO — name not listed'), v = addVillage(rec, label);
+        const vName = name || 'VAO — ' + label;
+        const rec = get(vaos, vName), v = addVillage(rec, label);
         rec.b[bk] += vao; rec.pending += vao;
         v.b[bk]   += vao; v.pending   += vao;
       }
@@ -3234,12 +3270,12 @@ function aggregateIsdRural(){
       /* the village goes to whichever role is actually holding its pending */
       const p = pendingByVillage.get(norm(pv.village)) || {surv:0, vao:0};
       let bag = null, name = null;
-      if(p.vao > p.surv){ name = lookupVillage(pv.village, vaoL); bag = vaos; if(!name){ name = 'VAO — name not listed'; noVao.add(pv.village); } }
+      if(p.vao > p.surv){ name = lookupVillage(pv.village, vaoL); bag = vaos; if(!name){ name = 'VAO — ' + pv.village; noVao.add(pv.village); } }
       else{
         name = lookupVillage(pv.village, villageL); bag = surveyors;
         if(!name){ name = lookupVillage(pv.village, vaoL); bag = vaos; }
+        if(!name){ name = 'Surveyor — ' + pv.village; }
       }
-      if(!name){ pdfNoOwner.set(pv.village, pv.inv.approved + pv.inv.rejected); continue; }
       const rec = get(bag, name), v = addVillage(rec, pv.village);
       rec.approved += pv.inv.approved; rec.rejected += pv.inv.rejected;
       v.approved   += pv.inv.approved; v.rejected   += pv.inv.rejected;
@@ -3415,12 +3451,24 @@ function renderIsdReport(){
     extra += '<br><span style="color:var(--muted)">No Application Status PDF loaded — the Today Disposal columns are empty.</span>';
   }else{
     const inv = R.pdfGrand && R.pdfGrand.inv;
+    const notinv = R.pdfGrand && R.pdfGrand.notinv;
+    const grandAll = R.pdfGrand && R.pdfGrand.all;
+    const totPend = (grandAll && (grandAll.pending != null ? grandAll.pending : grandAll.total)) ?? ((inv?inv.pending:0) + (notinv?notinv.pending:0));
+    const invPend = inv ? (inv.pending != null ? inv.pending : inv.total || 0) : 0;
+    const notinvPend = notinv ? (notinv.pending != null ? notinv.pending : notinv.total || 0) : 0;
+    const vCount = store.isdRuralPdf && store.isdRuralPdf.villages ? (store.isdRuralPdf.villages.size || store.isdRuralPdf.villages.length || 0) : 0;
+
+    extra += '<br><span style="display:inline-block; margin-top:6px; padding:4px 10px; background:rgba(37,99,235,.1); border-radius:6px; color:var(--primary); font-weight:700; font-size:12.5px;">' +
+      '📄 Official PDF Status: ' + totPend + ' Total Pending (' + invPend + ' Involving Sub-Division · ' + notinvPend + ' Not Involving Sub-Division) across ' +
+      vCount + ' villages</span>';
+
     const got = gTotal.approved + gTotal.rejected;
     if(inv){
       const want = inv.approved + inv.rejected;
       extra += '<br><span style="color:'+(want===got?'var(--ok)':'var(--muted)')+'">'+(want===got?'✓ ':'')+
-        'PDF Involving Sub-Division disposal: '+inv.approved+' approved, '+inv.rejected+' rejected'+
-        (want===got ? ' — fully attributed.' : ' · attributed '+gTotal.approved+' / '+gTotal.rejected+'.')+'</span>';
+        'Today’s Disposal (PDF): '+inv.approved+' approved, '+inv.rejected+' rejected'+
+        (want===got ? ' — fully attributed.' : ' · attributed '+gTotal.approved+' / '+gTotal.rejected+'.')+
+        (want === 0 ? ' (Disposals are 0; all ' + invPend + ' Involving applications are in Pending status).' : '') + '</span>';
     }
     if(R.pdfNoOwner.size) extra += '<br><span style="color:var(--warn)">⚠ '+R.pdfNoOwner.size+' village(s) in the PDF match neither Village Details nor VAO Details: '+esc(Array.from(R.pdfNoOwner.keys()).slice(0,8).join(', '))+(R.pdfNoOwner.size>8?' …':'')+'</span>';
     extra += '<br><span style="color:var(--muted)">Disposal is credited to whichever role holds that village’s pending; villages with no pending go to their surveyor.</span>';
