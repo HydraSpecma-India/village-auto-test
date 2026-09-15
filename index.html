@@ -4122,7 +4122,7 @@ function serialiseParsed(kind, parsed){
     return {type:'pdf', villages: vArr, grand: parsed.grand || {}};
   }
   if(OPT_KEYS.indexOf(kind) >= 0) return {type:'opt', rows: parsed.rows || [], footer: parsed.footer};
-  if(NISD_KEYS.indexOf(kind) >= 0 && parsed.rows) return {type:'nisdrange', rows: parsed.rows || [], footer: parsed.footer, period: parsed.period || '', asOn: parsed.asOn || ''};
+  if((NISD_KEYS.indexOf(kind) >= 0 || kind.startsWith('nisd_0_') || kind.startsWith('nisd0')) && parsed.rows) return {type:'nisdrange', rows: parsed.rows || [], footer: parsed.footer, period: parsed.period || '', asOn: parsed.asOn || ''};
   if(kind === 'nisdFirka') return {type:'rows', rows: parsed.rows || []};
   return {type:'sheet', header: parsed.header || [], objs: parsed.objs || [], period: parsed.period || '', asOn: parsed.asOn || ''};
 }
@@ -4144,7 +4144,9 @@ function reviveParsed(kind, payload){
 }
 function rowCountOf(kind, parsed){
   if(!parsed) return 0;
-  if(kind === 'isdRuralPdf') return (parsed.villages && parsed.villages.size) || (Array.isArray(parsed.villages) ? parsed.villages.length : 0);
+  if(kind === 'isdRuralPdf') return parsed.villages ? (parsed.villages.size || parsed.villages.length || 0) : 0;
+  if(OPT_KEYS.indexOf(kind) >= 0) return (parsed.rows || []).length;
+  if(NISD_KEYS.indexOf(kind) >= 0 || kind.startsWith('nisd_0_') || kind.startsWith('nisd0')) return (parsed.rows || []).length;
   if(parsed.rows && Array.isArray(parsed.rows)) return parsed.rows.length;
   if(parsed.objs && Array.isArray(parsed.objs)) return parsed.objs.length;
   return 0;
@@ -4204,7 +4206,7 @@ async function restoreFromCloud(){
     try{ if(TALUK) localStorage.setItem(TALUK_SELECTED_KEY, TALUK); }catch(e){}
     let n = 0;
     (data || []).forEach(row=>{
-      const isKnown = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0 || row.kind === 'nisd_1';
+      const isKnown = (row.kind in store) || OPT_KEYS.indexOf(row.kind) >= 0 || NISD_KEYS.indexOf(row.kind) >= 0 || row.kind === 'nisd_1' || row.kind.startsWith('nisd_0_') || row.kind.startsWith('nisd0');
       if(!isKnown) return;
       if(normTaluk(row.taluk || '') !== normTaluk(TALUK || '')) return;          /* another taluk's set */
       const parsed = reviveParsed(row.kind, row.payload);

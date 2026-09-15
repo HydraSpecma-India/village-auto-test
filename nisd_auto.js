@@ -2241,10 +2241,10 @@
     }
 
     const talukSel = document.getElementById('tnFFTalukSel') || document.getElementById('talukSel') || document.getElementById('tnTalukSel');
-    const talukCode = (talukSel && talukSel.value) ? talukSel.value : '12';
     const talukOption = talukSel && talukSel.options && talukSel.selectedIndex >= 0 ? talukSel.options[talukSel.selectedIndex] : null;
-    const rawTalukName = talukOption ? talukOption.text : `Taluk ${talukCode}`;
+    const rawTalukName = talukOption ? talukOption.text : (talukSel?.value || 'Nemili');
     const talukName = cleanTalukTitle(rawTalukName);
+    const talukCode = resolveTalukCode(talukSel?.value || talukName);
     const distCode = document.getElementById('tnDistSel')?.value || '37';
 
     const creds = getTnCreds();
@@ -2608,6 +2608,9 @@
           { kind: 'isdNatham', data: window.store['isdNatham'], name: `TamilNilam_Auto_ISD_Natham_${talukName}.json` },
           { kind: 'flineRural', data: window.store['flineRural'], name: `TamilNilam_Auto_FLine_Rural_${talukName}.json` },
           { kind: 'flineNatham', data: window.store['flineNatham'], name: `TamilNilam_Auto_FLine_Natham_${talukName}.json` },
+          { kind: 'nisd_0_0', data: window.store['nisd_0_0'], name: `TamilNilam_Auto_NISD_Rural_12DaysAbove_${talukName}.json` },
+          { kind: 'nisd_0_1', data: window.store['nisd_0_1'], name: `TamilNilam_Auto_NISD_Rural_10to11Days_${talukName}.json` },
+          { kind: 'nisd_0_2', data: window.store['nisd_0_2'], name: `TamilNilam_Auto_NISD_Rural_Below10Days_${talukName}.json` },
           { kind: 'nisd_1', data: window.store['nisd_1'], name: `TamilNilam_Auto_NISD_Natham_${talukName}.json` }
         ];
         if (window.store.nisdFirka) {
