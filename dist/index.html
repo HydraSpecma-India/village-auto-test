@@ -909,6 +909,7 @@
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center to configure dates &amp; pull reports for selected Taluk">⚡ Flash Fill Control Center</button>
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
       <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
+      <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Manage Tahsildar Portal Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5;">🔑 Credentials</button>
     </div>
     <div class="topbar-actions">
       <span class="whoami" id="whoami" style="display:none"></span>
@@ -3793,6 +3794,24 @@ function renderAdmin(){
 const TN_CREDS_KEY = 'village_test.tnCreds.v2';
 const TN_CREDS_LEGACY_KEY = 'village_test.tnCreds.v1';
 
+let TALUK_CREDS = [];
+window.TALUK_CREDS = TALUK_CREDS;
+
+async function loadTalukCredsFromCloud() {
+  if (!CLOUD_ON || !ME) return TALUK_CREDS;
+  try {
+    const { data, error } = await sb.from('isd_taluk_credentials').select('*').order('taluk_code');
+    if (!error && Array.isArray(data)) {
+      TALUK_CREDS = data;
+      window.TALUK_CREDS = TALUK_CREDS;
+    }
+  } catch(e) {
+    console.warn('loadTalukCredsFromCloud note:', e);
+  }
+  return TALUK_CREDS;
+}
+window.loadTalukCredsFromCloud = loadTalukCredsFromCloud;
+
 function getAllTnCreds() {
   const defaultPrimary = { username: 'dlurpet', password: '16-03-1992', roleId: '7', label: 'Primary (DLU / NISD & F-Line)' };
   const defaultSecondary = { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
@@ -3823,11 +3842,38 @@ function getAllTnCreds() {
   return { primary: defaultPrimary, secondary: defaultSecondary };
 }
 
-function getTnCreds(type = 'primary') {
-  const creds = getAllTnCreds();
+function getTnCreds(type = 'primary', talukName = null) {
+  // Check Supabase cached credentials first
   if (type === 'secondary' || type === 'isd' || type === 'tahsildar') {
-    return (creds.secondary && creds.secondary.username && creds.secondary.password) ? creds.secondary : { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
+    const targetTaluk = talukName || (typeof TALUK !== 'undefined' ? TALUK : '') || 'Nemili';
+    const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(targetTaluk));
+    if (found && found.username) {
+      return {
+        username: found.username,
+        password: found.password,
+        roleId: found.role_id || '8',
+        role_id: found.role_id || '8',
+        taluk: found.taluk,
+        talukCode: found.taluk_code
+      };
+    }
+    const creds = getAllTnCreds();
+    return (creds.secondary && creds.secondary.username && creds.secondary.password)
+      ? creds.secondary
+      : { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
   }
+
+  const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
+  if (distCred && distCred.username) {
+    return {
+      username: distCred.username,
+      password: distCred.password,
+      roleId: distCred.role_id || '7',
+      role_id: distCred.role_id || '7',
+      label: 'Primary (DLU / NISD & F-Line)'
+    };
+  }
+  const creds = getAllTnCreds();
   return creds.primary;
 }
 
@@ -4232,6 +4278,7 @@ async function restoreFromCloud(){
   RESTORING = true;
   cloudPill('syncing', 'loading…');
   try{
+    await loadTalukCredsFromCloud();
     const { data, error } = await sb.from('isd_test_datasets').select('*');
     if(error) throw error;
     CLOUD_TALUKS.clear();
@@ -4296,15 +4343,28 @@ function markLoaded(kind, name, rows, fromCloud){
 }
 
 /* ============================================================
-   Admin — users and stored files
+   Admin — users, stored files and credentials hub
    ============================================================ */
 let ADMIN_TAB = 'users';
 
+function canManageCreds(){
+  if(!CLOUD_ON) return true;
+  if(!ME) return false;
+  return true; // Any authenticated user can manage credentials for their permitted taluks
+}
+
 function openUsersPanel(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const canChitta = hasMenu('chitta');
+  const canEservices = hasMenu('eservices');
+  const canCreds = canManageCreds();
+
   if(!isAdmin){
-    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds'){
-      ADMIN_TAB = 'chitta';
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files'){
+      if(canCreds) ADMIN_TAB = 'creds';
+      else if(canChitta) ADMIN_TAB = 'chitta';
+      else if(canEservices) ADMIN_TAB = 'eservices';
+      else ADMIN_TAB = 'none';
     }
   }
   const panel = document.getElementById('usersPanel');
@@ -4321,7 +4381,7 @@ function openUsersPanel(){
   }
   const titleEl = document.querySelector('#usersPanel .full-page-head h2 span:last-child');
   if(titleEl){
-    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Chitta & e-Services Extract Hub';
+    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Portal Credentials & Services Hub';
   }
   renderAdminTabs();
 }
@@ -4343,6 +4403,7 @@ function renderAdminTabs(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   const canChitta = hasMenu('chitta');
   const canEservices = hasMenu('eservices');
+  const canCreds = canManageCreds();
 
   const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
   const filesBtn = document.querySelector('#usersTabs button[data-tab="files"]');
@@ -4352,20 +4413,27 @@ function renderAdminTabs(){
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(filesBtn) filesBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  if(credsBtn) credsBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(credsBtn) credsBtn.style.display = (isAdmin || canCreds) ? 'inline-block' : 'none';
   if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
   
   if(!isAdmin){
-    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files' || ADMIN_TAB === 'creds'){
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files'){
+      if(canCreds) ADMIN_TAB = 'creds';
+      else if(canChitta) ADMIN_TAB = 'chitta';
+      else if(canEservices) ADMIN_TAB = 'eservices';
+      else ADMIN_TAB = 'none';
+    } else if(ADMIN_TAB === 'creds' && !canCreds){
       if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
       else ADMIN_TAB = 'none';
     } else if(ADMIN_TAB === 'chitta' && !canChitta){
-      if(canEservices) ADMIN_TAB = 'eservices';
+      if(canCreds) ADMIN_TAB = 'creds';
+      else if(canEservices) ADMIN_TAB = 'eservices';
       else ADMIN_TAB = 'none';
     } else if(ADMIN_TAB === 'eservices' && !canEservices){
-      if(canChitta) ADMIN_TAB = 'chitta';
+      if(canCreds) ADMIN_TAB = 'creds';
+      else if(canChitta) ADMIN_TAB = 'chitta';
       else ADMIN_TAB = 'none';
     }
   }
@@ -4380,7 +4448,7 @@ function renderAdminTabs(){
     renderFiles();
   }
   else if(ADMIN_TAB === 'creds'){
-    if(!isAdmin){ renderAdminTabs(); return; }
+    if(!isAdmin && !canCreds){ renderAdminTabs(); return; }
     renderTnCredsTab();
   }
   else if(ADMIN_TAB === 'chitta'){
@@ -4627,45 +4695,85 @@ async function renderFiles(){
 }
 
 /* ---------- Tamil Nilam Credentials ---------- */
-function renderTnCredsTab() {
+async function renderTnCredsTab() {
   const box = document.getElementById('usersBody');
   if (!box) return;
 
+  box.innerHTML = `
+    <div style="max-width: 860px; margin: 50px auto; text-align: center; color: var(--muted); font-size: 14px;">
+      <span style="font-size: 32px; display: block; margin-bottom: 8px;">⏳</span>
+      Loading credentials from database...
+    </div>
+  `;
+
+  await loadTalukCredsFromCloud();
+
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if (!isAdmin) {
-    box.innerHTML = `
-      <div style="max-width: 550px; margin: 50px auto; padding: 28px; background: var(--surface-2); border-radius: 16px; border: 1px solid var(--line-2); text-align: center; box-shadow: var(--shadow);">
-        <span style="font-size: 44px; display: block; margin-bottom: 12px;">🔒</span>
-        <h3 style="margin: 0 0 8px; font-size: 19px; color: var(--ink); font-weight: 700;">Administrator Access Required</h3>
-        <p style="margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5;">Tamil Nilam portal credentials management is restricted to Administrator accounts only.<br>Please sign in with an Admin account to manage credentials.</p>
-      </div>
-    `;
-    return;
+  const mine = (typeof myTaluks === 'function') ? myTaluks() : null;
+
+  // Standard taluks in Ranipet District (37)
+  const RANIPET_TALUKS = [
+    { name: 'Arakkonam', code: '03' },
+    { name: 'Nemili', code: '12' },
+    { name: 'Arcot', code: '02' },
+    { name: 'Kalavai', code: '13' },
+    { name: 'Sholinghur', code: '14' },
+    { name: 'Walajah', code: '04' }
+  ];
+
+  // Dist Primary Credential
+  const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district') || {
+    taluk: 'District',
+    taluk_code: '37',
+    username: 'dlurpet',
+    password: '16-03-1992',
+    role_id: '7',
+    type: 'primary'
+  };
+
+  // Filter taluks visible to this user
+  let visibleTaluks = RANIPET_TALUKS;
+  if (!isAdmin && mine && mine.length) {
+    visibleTaluks = RANIPET_TALUKS.filter(t => mine.some(m => normTaluk(m) === normTaluk(t.name)));
   }
 
-  const allCreds = getAllTnCreds();
-  const c1 = allCreds.primary;
-  const c2 = allCreds.secondary;
+  // Map credentials for visible taluks
+  const talukRows = visibleTaluks.map(t => {
+    const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(t.name));
+    return {
+      name: t.name,
+      code: t.code,
+      username: found ? found.username : (t.name.toLowerCase() === 'nemili' ? 'rpt_panneerselvam' : `thl${t.name.toLowerCase()}`),
+      password: found ? found.password : 'Taluk@123',
+      roleId: (found && found.role_id) ? found.role_id : '8',
+      updatedAt: found ? found.updated_at : null
+    };
+  });
 
-  box.innerHTML = `
-    <div style="max-width: 860px; margin: 10px auto 30px; display: flex; flex-direction: column; gap: 22px;">
-      
-      <!-- Top Overview Banner -->
-      <div style="background: var(--surface-2); padding: 18px 22px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
-        <div>
-          <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px;">
-            <span>🔑 Tamil Nilam Dual Portal Credentials Hub</span>
-          </h3>
-          <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
-            Manage two distinct portal logins: <b>ID 1</b> (General DLU for NISD/F-Line) and <b>ID 2</b> (Tahsildar for ISD Rural drilldown).
-          </p>
-        </div>
-        <button type="button" class="primary" id="tnSaveCredsBtn" style="padding: 10px 22px; font-size: 13.5px; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-          💾 Save All Credentials
-        </button>
+  let h = `<div style="max-width: 920px; margin: 10px auto 30px; display: flex; flex-direction: column; gap: 22px;">`;
+
+  // Overview Banner
+  h += `
+    <div style="background: var(--surface-2); padding: 18px 22px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+      <div>
+        <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+          <span>🔑 ${isAdmin ? 'Tamil Nilam Dual Portal &amp; Taluk Credentials Hub' : 'Tahsildar Portal Credentials'}</span>
+        </h3>
+        <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
+          ${isAdmin
+            ? 'Manage District Primary credentials (DLU / NISD / F-Line) and Tahsildar logins across all taluks (ISD Rural drilldown). Changes are stored securely in Supabase.'
+            : `Update Tahsildar login username and password for your assigned taluk: <b>${visibleTaluks.map(t => t.name).join(', ') || 'Assigned Taluks'}</b>. Changes are stored securely in Supabase.`}
+        </p>
       </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="pill" style="font-size:11.5px; background:var(--surface); border:1px solid var(--line-2);">${isAdmin ? '🛡️ Administrator' : '👤 ' + (visibleTaluks.map(t=>t.name).join(', ') || 'Taluk User')}</span>
+      </div>
+    </div>
+  `;
 
-      <!-- CARD 1: PRIMARY DLU LOGIN (NISD & FLINE) -->
+  // Admin Only: ID 1 District Primary
+  if (isAdmin) {
+    h += `
       <div style="background: var(--surface-2); padding: 22px 24px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-2);">
           <div>
@@ -4673,218 +4781,327 @@ function renderTnCredsTab() {
               <span>🏛️ ID 1: Primary Portal Login (DLU — NISD &amp; F-Line)</span>
             </b>
             <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">
-              Used to automate OPT (NISD Rural &amp; Natham) and F-Line / F-Line Appeal reports.
+              Used across all taluks for OPT (NISD Rural &amp; Natham) and F-Line / F-Line Appeal reports.
             </p>
           </div>
-          <span class="pill" style="font-size: 11px; font-weight: 600; background: #2563eb15; color: #2563eb; border: 1px solid #2563eb30;">DLU Scope</span>
+          <span class="pill" style="font-size: 11px; font-weight: 600; background: #2563eb15; color: #2563eb; border: 1px solid #2563eb30;">District Scope (37)</span>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 110px 130px; gap: 14px; align-items: end;">
           <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Username / Emp Value (ID 1)</label>
-            <input type="text" id="tnCredUser1" value="${esc(c1.username || 'dlurpet')}" placeholder="e.g. dlurpet" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Username / Emp ID</label>
+            <input type="text" id="tnCredDistUser" value="${esc(distCred.username || 'dlurpet')}" placeholder="dlurpet" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Password (ID 1)</label>
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Password</label>
             <div style="position: relative; display: flex; align-items: center;">
-              <input type="password" id="tnCredPass1" value="${esc(c1.password || '16-03-1992')}" placeholder="Portal Password" style="width: 100%; padding: 9px 38px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
-              <button type="button" id="tnTogglePass1" title="Toggle password" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px;">👁️</button>
+              <input type="password" id="tnCredDistPass" value="${esc(distCred.password || '16-03-1992')}" placeholder="Password" style="width: 100%; padding: 9px 36px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+              <button type="button" class="toggle-pass-btn" data-target="tnCredDistPass" title="Toggle visibility" style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px;">👁️</button>
             </div>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Role ID</label>
-            <input type="text" id="tnCredRole1" value="${esc(c1.roleId || '7')}" placeholder="e.g. 7" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Role ID</label>
+            <input type="text" id="tnCredDistRole" value="${esc(distCred.role_id || '7')}" placeholder="7" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Target District</label>
-            <input type="text" value="Ranipet (37)" readonly style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13px; color: var(--muted); cursor: not-allowed;">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Target District</label>
+            <input type="text" value="Ranipet (37)" readonly style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 12.5px; color: var(--muted); cursor: not-allowed;">
           </div>
         </div>
 
-        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2);">
-          <button type="button" class="ghost" id="tnTestCredsBtn1" style="padding: 7px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            ⚡ Test ID 1 Connection
-          </button>
-          <span id="tnCredsStatus1" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2); flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" class="primary" id="tnSaveDistBtn" style="padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 7px; background: #2563eb; color: #fff; border: none; cursor: pointer;">
+              💾 Save District Login
+            </button>
+            <button type="button" class="ghost" id="tnTestDistBtn" style="padding: 8px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer;">
+              ⚡ Test Primary Connection
+            </button>
+          </div>
+          <span id="tnDistStatus" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
         </div>
       </div>
+    `;
+  }
 
-      <!-- CARD 2: SECONDARY TAHSILDAR LOGIN (ISD RURAL / DRILLDOWN) -->
-      <div style="background: var(--surface-2); padding: 22px 24px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-2);">
-          <div>
-            <b style="font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
-              <span>📋 ID 2: Tahsildar Login (ISD Rural — drilldowntasildar.html)</span>
-            </b>
-            <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">
-              Used to pull and parse ISD Rural Application Status from <code>drilldowntasildar.html</code>.
-            </p>
-          </div>
-          <span class="pill" style="font-size: 11px; font-weight: 600; background: #8b5cf615; color: #8b5cf6; border: 1px solid #8b5cf630;">Tahsildar Scope</span>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Tahsildar Username / Emp ID (ID 2)</label>
-            <input type="text" id="tnCredUser2" value="${esc(c2.username || '')}" placeholder="e.g. thlnemili" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Password (ID 2)</label>
-            <div style="position: relative; display: flex; align-items: center;">
-              <input type="password" id="tnCredPass2" value="${esc(c2.password || '')}" placeholder="Tahsildar Portal Password" style="width: 100%; padding: 9px 38px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
-              <button type="button" id="tnTogglePass2" title="Toggle password" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px;">👁️</button>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Role ID (ID 2)</label>
-            <input type="text" id="tnCredRole2" value="${esc(c2.roleId || '8')}" placeholder="e.g. 8" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <label style="font-weight: 600; font-size: 12.5px; color: var(--ink);">Target District</label>
-            <input type="text" value="Ranipet (37)" readonly style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13px; color: var(--muted); cursor: not-allowed;">
-          </div>
-        </div>
-
-        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2);">
-          <button type="button" class="ghost" id="tnTestCredsBtn2" style="padding: 7px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            ⚡ Test ID 2 Connection
-          </button>
-          <span id="tnCredsStatus2" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
-        </div>
+  // Section Header for Tahsildar Logins
+  h += `
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+      <div>
+        <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+          <span>📋 ${isAdmin ? 'ID 2: Taluk Tahsildar Logins (ISD Rural / Drilldown)' : 'Tahsildar Portal Login'}</span>
+        </h4>
+        <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">
+          ${isAdmin
+            ? 'Used to pull live ISD Rural Application Status from drilldowntasildar.html. Each taluk user can update their own taluk below.'
+            : 'Update your Tahsildar username and password below. Your updates will take effect immediately in Flash Fill and live pulls.'}
+        </p>
       </div>
-
-      <!-- BOTTOM ACTIONS & FLASH FILL SHORTCUT -->
-      <div style="background: var(--surface-2); padding: 18px 24px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
-        <div>
-          <b style="font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 6px;">⚡ Quick Actions: 1-Click Flash Fill</b>
-          <p style="margin: 3px 0 0; font-size: 12px; color: var(--muted);">Automate pulling NISD, ISD &amp; F-Line reports for the selected taluk using the above credentials.</p>
-        </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span id="tnCredsStatus" style="font-size: 12.5px; font-weight: 600; color: var(--muted);"></span>
-          <button type="button" class="tn-auto-btn flash-fill-btn" id="tnCredsFlashFillBtn" style="padding: 8px 18px; font-size: 12.5px; font-weight: 700;">
-            ⚡ Open Flash Fill Control Center
-          </button>
-        </div>
-      </div>
-
     </div>
   `;
 
-  // Toggle Password 1
-  const pass1 = document.getElementById('tnCredPass1');
-  const tBtn1 = document.getElementById('tnTogglePass1');
-  if (tBtn1 && pass1) {
-    tBtn1.addEventListener('click', () => {
-      const isP = pass1.type === 'password';
-      pass1.type = isP ? 'text' : 'password';
-      tBtn1.textContent = isP ? '🙈' : '👁️';
-    });
-  }
+  // Cards for Taluks
+  talukRows.forEach(tr => {
+    const tSlug = tr.name.toLowerCase();
+    const updatedTxt = tr.updatedAt ? `Updated ${new Date(tr.updatedAt).toLocaleDateString()}` : 'Configured';
+    h += `
+      <div class="taluk-cred-card" data-taluk="${esc(tr.name)}" style="background: var(--surface-2); padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line-2);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 20px;">🏛️</span>
+            <div>
+              <b style="font-size: 14.5px; color: var(--ink);">${esc(tr.name)} Taluk</b>
+              <span style="font-size: 11.5px; color: var(--muted); margin-left: 8px;">(Code: ${esc(tr.code)})</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="pill" style="font-size: 11px; background: #8b5cf615; color: #8b5cf6; border: 1px solid #8b5cf630;">Role: Tahsildar (8)</span>
+            <span style="font-size: 11px; color: var(--muted);">${esc(updatedTxt)}</span>
+          </div>
+        </div>
 
-  // Toggle Password 2
-  const pass2 = document.getElementById('tnCredPass2');
-  const tBtn2 = document.getElementById('tnTogglePass2');
-  if (tBtn2 && pass2) {
-    tBtn2.addEventListener('click', () => {
-      const isP = pass2.type === 'password';
-      pass2.type = isP ? 'text' : 'password';
-      tBtn2.textContent = isP ? '🙈' : '👁️';
-    });
-  }
+        <div style="display: grid; grid-template-columns: 1fr 1fr 110px; gap: 14px; align-items: end;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Username / Emp ID</label>
+            <input type="text" id="tnCredUser_${tSlug}" value="${esc(tr.username)}" placeholder="e.g. thl${tSlug}" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+          </div>
 
-  // Save All Credentials
-  const saveBtn = document.getElementById('tnSaveCredsBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      const u1 = document.getElementById('tnCredUser1').value.trim();
-      const p1 = document.getElementById('tnCredPass1').value;
-      const r1 = document.getElementById('tnCredRole1').value.trim() || '7';
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Portal Password</label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input type="password" id="tnCredPass_${tSlug}" value="${esc(tr.password)}" placeholder="Portal Password" style="width: 100%; padding: 9px 36px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+              <button type="button" class="toggle-pass-btn" data-target="tnCredPass_${tSlug}" title="Toggle visibility" style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px;">👁️</button>
+            </div>
+          </div>
 
-      const u2 = document.getElementById('tnCredUser2').value.trim();
-      const p2 = document.getElementById('tnCredPass2').value;
-      const r2 = document.getElementById('tnCredRole2').value.trim() || '8';
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Role ID</label>
+            <input type="text" id="tnCredRole_${tSlug}" value="${esc(tr.roleId)}" placeholder="8" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+          </div>
+        </div>
 
-      if (!u1 || !p1) {
-        toast('Missing Information', 'ID 1 Username and Password are required.', 'warn');
-        return;
+        <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2); flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" class="primary save-taluk-cred-btn" data-taluk="${esc(tr.name)}" data-code="${esc(tr.code)}" data-slug="${tSlug}" style="padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 7px; background: #8b5cf6; color: #fff; border: none; cursor: pointer;">
+              💾 Save ${esc(tr.name)} Login
+            </button>
+            <button type="button" class="ghost test-taluk-cred-btn" data-taluk="${esc(tr.name)}" data-code="${esc(tr.code)}" data-slug="${tSlug}" style="padding: 8px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer;">
+              ⚡ Test Connection
+            </button>
+          </div>
+          <span id="tnStatus_${tSlug}" style="font-size: 12px; font-weight: 600; color: var(--muted);"></span>
+        </div>
+      </div>
+    `;
+  });
+
+  // Footer Actions
+  h += `
+    <div style="background: var(--surface-2); padding: 16px 22px; border-radius: 14px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+      <div>
+        <b style="font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px;">⚡ 1-Click Flash Fill</b>
+        <p style="margin: 2px 0 0; font-size: 12px; color: var(--muted);">Saved credentials are immediately used when running 1-Click Flash Fill.</p>
+      </div>
+      <button type="button" class="tn-auto-btn flash-fill-btn" id="tnCredsFlashFillBtn" style="padding: 8px 18px; font-size: 12.5px; font-weight: 700;">
+        ⚡ Open Flash Fill Control Center
+      </button>
+    </div>
+  `;
+
+  h += `</div>`;
+  box.innerHTML = h;
+
+  // Toggle Password listeners
+  box.querySelectorAll('.toggle-pass-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const input = document.getElementById(targetId);
+      if (input) {
+        const isPass = input.type === 'password';
+        input.type = isPass ? 'text' : 'password';
+        btn.textContent = isPass ? '🙈' : '👁️';
       }
-
-      saveAllTnCreds(
-        { username: u1, password: p1, roleId: r1 },
-        { username: u2, password: p2, roleId: r2 }
-      );
-
-      toast('Credentials Saved', 'Tamil Nilam credentials (both IDs) updated successfully!', 'ok');
-      const statusEl = document.getElementById('tnCredsStatus');
-      if (statusEl) {
-        statusEl.style.color = '#10b981';
-        statusEl.textContent = '✓ Saved both credentials!';
-      }
     });
-  }
+  });
 
-  // Test Connection 1 (Primary)
-  const testBtn1 = document.getElementById('tnTestCredsBtn1');
-  if (testBtn1) {
-    testBtn1.addEventListener('click', async () => {
-      const u = document.getElementById('tnCredUser1').value.trim();
-      const p = document.getElementById('tnCredPass1').value;
-      const r = document.getElementById('tnCredRole1').value.trim() || '7';
-      const st = document.getElementById('tnCredsStatus1');
-      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing ID 1 connection...'; }
+  // Save District Admin Credential
+  const saveDistBtn = document.getElementById('tnSaveDistBtn');
+  if (saveDistBtn) {
+    saveDistBtn.addEventListener('click', async () => {
+      const u = document.getElementById('tnCredDistUser').value.trim();
+      const p = document.getElementById('tnCredDistPass').value;
+      const r = document.getElementById('tnCredDistRole').value.trim() || '7';
+      const st = document.getElementById('tnDistStatus');
 
-      try {
-        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.taluks)) {
-          if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
-          toast('ID 1 Connected', `Connected as "${u}"`, 'ok');
-        } else {
-          throw new Error(data.error || 'Authentication failed');
-        }
-      } catch (err) {
-        if (st) { st.style.color = '#ef4444'; st.textContent = `✕ Failed: ${err.message}`; }
-        toast('ID 1 Failed', err.message, 'err');
-      }
-    });
-  }
-
-  // Test Connection 2 (Secondary)
-  const testBtn2 = document.getElementById('tnTestCredsBtn2');
-  if (testBtn2) {
-    testBtn2.addEventListener('click', async () => {
-      const u = document.getElementById('tnCredUser2').value.trim();
-      const p = document.getElementById('tnCredPass2').value;
-      const r = document.getElementById('tnCredRole2').value.trim() || '7';
-      const st = document.getElementById('tnCredsStatus2');
       if (!u || !p) {
-        if (st) { st.style.color = '#f59e0b'; st.textContent = '⚠ Enter ID 2 username & password first'; }
-        toast('Enter ID 2 Credentials', 'Please enter Tahsildar username and password to test.', 'warn');
+        toast('Missing Information', 'District username and password are required.', 'warn');
         return;
       }
-      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing ID 2 connection...'; }
+
+      saveDistBtn.disabled = true;
+      saveDistBtn.textContent = '⏳ Saving…';
+      if (st) { st.style.color = '#3b82f6'; st.textContent = 'Saving to database...'; }
+
+      try {
+        if (CLOUD_ON && ME) {
+          const { error } = await sb.from('isd_taluk_credentials').upsert({
+            taluk: 'District',
+            taluk_code: '37',
+            username: u,
+            password: p,
+            role_id: r,
+            type: 'primary',
+            updated_at: new Date().toISOString(),
+            updated_by: ME.id
+          }, { onConflict: 'taluk' });
+          if (error) throw error;
+        }
+
+        // Update in-memory cache
+        const idx = TALUK_CREDS.findIndex(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
+        if (idx >= 0) {
+          TALUK_CREDS[idx] = { ...TALUK_CREDS[idx], username: u, password: p, role_id: r };
+        } else {
+          TALUK_CREDS.push({ taluk: 'District', taluk_code: '37', username: u, password: p, role_id: r, type: 'primary' });
+        }
+        const cur = getAllTnCreds();
+        saveAllTnCreds({ username: u, password: p, roleId: r }, cur.secondary);
+
+        if (st) { st.style.color = '#10b981'; st.textContent = '✓ Saved District Login!'; }
+        toast('Saved', 'District Primary login updated successfully in Supabase.', 'ok');
+      } catch (err) {
+        if (st) { st.style.color = '#ef4444'; st.textContent = '✕ Save failed: ' + err.message; }
+        toast('Save Failed', err.message, 'err');
+      } finally {
+        saveDistBtn.disabled = false;
+        saveDistBtn.textContent = '💾 Save District Login';
+      }
+    });
+  }
+
+  // Test District Credential
+  const testDistBtn = document.getElementById('tnTestDistBtn');
+  if (testDistBtn) {
+    testDistBtn.addEventListener('click', async () => {
+      const u = document.getElementById('tnCredDistUser').value.trim();
+      const p = document.getElementById('tnCredDistPass').value;
+      const r = document.getElementById('tnCredDistRole').value.trim() || '7';
+      const st = document.getElementById('tnDistStatus');
+      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing connection...'; }
 
       try {
         const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`);
         const data = await res.json();
         if (data.success && Array.isArray(data.taluks)) {
           if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
-          toast('ID 2 Connected', `Connected as "${u}"`, 'ok');
+          toast('Connected', `Verified login for "${u}"`, 'ok');
         } else {
           throw new Error(data.error || 'Authentication failed');
         }
       } catch (err) {
         if (st) { st.style.color = '#ef4444'; st.textContent = `✕ Failed: ${err.message}`; }
-        toast('ID 2 Failed', err.message, 'err');
+        toast('Connection Failed', err.message, 'err');
       }
     });
   }
+
+  // Save Taluk Credential listeners
+  box.querySelectorAll('.save-taluk-cred-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const talukName = btn.dataset.taluk;
+      const talukCode = btn.dataset.code;
+      const slug = btn.dataset.slug;
+      const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      const p = document.getElementById(`tnCredPass_${slug}`)?.value;
+      const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
+      const st = document.getElementById(`tnStatus_${slug}`);
+
+      if (!u || !p) {
+        toast('Missing Information', `Username and password for ${talukName} are required.`, 'warn');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Saving…';
+      if (st) { st.style.color = '#3b82f6'; st.textContent = 'Saving to database...'; }
+
+      try {
+        if (CLOUD_ON && ME) {
+          const { error } = await sb.from('isd_taluk_credentials').upsert({
+            taluk: talukName,
+            taluk_code: talukCode,
+            username: u,
+            password: p,
+            role_id: r,
+            type: 'tahsildar',
+            updated_at: new Date().toISOString(),
+            updated_by: ME.id
+          }, { onConflict: 'taluk' });
+          if (error) throw error;
+        }
+
+        // Update in-memory cache
+        const idx = TALUK_CREDS.findIndex(c => normTaluk(c.taluk) === normTaluk(talukName));
+        if (idx >= 0) {
+          TALUK_CREDS[idx] = { ...TALUK_CREDS[idx], taluk: talukName, taluk_code: talukCode, username: u, password: p, role_id: r, type: 'tahsildar' };
+        } else {
+          TALUK_CREDS.push({ taluk: talukName, taluk_code: talukCode, username: u, password: p, role_id: r, type: 'tahsildar' });
+        }
+
+        // If this taluk is currently selected, update localStorage fallback
+        const curTaluk = (typeof TALUK !== 'undefined' ? TALUK : '') || 'Nemili';
+        if (normTaluk(talukName) === normTaluk(curTaluk) || normTaluk(talukName) === 'nemili') {
+          const cur = getAllTnCreds();
+          saveAllTnCreds(cur.primary, { username: u, password: p, roleId: r });
+        }
+
+        if (st) { st.style.color = '#10b981'; st.textContent = `✓ Saved ${talukName} Login!`; }
+        toast('Credentials Saved', `Updated ${talukName} Tahsildar credentials in Supabase.`, 'ok');
+      } catch (err) {
+        if (st) { st.style.color = '#ef4444'; st.textContent = '✕ Save failed: ' + err.message; }
+        toast('Save Failed', err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = `💾 Save ${talukName} Login`;
+      }
+    });
+  });
+
+  // Test Taluk Credential listeners
+  box.querySelectorAll('.test-taluk-cred-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const talukName = btn.dataset.taluk;
+      const slug = btn.dataset.slug;
+      const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      const p = document.getElementById(`tnCredPass_${slug}`)?.value;
+      const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
+      const st = document.getElementById(`tnStatus_${slug}`);
+
+      if (!u || !p) {
+        if (st) { st.style.color = '#f59e0b'; st.textContent = '⚠ Enter username & password first'; }
+        toast('Missing Credentials', 'Please enter username and password to test.', 'warn');
+        return;
+      }
+      if (st) { st.style.color = '#3b82f6'; st.textContent = '⏳ Testing connection...'; }
+
+      try {
+        const res = await fetch(`/api/nisd-rural?mode=taluks&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.taluks)) {
+          if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
+          toast('Connected', `Connected as "${u}" for ${talukName}`, 'ok');
+        } else {
+          throw new Error(data.error || 'Authentication failed');
+        }
+      } catch (err) {
+        if (st) { st.style.color = '#ef4444'; st.textContent = `✕ Failed: ${err.message}`; }
+        toast('Connection Failed', err.message, 'err');
+      }
+    });
+  });
 
   // Flash Fill Trigger Button Click
   const ffBtn = document.getElementById('tnCredsFlashFillBtn');
@@ -5057,7 +5274,8 @@ async function initChittaDropdowns() {
   };
 
   const getTahsildarCreds = () => {
-    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary') : {};
+    const activeTaluk = talukSel?.options[talukSel.selectedIndex]?.text || '';
+    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary', activeTaluk) : {};
     return {
       username: sec?.username || 'rpt_panneerselvam',
       password: sec?.password || 'Taluk@123',
@@ -5932,7 +6150,8 @@ async function initEservicesDropdowns() {
   };
 
   const getTahsildarCreds = () => {
-    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary') : {};
+    const activeTaluk = talukSel?.options[talukSel.selectedIndex]?.text || '';
+    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary', activeTaluk) : {};
     return {
       username: sec?.username || 'rpt_panneerselvam',
       password: sec?.password || 'Taluk@123',
@@ -7598,6 +7817,10 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   ADMIN_TAB = 'eservices';
   openUsersPanel();
 });
+document.getElementById('credsMenuBtn')?.addEventListener('click', () => {
+  ADMIN_TAB = 'creds';
+  openUsersPanel();
+});
 document.getElementById('usersClose').addEventListener('click', closeUsersPanel);
 document.getElementById('usersBack').addEventListener('click', closeUsersPanel);
 document.getElementById('usersTabs').addEventListener('click', e=>{
@@ -7605,7 +7828,11 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   if(b){
     const tab = b.dataset.tab;
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-    if(!isAdmin && (tab === 'users' || tab === 'files' || tab === 'creds')){
+    if(!isAdmin && (tab === 'users' || tab === 'files')){
+      return;
+    }
+    if(tab === 'creds' && !canManageCreds()){
+      toast('Access restricted', 'You do not have credentials management access.', 'warn');
       return;
     }
     if(tab === 'chitta' && !hasMenu('chitta')){
@@ -7631,7 +7858,7 @@ async function pullIsdRuralPdfDirect() {
   const cleanTaluk = cleanTalukName(activeTaluk);
   const talukCode = resolveTalukCode(cleanTaluk);
 
-  const secCreds = getTnCreds('secondary');
+  const secCreds = getTnCreds('secondary', cleanTaluk);
   const u = (secCreds && secCreds.username) || 'rpt_panneerselvam';
   const p = (secCreds && secCreds.password) || 'Taluk@123';
   const r = (secCreds && secCreds.roleId) || '8';

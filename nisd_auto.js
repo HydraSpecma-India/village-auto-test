@@ -81,9 +81,16 @@
   talukCache.set("37", INITIAL_RANIPET_TALUKS);
   villageCache.set("37_12", NEMILI_VILLAGES);
 
-  function getTnCreds(type = 'primary') {
+  function getTnCreds(type = 'primary', talukName = null) {
     if (typeof window.getTnCreds === 'function') {
-      return window.getTnCreds(type);
+      return window.getTnCreds(type, talukName);
+    }
+    if (type === 'secondary' && Array.isArray(window.TALUK_CREDS) && window.TALUK_CREDS.length) {
+      const target = talukName || (typeof window.TALUK !== 'undefined' ? window.TALUK : '') || 'Nemili';
+      const found = window.TALUK_CREDS.find(c => (c.taluk || '').toLowerCase() === (target || '').toLowerCase());
+      if (found && found.username) {
+        return { username: found.username, password: found.password, roleId: found.role_id || '8' };
+      }
     }
     try {
       const raw = localStorage.getItem('village_test.tnCreds.v2') || localStorage.getItem('village_test.tnCreds.v1');
@@ -1182,10 +1189,11 @@
 
     try {
       if (serviceGroup === 'ISD_PDF') {
-        const secCreds = getTnCreds('secondary');
+        const talukName = document.getElementById('tnTalukSel')?.selectedOptions[0]?.text || '';
+        const secCreds = getTnCreds('secondary', talukName);
         showStatus(`Connecting to Tamil Nilam & fetching live drilldowntasildar ISD Rural Status for ${targetDesc}...`, 'info');
 
-        const url = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
+        const url = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(talukName)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
         const res = await fetch(url);
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to fetch ISD Rural status');
@@ -2025,8 +2033,8 @@
         if (landCategory === 'rural') {
           try {
             showStatus('Pulling ISD Rural Application Status from drilldowntasildar (Tahsildar login)...', 'info');
-            const secCreds = getTnCreds('secondary');
-            const isdStatusUrl = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
+            const secCreds = getTnCreds('secondary', talukName);
+            const isdStatusUrl = `/api/nisd-rural?mode=isd_status&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(talukName)}&username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
             const stRes = await fetch(isdStatusUrl).then(r => r.json());
             if (stRes && stRes.success && Array.isArray(stRes.villages)) {
               const vMap = new Map();
@@ -2311,8 +2319,8 @@
       if (isChk('isd_rural_pdf')) {
         setStatus('isd_rural_pdf', 'Pulling PDF...', 'loading');
         const { fromDate, toDate } = getRowDates('isd_rural_pdf');
-        const secCreds = getTnCreds('secondary');
-        const isdStatusParams = `username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&mode=isd_status&fromDate=${fromDate}&toDate=${toDate}`;
+        const secCreds = getTnCreds('secondary', talukName);
+        const isdStatusParams = `username=${encodeURIComponent(secCreds.username)}&password=${encodeURIComponent(secCreds.password)}&roleId=${encodeURIComponent(secCreds.roleId)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(talukName)}&mode=isd_status&fromDate=${fromDate}&toDate=${toDate}`;
         fetchTasks.push(
           fetch(`/api/nisd-rural?${isdStatusParams}`)
             .then(r => r.json())
@@ -2744,7 +2752,7 @@
     const activeTaluk = cleanTalukTitle(rawTaluk);
     const talukCode = resolveTalukCode(activeTaluk) || '12';
 
-    const secCreds = getTnCreds('secondary');
+    const secCreds = getTnCreds('secondary', activeTaluk);
     const u = secCreds.username || 'rpt_panneerselvam';
     const p = secCreds.password || 'Taluk@123';
     const r = secCreds.roleId || '8';
