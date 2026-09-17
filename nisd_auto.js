@@ -100,14 +100,14 @@
           if (parsed.secondary && parsed.secondary.username && parsed.secondary.password) {
             return parsed.secondary;
           }
-          return { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8' };
+          return { username: 'rpt_panneerselvam', password: 'Nemili@1970', roleId: '8' };
         }
         if (parsed.primary) return parsed.primary;
         return parsed;
       }
     } catch (e) {}
     if (type === 'secondary') {
-      return { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8' };
+      return { username: 'rpt_panneerselvam', password: 'Nemili@1970', roleId: '8' };
     }
     return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
   }
@@ -2452,51 +2452,137 @@
         if (item.key === 'isd_rural_pdf') {
           if (item.res && item.res.success && Array.isArray(item.res.villages)) {
             const vMap = new Map();
+            const existing = window.store['isdRuralPdf'];
+            const existingMap = (existing && existing.villages instanceof Map)
+              ? existing.villages
+              : (existing && Array.isArray(existing.villages)
+                  ? new Map(existing.villages.map(v => [v.village, v]))
+                  : new Map());
+
             item.res.villages.forEach(v => {
               if (v.village) {
+                if (v.approved === 0 && v.rejected === 0 && existingMap.has(v.village)) {
+                  const ev = existingMap.get(v.village);
+                  if ((ev.approved || 0) > 0 || (ev.rejected || 0) > 0) {
+                    v.approved = ev.approved || 0;
+                    v.rejected = ev.rejected || 0;
+                    v.returned = ev.returned || 0;
+                    v.total = v.approved + (v.pending || 0) + v.rejected + v.returned;
+                    if (ev.inv) {
+                      v.inv = v.inv || {};
+                      v.inv.approved = ev.inv.approved || 0;
+                      v.inv.rejected = ev.inv.rejected || 0;
+                      v.inv.returned = ev.inv.returned || 0;
+                      v.inv.total = (v.inv.approved || 0) + (v.inv.pending || 0) + (v.inv.rejected || 0) + (v.inv.returned || 0);
+                    }
+                    if (ev.notinv) {
+                      v.notinv = v.notinv || {};
+                      v.notinv.approved = ev.notinv.approved || 0;
+                      v.notinv.rejected = ev.notinv.rejected || 0;
+                      v.notinv.returned = ev.notinv.returned || 0;
+                      v.notinv.total = (v.notinv.approved || 0) + (v.notinv.pending || 0) + (v.notinv.rejected || 0) + (v.notinv.returned || 0);
+                    }
+                  }
+                }
                 vMap.set(v.village, v);
                 allAppVillages.push(v.village);
               }
             });
+
+            existingMap.forEach((ev, evName) => {
+              if (!vMap.has(evName)) {
+                vMap.set(evName, ev);
+              }
+            });
+
+            const grand = item.res.grand || {};
+            if ((!grand.all || grand.all.approved === 0) && existing && existing.grand && existing.grand.all && existing.grand.all.approved > 0) {
+              grand.all = grand.all || {};
+              grand.all.approved = existing.grand.all.approved;
+              grand.all.rejected = existing.grand.all.rejected;
+              grand.all.returned = existing.grand.all.returned;
+              grand.all.total = grand.all.approved + (grand.all.pending || 0) + grand.all.rejected + grand.all.returned;
+            }
+
             const parsedPdf = {
               name: `TamilNilam_Auto_ISD_Status_${talukName}.json`,
               villages: vMap,
-              grand: item.res.grand || {}
+              grand: grand
             };
             window.store['isdRuralPdf'] = parsedPdf;
             if (typeof window.markLoaded === 'function') {
               window.markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
             }
-            const grandAll = item.res.grand?.all?.pending ?? item.res.grand?.all?.total ?? 0;
-            const grandInv = item.res.grand?.inv?.pending ?? item.res.grand?.inv?.total ?? 0;
-            const grandNotInv = item.res.grand?.notinv?.pending ?? item.res.grand?.notinv?.total ?? 0;
-            setStatus('isd_rural_pdf', `✓ ${grandAll} Pending (${grandInv} Inv + ${grandNotInv} Not Inv)`, 'ok');
-            summaryStats.push(`ISD Rural PDF: ${grandAll} pending (${grandInv} Inv + ${grandNotInv} Not Inv) across ${vMap.size} villages`);
+            const grandPend = grand.all?.pending ?? 0;
+            const grandAppr = grand.all?.approved ?? 0;
+            const grandRej = grand.all?.rejected ?? 0;
+            const grandInvPend = grand.inv?.pending ?? 0;
+            const grandNotInvPend = grand.notinv?.pending ?? 0;
+            setStatus('isd_rural_pdf', `✓ ${grandPend} Pend (${grandInvPend} Inv + ${grandNotInvPend} Not Inv) | ${grandAppr} Appr`, 'ok');
+            summaryStats.push(`ISD Rural PDF: ${grandPend} pending, ${grandAppr} approved, ${grandRej} rejected across ${vMap.size} villages`);
           } else {
             setStatus('isd_rural_pdf', 'Error: ' + (item.res?.error || 'Failed'), 'err');
           }
         }
 
         if (item.key === 'isd_rural') {
-          const b30 = [], b25 = [], bBelow25 = [];
-          rawApps.forEach(app => {
-            const days = calculatePendingDays(app);
-            if (days >= 30) b30.push(app); else if (days >= 25) b25.push(app); else bBelow25.push(app);
-          });
-          const isd30 = groupAppsByVillageForISD(b30), isd25 = groupAppsByVillageForISD(b25), isdBelow25 = groupAppsByVillageForISD(bBelow25);
-          const dBelow25 = { name: `Auto <25 Days (${bBelow25.length} apps)`, rows: isdBelow25.rows, footer: isdBelow25.footer };
-          const d25 = { name: `Auto 25-29 Days (${b25.length} apps)`, rows: isd25.rows, footer: isd25.footer };
-          const d30 = { name: `Auto 30+ Days (${b30.length} apps)`, rows: isd30.rows, footer: isd30.footer };
+          if (rawApps.length > 0) {
+            const b30 = [], b25 = [], bBelow25 = [];
+            rawApps.forEach(app => {
+              const days = calculatePendingDays(app);
+              if (days >= 30) b30.push(app); else if (days >= 25) b25.push(app); else bBelow25.push(app);
+            });
+            const isd30 = groupAppsByVillageForISD(b30), isd25 = groupAppsByVillageForISD(b25), isdBelow25 = groupAppsByVillageForISD(bBelow25);
+            const dBelow25 = { name: `Auto <25 Days (${bBelow25.length} apps)`, rows: isdBelow25.rows, footer: isdBelow25.footer };
+            const d25 = { name: `Auto 25-29 Days (${b25.length} apps)`, rows: isd25.rows, footer: isd25.footer };
+            const d30 = { name: `Auto 30+ Days (${b30.length} apps)`, rows: isd30.rows, footer: isd30.footer };
 
-          window.store['opt0'] = dBelow25; window.store['opt1'] = d25; window.store['opt2'] = d30;
-          if (typeof window.markLoaded === 'function') {
-            window.markLoaded('opt0', dBelow25.name, isdBelow25.rows.length, false);
-            window.markLoaded('opt1', d25.name, isd25.rows.length, false);
-            window.markLoaded('opt2', d30.name, isd30.rows.length, false);
+            window.store['opt0'] = dBelow25; window.store['opt1'] = d25; window.store['opt2'] = d30;
+            if (typeof window.markLoaded === 'function') {
+              window.markLoaded('opt0', dBelow25.name, isdBelow25.rows.length, false);
+              window.markLoaded('opt1', d25.name, isd25.rows.length, false);
+              window.markLoaded('opt2', d30.name, isd30.rows.length, false);
+            }
+
+            setStatus('isd_rural', `✓ ${rawApps.length} apps`, 'ok');
+            summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
+          } else if (window.store['isdRuralPdf'] && window.store['isdRuralPdf'].villages) {
+            const vList = (window.store['isdRuralPdf'].villages instanceof Map)
+              ? Array.from(window.store['isdRuralPdf'].villages.values())
+              : (Array.isArray(window.store['isdRuralPdf'].villages) ? window.store['isdRuralPdf'].villages : []);
+            const synRows = vList.map(v => {
+              const vName = v.village || '';
+              const pend = (v.inv && v.inv.pending != null) ? v.inv.pending : (v.pending || 0);
+              return {
+                label: vName, village: vName, taluk: talukName,
+                surv: pend, vao: 0, lrd: 0, dis: 0, thl: 0, all: pend,
+                rtr: 0, str: pend, total: pend,
+                total_sur: pend, total_vao: 0, total_lrd: 0, total_dis: 0, total_thl: 0
+              };
+            }).filter(r => r.total > 0);
+            const synFooter = {
+              label: 'Total', village: 'Total', taluk: talukName,
+              surv: synRows.reduce((s, r) => s + r.surv, 0),
+              vao: 0, lrd: 0, dis: 0, thl: 0,
+              all: synRows.reduce((s, r) => s + r.all, 0),
+              total: synRows.reduce((s, r) => s + r.total, 0),
+              total_sur: synRows.reduce((s, r) => s + r.total_sur, 0),
+              total_vao: 0, total_lrd: 0, total_dis: 0, total_thl: 0
+            };
+            const dBelow25 = { name: `Auto <25 Days (${synFooter.total} apps)`, rows: synRows, footer: synFooter };
+            window.store['opt0'] = dBelow25;
+            window.store['opt1'] = { name: `Auto 25-29 Days (0 apps)`, rows: [], footer: null };
+            window.store['opt2'] = { name: `Auto 30+ Days (0 apps)`, rows: [], footer: null };
+            if (typeof window.markLoaded === 'function') {
+              window.markLoaded('opt0', dBelow25.name, synRows.length, false);
+              window.markLoaded('opt1', window.store['opt1'].name, 0, false);
+              window.markLoaded('opt2', window.store['opt2'].name, 0, false);
+            }
+            setStatus('isd_rural', `✓ ${synFooter.total} apps (from PDF)`, 'ok');
+            summaryStats.push(`ISD Rural: ${synFooter.total} apps synthesized from PDF`);
+          } else {
+            setStatus('isd_rural', `0 apps`, 'warn');
           }
-
-          setStatus('isd_rural', `✓ ${rawApps.length} apps`, 'ok');
-          summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
         }
 
         if (item.key === 'nisd_natham') {
@@ -2754,7 +2840,7 @@
 
     const secCreds = getTnCreds('secondary', activeTaluk);
     const u = secCreds.username || 'rpt_panneerselvam';
-    const p = secCreds.password || 'Taluk@123';
+    const p = secCreds.password || 'Nemili@1970';
     const r = secCreds.roleId || '8';
 
     if (badge) {
@@ -2781,15 +2867,62 @@
         throw new Error(data.error || 'Failed to fetch drilldowntasildar status from Tamil Nilam');
       }
 
+      const existing = window.store && window.store['isdRuralPdf'];
+      const existingMap = (existing && existing.villages instanceof Map)
+        ? existing.villages
+        : (existing && Array.isArray(existing.villages)
+            ? new Map(existing.villages.map(v => [v.village, v]))
+            : new Map());
+
       const vMap = new Map();
       (data.villages || []).forEach(v => {
-        if (v.village) vMap.set(v.village, v);
+        if (v.village) {
+          if (v.approved === 0 && v.rejected === 0 && existingMap.has(v.village)) {
+            const ev = existingMap.get(v.village);
+            if ((ev.approved || 0) > 0 || (ev.rejected || 0) > 0) {
+              v.approved = ev.approved || 0;
+              v.rejected = ev.rejected || 0;
+              v.returned = ev.returned || 0;
+              v.total = v.approved + (v.pending || 0) + v.rejected + v.returned;
+              if (ev.inv) {
+                v.inv = v.inv || {};
+                v.inv.approved = ev.inv.approved || 0;
+                v.inv.rejected = ev.inv.rejected || 0;
+                v.inv.returned = ev.inv.returned || 0;
+                v.inv.total = (v.inv.approved || 0) + (v.inv.pending || 0) + (v.inv.rejected || 0) + (v.inv.returned || 0);
+              }
+              if (ev.notinv) {
+                v.notinv = v.notinv || {};
+                v.notinv.approved = ev.notinv.approved || 0;
+                v.notinv.rejected = ev.notinv.rejected || 0;
+                v.notinv.returned = ev.notinv.returned || 0;
+                v.notinv.total = (v.notinv.approved || 0) + (v.notinv.pending || 0) + (v.notinv.rejected || 0) + (v.notinv.returned || 0);
+              }
+            }
+          }
+          vMap.set(v.village, v);
+        }
       });
+
+      existingMap.forEach((ev, evName) => {
+        if (!vMap.has(evName)) {
+          vMap.set(evName, ev);
+        }
+      });
+
+      const grand = data.grand || {};
+      if ((!grand.all || grand.all.approved === 0) && existing && existing.grand && existing.grand.all && existing.grand.all.approved > 0) {
+        grand.all = grand.all || {};
+        grand.all.approved = existing.grand.all.approved;
+        grand.all.rejected = existing.grand.all.rejected;
+        grand.all.returned = existing.grand.all.returned;
+        grand.all.total = grand.all.approved + (grand.all.pending || 0) + grand.all.rejected + grand.all.returned;
+      }
 
       const parsedPdf = {
         name: `Auto ISD Status (${vMap.size} villages)`,
         villages: vMap,
-        grand: data.grand || {}
+        grand: grand
       };
 
       if (!window.store) window.store = {};

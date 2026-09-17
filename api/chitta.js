@@ -3,7 +3,15 @@
 const crypto = require('crypto');
 const https = require('https');
 
-function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', password = 'Taluk@123', roleId = '8', method = 'GET', extraHeaders = {}, customBody = null, timeoutMs = 35000) {
+const DEFAULT_U = 'rpt_panneerselvam';
+const DEFAULT_P = 'Nemili@1970';
+const DEFAULT_R = '8';
+
+const FALLBACK_U = 'dlurpet';
+const FALLBACK_P = '16-03-1992';
+const FALLBACK_R = '7';
+
+function callTnPortal(servicePath, inputObj, userId = DEFAULT_U, password = DEFAULT_P, roleId = DEFAULT_R, method = 'GET', extraHeaders = {}, customBody = null, timeoutMs = 35000) {
   return new Promise((resolve, reject) => {
     const s1 = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
@@ -70,6 +78,38 @@ function callTnPortal(servicePath, inputObj, userId = 'rpt_panneerselvam', passw
   });
 }
 
+// Multi-login retry runner: tries requested credentials first, then Nemili Tahsildar, then District user
+async function callTnPortalWithRetry(servicePath, inputObj, primaryCreds, method = 'GET', extraHeaders = {}, customBody = null, timeoutMs = 30000) {
+  const candidates = [
+    { username: primaryCreds.username || DEFAULT_U, password: primaryCreds.password || DEFAULT_P, roleId: primaryCreds.roleId || DEFAULT_R },
+    { username: DEFAULT_U, password: DEFAULT_P, roleId: DEFAULT_R },
+    { username: FALLBACK_U, password: FALLBACK_P, roleId: FALLBACK_R }
+  ];
+
+  const seen = new Set();
+  let lastResult = null;
+
+  for (const cred of candidates) {
+    const key = `${cred.username}:${cred.password}:${cred.roleId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    try {
+      const res = await callTnPortal(servicePath, inputObj, cred.username, cred.password, cred.roleId, method, extraHeaders, customBody, timeoutMs);
+      if (res && !res.error && res !== '10' && res.status !== 2 && res.Status !== 2 && res.Status !== '2') {
+        if (Array.isArray(res) && res.length > 0) return res;
+        if (typeof res === 'object' && (res.districts || res.taluks || res.villages || res.villageArray || res.base64Output || res.existingOwner_landdetails)) {
+          return res;
+        }
+      }
+      lastResult = res;
+    } catch(err) {
+      lastResult = { error: err.message };
+    }
+  }
+  return lastResult;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -84,12 +124,13 @@ module.exports = async (req, res) => {
   try {
     const params = req.method === 'POST' ? req.body || {} : req.query || {};
     const mode = (params.mode || 'districts').toLowerCase();
-    const username = params.username || 'rpt_panneerselvam';
-    const password = params.password || 'Taluk@123';
-    const roleId = params.roleId || '8';
+    const username = params.username || DEFAULT_U;
+    const password = params.password || DEFAULT_P;
+    const roleId = params.roleId || DEFAULT_R;
+    const creds = { username, password, roleId };
 
     if (mode === 'districts') {
-      const data = await callTnPortal('Master/getAllDistrict', null, username, password, roleId, 'GET');
+      const data = await callTnPortalWithRetry('Master/getAllDistrict', null, creds, 'GET');
       if (Array.isArray(data)) {
         const districts = data
           .filter(d => d.dId && d.dName)
@@ -103,7 +144,7 @@ module.exports = async (req, res) => {
     if (mode === 'taluks') {
       const distCode = params.distCode || '37';
       const inputObj = { DistrictCode: String(distCode), dist_code: String(distCode) };
-      const data = await callTnPortal('Master/getTaluk', inputObj, username, password, roleId, 'GET');
+      const data = await callTnPortalWithRetry('Master/getTaluk', inputObj, creds, 'GET');
       if (Array.isArray(data)) {
         const taluks = data
           .filter(t => t.tId && t.tName)
@@ -118,7 +159,7 @@ module.exports = async (req, res) => {
       const distCode = params.distCode || '37';
       const talukCode = params.talukCode || '12';
       const inputObj = { DistrictCode: String(distCode), talukCode: String(talukCode) };
-      const data = await callTnPortal('Master/getVillage', inputObj, username, password, roleId, 'GET');
+      const data = await callTnPortalWithRetry('Master/getVillage', inputObj, creds, 'GET');
       if (data && data.villageArray) {
         try {
           const arr = typeof data.villageArray === 'string' ? JSON.parse(data.villageArray) : data.villageArray;
@@ -154,7 +195,7 @@ module.exports = async (req, res) => {
         transType: transType
       };
 
-      const data = await callTnPortal('Master/getChittaExtractData', inputObj, username, password, roleId, 'GET');
+      const data = await callTnPortalWithRetry('Master/getChittaExtractData', inputObj, creds, 'GET');
       if (data && (data.existingOwner_landdetails || data.status === 1)) {
         return res.status(200).json({ success: true, data, distCode, talukCode, villageCode, pattaNo, transType });
       }
@@ -187,21 +228,20 @@ module.exports = async (req, res) => {
       // 1. For Natham: Try OrderCopyService/loadChittaExtractNatham (matches the official Natham Patta layout with QR code, table and eservices verification)
       if (transType === 'N') {
         const inputValStr = JSON.stringify(inputObj);
-        data = await callTnPortal(
+        data = await callTnPortalWithRetry(
           'OrderCopyService/loadChittaExtractNatham',
           inputObj,
-          username,
-          password,
-          roleId,
+          creds,
           'POST',
           { 'flag_chk': 'N' },
-          encodeURIComponent(inputValStr)
+          encodeURIComponent(inputValStr),
+          25000
         );
       }
 
       // 2. If Natham returned empty/error, or if transType is Rural: fallback to Master/getChittaExtractData_pdf
       if (!data || !data.base64Output || data.Status === 2 || data.Status === '2') {
-        data = await callTnPortal('Master/getChittaExtractData_pdf', inputObj, username, password, roleId, 'GET');
+        data = await callTnPortalWithRetry('Master/getChittaExtractData_pdf', inputObj, creds, 'GET', {}, null, 25000);
       }
 
       if (data && data.base64Output) {

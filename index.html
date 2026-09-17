@@ -3262,11 +3262,15 @@ function aggregateIsdRural(){
   /* ---- today's disposal from the PDF ---- */
   let pdfNoOwner = new Map(), pdfApproved = 0, pdfRejected = 0;
   const pdf = store.isdRuralPdf;
-  if(pdf){
-    for(const pv of pdf.villages.values()){
-      if(!pv.inv) continue;
-      pdfApproved += pv.inv.approved; pdfRejected += pv.inv.rejected;
-      if(!pv.inv.approved && !pv.inv.rejected) continue;
+  if(pdf && pdf.villages){
+    const pdfVillages = (pdf.villages instanceof Map)
+      ? Array.from(pdf.villages.values())
+      : (Array.isArray(pdf.villages) ? pdf.villages : Object.values(pdf.villages || {}));
+    for(const pv of pdfVillages){
+      const appr = (pv.inv && pv.inv.approved != null) ? pv.inv.approved : (pv.approved || 0);
+      const rej = (pv.inv && pv.inv.rejected != null) ? pv.inv.rejected : (pv.rejected || 0);
+      pdfApproved += appr; pdfRejected += rej;
+      if(!appr && !rej) continue;
 
       /* the village goes to whichever role is actually holding its pending */
       const p = pendingByVillage.get(norm(pv.village)) || {surv:0, vao:0};
@@ -3278,8 +3282,8 @@ function aggregateIsdRural(){
         if(!name){ name = 'Surveyor — ' + pv.village; }
       }
       const rec = get(bag, name), v = addVillage(rec, pv.village);
-      rec.approved += pv.inv.approved; rec.rejected += pv.inv.rejected;
-      v.approved   += pv.inv.approved; v.rejected   += pv.inv.rejected;
+      rec.approved += appr; rec.rejected += rej;
+      v.approved   += appr; v.rejected   += rej;
     }
   }
 
@@ -3814,7 +3818,7 @@ window.loadTalukCredsFromCloud = loadTalukCredsFromCloud;
 
 function getAllTnCreds() {
   const defaultPrimary = { username: 'dlurpet', password: '16-03-1992', roleId: '7', label: 'Primary (DLU / NISD & F-Line)' };
-  const defaultSecondary = { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
+  const defaultSecondary = { username: 'rpt_panneerselvam', password: 'Nemili@1970', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
 
   try {
     const raw = localStorage.getItem(TN_CREDS_KEY);
@@ -3843,38 +3847,61 @@ function getAllTnCreds() {
 }
 
 function getTnCreds(type = 'primary', talukName = null) {
-  // Check Supabase cached credentials first
-  if (type === 'secondary' || type === 'isd' || type === 'tahsildar') {
-    const targetTaluk = talukName || (typeof TALUK !== 'undefined' ? TALUK : '') || 'Nemili';
-    const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(targetTaluk));
-    if (found && found.username) {
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const userTaluk = (ME && ME.taluk) ? ME.taluk : null;
+
+  // 1. ADMIN USER:
+  // Admin uses Nemili Tahsildar login (rpt_panneerselvam / Nemili@1970) as primary default for all data fetch,
+  // all reports, and all chitta downloads. Automatic retry / fallback handles other logins.
+  if (isAdmin) {
+    if (type === 'secondary' || type === 'isd' || type === 'tahsildar' || type === 'all' || type === 'chitta') {
+      const nemiliCred = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === 'nemili');
       return {
-        username: found.username,
-        password: found.password,
-        roleId: found.role_id || '8',
-        role_id: found.role_id || '8',
-        taluk: found.taluk,
-        talukCode: found.taluk_code
+        username: (nemiliCred && nemiliCred.username) || 'rpt_panneerselvam',
+        password: (nemiliCred && nemiliCred.password) || 'Nemili@1970',
+        roleId: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
+        role_id: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
+        taluk: 'Nemili',
+        talukCode: '12',
+        label: 'Admin Default (Nemili Tahsildar)'
+      };
+    }
+    // DLU login for bulk NISD / F-Line district queries
+    const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
+    if (distCred && distCred.username) {
+      return {
+        username: distCred.username,
+        password: distCred.password,
+        roleId: distCred.role_id || '7',
+        role_id: distCred.role_id || '7',
+        label: 'Primary (DLU / NISD & F-Line)'
       };
     }
     const creds = getAllTnCreds();
-    return (creds.secondary && creds.secondary.username && creds.secondary.password)
-      ? creds.secondary
-      : { username: 'rpt_panneerselvam', password: 'Taluk@123', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
+    return creds.primary;
   }
 
-  const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
-  if (distCred && distCred.username) {
+  // 2. TALUK-SCOPED USER:
+  // User with a particular taluk must use their own taluk's Tahsildar login from TALUK_CREDS to pull data & chitta.
+  const targetTaluk = userTaluk || talukName || (typeof TALUK !== 'undefined' ? TALUK : '') || 'Nemili';
+  const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(targetTaluk));
+  if (found && found.username) {
     return {
-      username: distCred.username,
-      password: distCred.password,
-      roleId: distCred.role_id || '7',
-      role_id: distCred.role_id || '7',
-      label: 'Primary (DLU / NISD & F-Line)'
+      username: found.username,
+      password: found.password,
+      roleId: found.role_id || '8',
+      role_id: found.role_id || '8',
+      taluk: found.taluk,
+      talukCode: found.taluk_code,
+      label: `${found.taluk} Tahsildar`
     };
   }
+
+  // Fallback to secondary creds
   const creds = getAllTnCreds();
-  return creds.primary;
+  return (creds.secondary && creds.secondary.username && creds.secondary.password)
+    ? creds.secondary
+    : { username: 'rpt_panneerselvam', password: 'Nemili@1970', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
 }
 
 function saveAllTnCreds(primaryObj, secondaryObj) {
@@ -3887,7 +3914,7 @@ function saveAllTnCreds(primaryObj, secondaryObj) {
       },
       secondary: {
         username: (secondaryObj?.username || 'rpt_panneerselvam').trim(),
-        password: (secondaryObj?.password || 'Taluk@123').trim(),
+        password: (secondaryObj?.password || 'Nemili@1970').trim(),
         roleId: (secondaryObj?.roleId || '8').trim()
       }
     };
@@ -5275,10 +5302,18 @@ async function initChittaDropdowns() {
 
   const getTahsildarCreds = () => {
     const activeTaluk = talukSel?.options[talukSel.selectedIndex]?.text || '';
+    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if (isAdmin) {
+      return {
+        username: 'rpt_panneerselvam',
+        password: 'Nemili@1970',
+        roleId: '8'
+      };
+    }
     const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary', activeTaluk) : {};
     return {
       username: sec?.username || 'rpt_panneerselvam',
-      password: sec?.password || 'Taluk@123',
+      password: sec?.password || 'Nemili@1970',
       roleId: sec?.roleId || '8'
     };
   };
@@ -6151,10 +6186,18 @@ async function initEservicesDropdowns() {
 
   const getTahsildarCreds = () => {
     const activeTaluk = talukSel?.options[talukSel.selectedIndex]?.text || '';
+    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if (isAdmin) {
+      return {
+        username: 'rpt_panneerselvam',
+        password: 'Nemili@1970',
+        roleId: '8'
+      };
+    }
     const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary', activeTaluk) : {};
     return {
       username: sec?.username || 'rpt_panneerselvam',
-      password: sec?.password || 'Taluk@123',
+      password: sec?.password || 'Nemili@1970',
       roleId: sec?.roleId || '8'
     };
   };
@@ -7860,7 +7903,7 @@ async function pullIsdRuralPdfDirect() {
 
   const secCreds = getTnCreds('secondary', cleanTaluk);
   const u = (secCreds && secCreds.username) || 'rpt_panneerselvam';
-  const p = (secCreds && secCreds.password) || 'Taluk@123';
+  const p = (secCreds && secCreds.password) || 'Nemili@1970';
   const r = (secCreds && secCreds.roleId) || '8';
 
   if (badge) {
@@ -7888,15 +7931,64 @@ async function pullIsdRuralPdfDirect() {
       throw new Error(data.error || 'Failed to fetch drilldowntasildar status from Tamil Nilam');
     }
 
+    const existing = store['isdRuralPdf'];
+    const existingMap = (existing && existing.villages instanceof Map)
+      ? existing.villages
+      : (existing && Array.isArray(existing.villages)
+          ? new Map(existing.villages.map(v => [v.village, v]))
+          : new Map());
+
     const vMap = new Map();
     (data.villages || []).forEach(v => {
-      if (v.village) vMap.set(v.village, v);
+      if (v.village) {
+        // If incoming village has 0 approved & 0 rejected, but existing loaded data has real approved/rejected, preserve it!
+        if (v.approved === 0 && v.rejected === 0 && existingMap.has(v.village)) {
+          const ev = existingMap.get(v.village);
+          if ((ev.approved || 0) > 0 || (ev.rejected || 0) > 0) {
+            v.approved = ev.approved || 0;
+            v.rejected = ev.rejected || 0;
+            v.returned = ev.returned || 0;
+            v.total = v.approved + (v.pending || 0) + v.rejected + v.returned;
+            if (ev.inv) {
+              v.inv = v.inv || {};
+              v.inv.approved = ev.inv.approved || 0;
+              v.inv.rejected = ev.inv.rejected || 0;
+              v.inv.returned = ev.inv.returned || 0;
+              v.inv.total = (v.inv.approved || 0) + (v.inv.pending || 0) + (v.inv.rejected || 0) + (v.inv.returned || 0);
+            }
+            if (ev.notinv) {
+              v.notinv = v.notinv || {};
+              v.notinv.approved = ev.notinv.approved || 0;
+              v.notinv.rejected = ev.notinv.rejected || 0;
+              v.notinv.returned = ev.notinv.returned || 0;
+              v.notinv.total = (v.notinv.approved || 0) + (v.notinv.pending || 0) + (v.notinv.rejected || 0) + (v.notinv.returned || 0);
+            }
+          }
+        }
+        vMap.set(v.village, v);
+      }
     });
+
+    // Also include any villages from existing that might not be in incoming
+    existingMap.forEach((ev, evName) => {
+      if (!vMap.has(evName)) {
+        vMap.set(evName, ev);
+      }
+    });
+
+    const grand = data.grand || {};
+    if ((!grand.all || grand.all.approved === 0) && existing && existing.grand && existing.grand.all && existing.grand.all.approved > 0) {
+      grand.all = grand.all || {};
+      grand.all.approved = existing.grand.all.approved;
+      grand.all.rejected = existing.grand.all.rejected;
+      grand.all.returned = existing.grand.all.returned;
+      grand.all.total = grand.all.approved + (grand.all.pending || 0) + grand.all.rejected + grand.all.returned;
+    }
 
     const parsedPdf = {
       name: `Auto ISD Status (${vMap.size} villages)`,
       villages: vMap,
-      grand: data.grand || {}
+      grand: grand
     };
 
     store['isdRuralPdf'] = parsedPdf;

@@ -185,7 +185,7 @@ function fetchMasterRaw(path, inputObj, userId = 'dlurpet', password = '16-03-19
   });
 }
 
-function fetchAppCountVillageThl(distCode, talukCode, fromDate, toDate, userId = 'rpt_panneerselvam', password = 'Taluk@123', roleId = '8', timeoutMs = 35000) {
+function fetchAppCountVillageThl(distCode, talukCode, fromDate, toDate, userId = 'rpt_panneerselvam', password = 'Nemili@1970', roleId = '8', timeoutMs = 35000) {
   return new Promise((resolve, reject) => {
     const s1 = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
@@ -244,6 +244,76 @@ function fetchAppCountVillageThl(distCode, talukCode, fromDate, toDate, userId =
   });
 }
 
+const SB_URL = 'https://ollhtyeflpggdazrsqsq.supabase.co';
+const SB_KEY = 'sb_publishable_vXtlD6VqEY8u_tBSdmw-0A_hxEIlf2j';
+
+const TALUK_MAP = {
+  '12': 'Nemili',
+  '03': 'Arakkonam',
+  '3': 'Arakkonam',
+  '02': 'Arcot',
+  '2': 'Arcot',
+  '13': 'Kalavai',
+  '14': 'Sholinghur',
+  '04': 'Walajah',
+  '4': 'Walajah'
+};
+
+function normVName(name) {
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function fetchStoredIsdDataset(talukName) {
+  return new Promise((resolve) => {
+    if (!talukName) return resolve(null);
+    const norm = talukName.trim();
+    const encoded = encodeURIComponent(norm);
+    const url = `${SB_URL}/rest/v1/isd_datasets?taluk=ilike.${encoded}&kind=eq.isdRuralPdf&select=payload,uploaded_at&order=uploaded_at.desc&limit=1`;
+    const req = https.request(url, {
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': `Bearer ${SB_KEY}`
+      },
+      timeout: 8000
+    }, res => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try {
+          const rows = JSON.parse(body);
+          if (rows && rows.length && rows[0].payload) {
+            return resolve(rows[0].payload);
+          }
+        } catch (e) {}
+        const url2 = `${SB_URL}/rest/v1/isd_test_datasets?taluk=ilike.${encoded}&kind=eq.isdRuralPdf&select=payload&order=uploaded_at.desc&limit=1`;
+        const req2 = https.request(url2, {
+          headers: {
+            'apikey': SB_KEY,
+            'Authorization': `Bearer ${SB_KEY}`
+          },
+          timeout: 8000
+        }, res2 => {
+          let body2 = '';
+          res2.on('data', c => body2 += c);
+          res2.on('end', () => {
+            try {
+              const rows2 = JSON.parse(body2);
+              if (rows2 && rows2.length && rows2[0].payload) {
+                return resolve(rows2[0].payload);
+              }
+            } catch (e) {}
+            resolve(null);
+          });
+        });
+        req2.on('error', () => resolve(null));
+        req2.end();
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -261,15 +331,16 @@ module.exports = async (req, res) => {
 
     const distCode = params.distCode || '37'; // Ranipet
     const talukCode = params.talukCode || '12'; // Nemili
+    const talukName = (params.talukName || TALUK_MAP[String(talukCode).padStart(2, '0')] || TALUK_MAP[String(talukCode)] || '').trim();
     const flag = params.flag || 'N'; // NISD vs ISD
     const landCategory = (params.landCategory || 'rural').toLowerCase(); // 'rural' vs 'natham'
     const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-08-30');
     const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-11');
     const mode = params.mode || 'details';
     const villageCode = params.villageCode || '';
-    const username = params.username || 'dlurpet';
-    const password = params.password || '16-03-1992';
-    const roleId = params.roleId || '7';
+    const username = params.username || 'rpt_panneerselvam';
+    const password = params.password || 'Nemili@1970';
+    const roleId = params.roleId || '8';
 
     // 0. Cascading helper: Taluks for a district
     if (mode === 'taluks') {
@@ -313,7 +384,7 @@ module.exports = async (req, res) => {
     // ISD RURAL APPLICATION STATUS (from drilldowntasildar.html)
     if (mode === 'isd_status' || mode === 'drilldown') {
       const u2 = params.username || 'rpt_panneerselvam';
-      const p2 = params.password || 'Taluk@123';
+      const p2 = params.password || 'Nemili@1970';
       const r2 = params.roleId || '8';
       const nowD = new Date();
       const curDay = String(nowD.getDate()).padStart(2, '0');
@@ -423,11 +494,12 @@ module.exports = async (req, res) => {
       }
 
       // Fallback: Tahsildar account does not cover this taluk.
-      // Use District User (dlurpet, roleId 7) via opt_pending_ason_today which has access to ALL taluks.
+      // Use District User (dlurpet, roleId 7) via opt_pending_ason_today + Supabase verified disposal data.
       const fromDateYMD = formatDateToYYYYMMDD(params.fromDate || defaultFrom);
       const toDateYMD = formatDateToYYYYMMDD(params.toDate || defaultTo);
+      const targetTalukName = talukName || TALUK_MAP[String(talukCode).padStart(2, '0')] || TALUK_MAP[String(talukCode)] || '';
 
-      const [invRes, notInvRes] = await Promise.all([
+      const [invRes, notInvRes, storedData] = await Promise.all([
         fetchTamilNilamRaw({
           DistCode: String(distCode),
           taluckcode: String(talukCode).padStart(2, '0'),
@@ -444,7 +516,8 @@ module.exports = async (req, res) => {
           toDate: toDateYMD,
           flag: 'N',
           cdn_flag: 'T'
-        }, 'dlurpet', '16-03-1992', '7', 25000).catch(() => ({}))
+        }, 'dlurpet', '16-03-1992', '7', 25000).catch(() => ({})),
+        fetchStoredIsdDataset(targetTalukName)
       ]);
 
       const notInvMap = new Map();
@@ -453,7 +526,22 @@ module.exports = async (req, res) => {
         notInvMap.set(c, v);
       });
 
+      // Index stored verified dataset if available
+      const storedByCode = new Map();
+      const storedByName = new Map();
+      const rawStoredVillages = (storedData && Array.isArray(storedData.villages)) ? storedData.villages : [];
+      rawStoredVillages.forEach(sv => {
+        if (sv.code) {
+          storedByCode.set(String(sv.code).padStart(3, '0'), sv);
+          storedByCode.set(String(parseInt(sv.code, 10)), sv);
+        }
+        if (sv.village) {
+          storedByName.set(normVName(sv.village), sv);
+        }
+      });
+
       const vMap = new Map();
+      const matchedStoredCodes = new Set();
       let sno = 1;
       let grandAll = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
       let grandInv = { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 };
@@ -466,45 +554,144 @@ module.exports = async (req, res) => {
 
         const invPend = parseInt(item.total || 0, 10);
         const notInvPend = parseInt(ni.total || 0, 10);
-        const tot = invPend + notInvPend;
+        let tot = invPend + notInvPend;
+
+        // Lookup stored verified disposal data
+        const sv = storedByCode.get(vCode) || storedByName.get(normVName(vName));
+        let appr = 0;
+        let rej = 0;
+        let ret = 0;
+        let invAppr = 0, invRej = 0, invRet = 0, invP = invPend;
+        let notInvAppr = 0, notInvRej = 0, notInvRet = 0, notInvP = notInvPend;
+
+        if (sv) {
+          if (sv.code) matchedStoredCodes.add(String(sv.code).padStart(3, '0'));
+          appr = sv.approved || 0;
+          rej = sv.rejected || 0;
+          ret = sv.returned || 0;
+          if (tot === 0 && (sv.pending || 0) > 0) {
+            tot = sv.pending;
+          }
+          if (sv.inv) {
+            invAppr = sv.inv.approved || 0;
+            invRej = sv.inv.rejected || 0;
+            invRet = sv.inv.returned || 0;
+            if (invP === 0 && (sv.inv.pending || 0) > 0) invP = sv.inv.pending;
+          }
+          if (sv.notinv) {
+            notInvAppr = sv.notinv.approved || 0;
+            notInvRej = sv.notinv.rejected || 0;
+            notInvRet = sv.notinv.returned || 0;
+            if (notInvP === 0 && (sv.notinv.pending || 0) > 0) notInvP = sv.notinv.pending;
+          }
+        }
+
+        const villageTotal = appr + tot + rej + ret;
 
         const invEntry = {
-          approved: 0,
-          pending: invPend,
-          rejected: 0,
-          returned: 0,
-          total: invPend
+          approved: invAppr,
+          pending: invP,
+          rejected: invRej,
+          returned: invRet,
+          total: invAppr + invP + invRej + invRet
         };
 
         const notInvEntry = {
-          approved: 0,
-          pending: notInvPend,
-          rejected: 0,
-          returned: 0,
-          total: notInvPend
+          approved: notInvAppr,
+          pending: notInvP,
+          rejected: notInvRej,
+          returned: notInvRet,
+          total: notInvAppr + notInvP + notInvRej + notInvRet
         };
 
         vMap.set(vName, {
           sno: sno++,
           code: vCode,
           village: vName,
-          village_tname: vName,
-          approved: 0,
+          village_tname: item.village_tname || vName,
+          approved: appr,
           pending: tot,
-          rejected: 0,
-          returned: 0,
-          total: tot,
+          rejected: rej,
+          returned: ret,
+          total: villageTotal,
           inv: invEntry,
           notinv: notInvEntry
         });
 
+        grandAll.approved += appr;
         grandAll.pending += tot;
-        grandAll.total += tot;
-        grandInv.pending += invPend;
-        grandInv.total += invPend;
-        grandNotInv.pending += notInvPend;
-        grandNotInv.total += notInvPend;
+        grandAll.rejected += rej;
+        grandAll.returned += ret;
+        grandAll.total += villageTotal;
+
+        grandInv.approved += invAppr;
+        grandInv.pending += invP;
+        grandInv.rejected += invRej;
+        grandInv.returned += invRet;
+        grandInv.total += invEntry.total;
+
+        grandNotInv.approved += notInvAppr;
+        grandNotInv.pending += notInvP;
+        grandNotInv.rejected += notInvRej;
+        grandNotInv.returned += notInvRet;
+        grandNotInv.total += notInvEntry.total;
       });
+
+      // Also include any stored villages that didn't have live pending applications today
+      rawStoredVillages.forEach(sv => {
+        const c3 = String(sv.code || '').padStart(3, '0');
+        const vName = (sv.village || '').trim();
+        if (!matchedStoredCodes.has(c3) && !vMap.has(vName)) {
+          const appr = sv.approved || 0;
+          const pend = sv.pending || 0;
+          const rej = sv.rejected || 0;
+          const ret = sv.returned || 0;
+          const tot = sv.total || (appr + pend + rej + ret);
+
+          vMap.set(vName, {
+            sno: sno++,
+            code: c3,
+            village: vName,
+            village_tname: sv.village_tname || vName,
+            approved: appr,
+            pending: pend,
+            rejected: rej,
+            returned: ret,
+            total: tot,
+            inv: sv.inv || { approved: appr, pending: pend, rejected: rej, returned: ret, total: tot },
+            notinv: sv.notinv || { approved: 0, pending: 0, rejected: 0, returned: 0, total: 0 }
+          });
+
+          grandAll.approved += appr;
+          grandAll.pending += pend;
+          grandAll.rejected += rej;
+          grandAll.returned += ret;
+          grandAll.total += tot;
+
+          if (sv.inv) {
+            grandInv.approved += (sv.inv.approved || 0);
+            grandInv.pending += (sv.inv.pending || 0);
+            grandInv.rejected += (sv.inv.rejected || 0);
+            grandInv.returned += (sv.inv.returned || 0);
+            grandInv.total += (sv.inv.total || 0);
+          }
+          if (sv.notinv) {
+            grandNotInv.approved += (sv.notinv.approved || 0);
+            grandNotInv.pending += (sv.notinv.pending || 0);
+            grandNotInv.rejected += (sv.notinv.rejected || 0);
+            grandNotInv.returned += (sv.notinv.returned || 0);
+            grandNotInv.total += (sv.notinv.total || 0);
+          }
+        }
+      });
+
+      // If storedData has overall grand numbers that exceed what we aggregated, harmonize them
+      if (storedData && storedData.grand && storedData.grand.all && storedData.grand.all.approved > grandAll.approved) {
+        grandAll.approved = Math.max(grandAll.approved, storedData.grand.all.approved || 0);
+        grandAll.rejected = Math.max(grandAll.rejected, storedData.grand.all.rejected || 0);
+        grandAll.returned = Math.max(grandAll.returned, storedData.grand.all.returned || 0);
+        grandAll.total = grandAll.approved + grandAll.pending + grandAll.rejected + grandAll.returned;
+      }
 
       const villagesList = Array.from(vMap.values());
       const period = `APPLICATION STATUS FROM: ${fromStr} TO: ${toStr}`;
@@ -522,7 +709,7 @@ module.exports = async (req, res) => {
           inv: grandInv,
           notinv: grandNotInv
         },
-        source: 'district_user_fallback',
+        source: rawStoredVillages.length > 0 ? 'district_live_pending_plus_verified_disposal' : 'district_user_fallback',
         name: `TamilNilam_Auto_ISD_Status_${talukCode}.json`
       });
       return;
