@@ -4073,9 +4073,16 @@ async function onSignedIn(session){
     gateMsg('err', 'Signed in, but your account could not be loaded: ' + esc(e.message));
     return;
   }
-  if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'user', active: true, site_access: 'both', report_access: 'combined', taluks: [] };
+  if(!ME) ME = { email: session.user.email, full_name: session.user.email, role: 'user', active: true, site_access: 'both', report_access: 'combined', taluks: [], can_view_creds: false, can_update_creds: false };
   ME.active = true;
   if(!ME.role) ME.role = 'user';
+  if(ME.role === 'admin'){
+    ME.can_view_creds = true;
+    ME.can_update_creds = true;
+  } else {
+    ME.can_view_creds = ME.can_view_creds === true;
+    ME.can_update_creds = ME.can_update_creds === true;
+  }
   if(!Array.isArray(ME.taluks)) ME.taluks = (ME.taluks ? [ME.taluks] : []);
   ME.site_access = ME.site_access || 'both';
   ME.report_access = ME.report_access || 'combined';
@@ -4207,9 +4214,13 @@ function applyReportPermissions(){
   // 3. Topbar buttons
   const chittaBtn = document.getElementById('chittaMenuBtn');
   const eservicesBtn = document.getElementById('eservicesMenuBtn');
+  const credsBtn = document.getElementById('credsMenuBtn');
   const ffBtn = document.getElementById('tnFlashFillBtn');
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const canCreds = isAdmin || canManageCreds();
   if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
+  if(credsBtn) credsBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
 
   // 4. Print layout sections
@@ -4223,8 +4234,10 @@ function applyReportPermissions(){
   // 5. Hub Tabs
   const chittaTabBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesTabBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
+  const credsTabBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
+  if(credsTabBtn) credsTabBtn.style.display = canCreds ? 'inline-block' : 'none';
 
   // 6. Tell nisd_auto.js to filter modals
   if(typeof window.__applyReportAccessFilter === 'function') {
@@ -4374,10 +4387,25 @@ function markLoaded(kind, name, rows, fromCloud){
    ============================================================ */
 let ADMIN_TAB = 'users';
 
+function canViewCreds(){
+  if(!CLOUD_ON) return true;
+  if(!ME) return false;
+  if(ME.role === 'admin') return true;
+  return ME.can_view_creds === true;
+}
+
+function canUpdateCreds(){
+  if(!CLOUD_ON) return true;
+  if(!ME) return false;
+  if(ME.role === 'admin') return true;
+  return ME.can_update_creds === true;
+}
+
 function canManageCreds(){
   if(!CLOUD_ON) return true;
   if(!ME) return false;
-  return true; // Any authenticated user can manage credentials for their permitted taluks
+  if(ME.role === 'admin') return true;
+  return ME.can_view_creds === true || ME.can_update_creds === true;
 }
 
 function openUsersPanel(){
@@ -4537,12 +4565,21 @@ async function renderUsers(){
       menuPicker(['isd','nisd','fline','chitta','eservices'], 'id="nuMenus"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
       talukPicker([], 'id="nuTaluks"') + '</div>' +
+    '<div class="f" style="flex:1 1 100%"><label>Credentials Access <span class="fstate" style="text-transform:none">— specify if this user can view or update portal passwords for their taluks</span></label>' +
+      '<div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:2px;">' +
+        '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; background:var(--surface-2,#1e293b); padding:5px 12px; border-radius:6px; border:1px solid var(--line-2,#334155); color:var(--ink);">' +
+          '<input type="checkbox" id="nuCanViewCreds"> 👁️ Can View Password' +
+        '</label>' +
+        '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; background:var(--surface-2,#1e293b); padding:5px 12px; border-radius:6px; border:1px solid var(--line-2,#334155); color:var(--ink);">' +
+          '<input type="checkbox" id="nuCanUpdateCreds"> ✏️ Can Update Password' +
+        '</label>' +
+      '</div></div>' +
     '<button class="primary" id="nuAdd">Add user</button></div>';
 
   h += '<p class="fstate" style="margin:0 0 10px">A person you add here can set their own password on the sign-in page using that email. ' +
        'Nobody else can get in.</p>';
 
-  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th style="min-width:270px">Menu Access</th><th>Site Access</th><th>Taluks allowed</th><th>Status</th><th></th></tr></thead><tbody>';
+  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th style="min-width:270px">Menu Access</th><th>Site Access</th><th>Taluks allowed</th><th>Credentials</th><th>Status</th><th></th></tr></thead><tbody>';
   (users||[]).forEach(u=>{
     const isMe = ME && u.id === ME.id;
     const sAcc = u.site_access || 'both';
@@ -4562,6 +4599,17 @@ async function renderUsers(){
       '<td>'+(u.role === 'admin'
                ? '<span class="fstate">every taluk (admin)</span>'
                : talukPicker(u.taluks, 'data-act="taluks"'))+'</td>' +
+      '<td>'+(u.role === 'admin'
+               ? '<span class="fstate">Full (admin)</span>'
+               : '<div style="display:flex; flex-direction:column; gap:4px; font-size:11.5px;">' +
+                   '<label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;">' +
+                     '<input type="checkbox" data-act="view-creds" '+(u.can_view_creds?'checked':'')+'> 👁️ View' +
+                   '</label>' +
+                   '<label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap;">' +
+                     '<input type="checkbox" data-act="update-creds" '+(u.can_update_creds?'checked':'')+'> ✏️ Update' +
+                   '</label>' +
+                 '</div>'
+            )+'</td>' +
       '<td>'+(u.active?'<span style="color:var(--ok)">Active</span>':'<span style="color:var(--muted)">Disabled</span>')+'</td>' +
       '<td style="text-align:right; white-space:nowrap">' +
         (isMe ? '<span class="fstate">that\'s you</span>'
@@ -4577,6 +4625,7 @@ async function renderUsers(){
       '<td><span class="fstate">'+(i.menu_access && i.menu_access.length ? esc(i.menu_access.join(', ')) : esc(i.report_access || 'all'))+'</span></td>' +
       '<td><span class="fstate">'+esc(i.site_access || 'both')+'</span></td>' +
       '<td><span class="fstate">'+(i.taluks && i.taluks.length ? esc(i.taluks.join(', ')) : 'All')+'</span></td>' +
+      '<td><span class="fstate">'+(i.role === 'admin' ? 'Full (admin)' : ((i.can_view_creds ? '👁️ View ' : '') + (i.can_update_creds ? '✏️ Update' : '') || 'None'))+'</span></td>' +
       '<td><span style="color:var(--warn)">Invited</span></td>' +
       '<td style="text-align:right"><button class="ghost" data-act="uninvite">Remove</button></td></tr>';
   });
@@ -4585,6 +4634,16 @@ async function renderUsers(){
   box.innerHTML = h;
 
   document.getElementById('nuAdd').addEventListener('click', addUser);
+  const nuRole = document.getElementById('nuRole');
+  if(nuRole){
+    nuRole.addEventListener('change', ()=>{
+      const isAdminRole = nuRole.value === 'admin';
+      const v = document.getElementById('nuCanViewCreds');
+      const u = document.getElementById('nuCanUpdateCreds');
+      if(v){ if(isAdminRole) v.checked = true; v.disabled = isAdminRole; }
+      if(u){ if(isAdminRole) u.checked = true; u.disabled = isAdminRole; }
+    });
+  }
   box.querySelectorAll('[data-act]').forEach(el=>{
     const tr = el.closest('tr');
     const id = tr.dataset.id, inviteEmail = tr.dataset.invite;
@@ -4597,6 +4656,8 @@ async function renderUsers(){
     if(el.dataset.act === 'site')   el.addEventListener('change', ()=> patchUser(id, {site_access: el.value}));
     /* keep = do not redraw the table, so several boxes can be ticked in a row */
     if(el.dataset.act === 'taluks') el.addEventListener('change', ()=> patchUser(id, {taluks: pickedTaluks(el)}, true));
+    if(el.dataset.act === 'view-creds') el.addEventListener('change', ()=> patchUser(id, {can_view_creds: el.checked}, true));
+    if(el.dataset.act === 'update-creds') el.addEventListener('change', ()=> patchUser(id, {can_update_creds: el.checked}, true));
     if(el.dataset.act === 'toggle')el.addEventListener('click', ()=> patchUser(id, {active: el.textContent === 'Enable'}));
     if(el.dataset.act === 'reset') el.addEventListener('click', async ()=>{
       const mail = tr.querySelector('.who small').textContent.trim();
@@ -4625,14 +4686,19 @@ async function addUser(){
   const menu_access = pickedMenus(document.getElementById('nuMenus'));
   const repAcc = menu_access.includes('isd') && !menu_access.includes('nisd') ? 'isd' : menu_access.includes('nisd') && !menu_access.includes('isd') ? 'nisd' : 'combined';
   const site_access = document.getElementById('nuSite')?.value || 'both';
+  const role = document.getElementById('nuRole').value;
+  const can_view_creds = role === 'admin' ? true : (document.getElementById('nuCanViewCreds')?.checked || false);
+  const can_update_creds = role === 'admin' ? true : (document.getElementById('nuCanUpdateCreds')?.checked || false);
   const { error } = await sb.from('isd_invites').upsert({
     email,
     full_name: document.getElementById('nuName').value.trim() || null,
-    role: document.getElementById('nuRole').value,
+    role,
     taluks,
     menu_access: menu_access.length ? menu_access : ['isd','nisd','fline','chitta','eservices'],
     report_access: repAcc,
     site_access,
+    can_view_creds,
+    can_update_creds,
     created_by: ME.id,
   }, {onConflict:'email'});
   if(error){ toast('Could not add the user', error.message, 'err'); return; }
@@ -4653,6 +4719,10 @@ async function patchUser(id, patch, keep){
     what = 'Site access set to: ' + patch.site_access;
   } else if (patch.role) {
     what = 'Role set to: ' + patch.role;
+  } else if ('can_view_creds' in patch) {
+    what = 'Credentials view permission ' + (patch.can_view_creds ? 'granted.' : 'revoked.');
+  } else if ('can_update_creds' in patch) {
+    what = 'Credentials update permission ' + (patch.can_update_creds ? 'granted.' : 'revoked.');
   }
   toast('Saved', what + ' It applies the next time they sign in or reload.', 'ok');
   if(!keep) renderUsers();
@@ -4736,7 +4806,23 @@ async function renderTnCredsTab() {
   await loadTalukCredsFromCloud();
 
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const canView = canViewCreds();
+  const canUpdate = canUpdateCreds();
   const mine = (typeof myTaluks === 'function') ? myTaluks() : null;
+
+  if (!isAdmin && !canView && !canUpdate) {
+    box.innerHTML = `
+      <div style="max-width: 860px; margin: 40px auto; padding: 28px; background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); text-align: center;">
+        <span style="font-size: 36px; display: block; margin-bottom: 10px;">🔒</span>
+        <h3 style="margin: 0 0 8px; color: var(--ink);">Credentials Access Restricted</h3>
+        <p style="margin: 0; font-size: 13px; color: var(--muted);">
+          You do not have permission to view or update portal passwords for your taluk.<br>
+          Please contact an administrator to request credentials access.
+        </p>
+      </div>
+    `;
+    return;
+  }
 
   // Standard taluks in Ranipet District (37)
   const RANIPET_TALUKS = [
@@ -4792,8 +4878,16 @@ async function renderTnCredsTab() {
             : `Update Tahsildar login username and password for your assigned taluk: <b>${visibleTaluks.map(t => t.name).join(', ') || 'Assigned Taluks'}</b>. Changes are stored securely in Supabase.`}
         </p>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <span class="pill" style="font-size:11.5px; background:var(--surface); border:1px solid var(--line-2);">${isAdmin ? '🛡️ Administrator' : '👤 ' + (visibleTaluks.map(t=>t.name).join(', ') || 'Taluk User')}</span>
+        ${!isAdmin ? `
+          <span class="pill" style="font-size:11px; ${canView ? 'background:#10b98115; color:#10b981; border:1px solid #10b98130;' : 'background:#f59e0b15; color:#f59e0b; border:1px solid #f59e0b30;'}">
+            ${canView ? '👁️ View Allowed' : '👁️ View Restricted'}
+          </span>
+          <span class="pill" style="font-size:11px; ${canUpdate ? 'background:#8b5cf615; color:#8b5cf6; border:1px solid #8b5cf630;' : 'background:#ef444415; color:#ef4444; border:1px solid #ef444430;'}">
+            ${canUpdate ? '✏️ Update Allowed' : '✏️ Update Restricted'}
+          </span>
+        ` : ''}
       </div>
     </div>
   `;
@@ -4874,6 +4968,9 @@ async function renderTnCredsTab() {
   talukRows.forEach(tr => {
     const tSlug = tr.name.toLowerCase();
     const updatedTxt = tr.updatedAt ? `Updated ${new Date(tr.updatedAt).toLocaleDateString()}` : 'Configured';
+    const isUpdatable = isAdmin || canUpdate;
+    const isViewable = isAdmin || canView;
+
     h += `
       <div class="taluk-cred-card" data-taluk="${esc(tr.name)}" style="background: var(--surface-2); padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line-2);">
@@ -4884,8 +4981,12 @@ async function renderTnCredsTab() {
               <span style="font-size: 11.5px; color: var(--muted); margin-left: 8px;">(Code: ${esc(tr.code)})</span>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span class="pill" style="font-size: 11px; background: #8b5cf615; color: #8b5cf6; border: 1px solid #8b5cf630;">Role: Tahsildar (8)</span>
+            ${!isAdmin ? `
+              <span class="pill" style="font-size: 10.5px; ${isViewable ? 'background:#10b98115; color:#10b981; border:1px solid #10b98130;' : 'background:#f59e0b15; color:#f59e0b; border:1px solid #f59e0b30;'}">${isViewable ? '👁️ View Allowed' : '👁️ View Restricted'}</span>
+              <span class="pill" style="font-size: 10.5px; ${isUpdatable ? 'background:#3b82f615; color:#3b82f6; border:1px solid #3b82f630;' : 'background:#ef444415; color:#ef4444; border:1px solid #ef444430;'}">${isUpdatable ? '✏️ Update Allowed' : '✏️ Update Restricted'}</span>
+            ` : ''}
             <span style="font-size: 11px; color: var(--muted);">${esc(updatedTxt)}</span>
           </div>
         </div>
@@ -4893,28 +4994,37 @@ async function renderTnCredsTab() {
         <div style="display: grid; grid-template-columns: 1fr 1fr 110px; gap: 14px; align-items: end;">
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Username / Emp ID</label>
-            <input type="text" id="tnCredUser_${tSlug}" value="${esc(tr.username)}" placeholder="e.g. thl${tSlug}" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+            <input type="text" id="tnCredUser_${tSlug}" value="${esc(tr.username)}" placeholder="e.g. thl${tSlug}" ${isUpdatable ? '' : 'readonly title="Read-only: Credentials update restricted"'} style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: ${isUpdatable ? 'var(--surface)' : 'var(--surface-2)'}; font-size: 13px; font-weight: 600; color: ${isUpdatable ? 'var(--ink)' : 'var(--muted)'}; ${isUpdatable ? '' : 'cursor: not-allowed;'}">
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Portal Password</label>
             <div style="position: relative; display: flex; align-items: center;">
-              <input type="password" id="tnCredPass_${tSlug}" value="${esc(tr.password)}" placeholder="Portal Password" style="width: 100%; padding: 9px 36px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
-              <button type="button" class="toggle-pass-btn" data-target="tnCredPass_${tSlug}" title="Toggle visibility" style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px;">👁️</button>
+              <input type="password" id="tnCredPass_${tSlug}" value="${isViewable ? esc(tr.password) : ''}" placeholder="${isViewable ? 'Portal Password' : (isUpdatable ? '•••••••• (Enter new password to update)' : '•••••••• (View restricted)')}" ${isUpdatable ? '' : 'readonly title="Read-only: Credentials update restricted"'} style="width: 100%; padding: 9px 36px 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: ${isUpdatable ? 'var(--surface)' : 'var(--surface-2)'}; font-size: 13px; font-weight: 600; color: ${isUpdatable ? 'var(--ink)' : 'var(--muted)'}; ${isUpdatable ? '' : 'cursor: not-allowed;'}">
+              ${isViewable
+                ? `<button type="button" class="toggle-pass-btn" data-target="tnCredPass_${tSlug}" title="Toggle visibility" style="position: absolute; right: 6px; background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px;">👁️</button>`
+                : `<span title="Viewing password is restricted by administrator" style="position: absolute; right: 8px; font-size: 13px; opacity: 0.6; cursor: not-allowed;">🔒</span>`
+              }
             </div>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <label style="font-weight: 600; font-size: 12px; color: var(--ink);">Role ID</label>
-            <input type="text" id="tnCredRole_${tSlug}" value="${esc(tr.roleId)}" placeholder="8" style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--ink);">
+            <input type="text" id="tnCredRole_${tSlug}" value="${esc(tr.roleId)}" placeholder="8" ${isUpdatable ? '' : 'readonly title="Read-only"'} style="padding: 9px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: ${isUpdatable ? 'var(--surface)' : 'var(--surface-2)'}; font-size: 13px; font-weight: 600; color: ${isUpdatable ? 'var(--ink)' : 'var(--muted)'}; ${isUpdatable ? '' : 'cursor: not-allowed;'}">
           </div>
         </div>
 
         <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line-2); flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <button type="button" class="primary save-taluk-cred-btn" data-taluk="${esc(tr.name)}" data-code="${esc(tr.code)}" data-slug="${tSlug}" style="padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 7px; background: #8b5cf6; color: #fff; border: none; cursor: pointer;">
-              💾 Save ${esc(tr.name)} Login
-            </button>
+            ${isUpdatable ? `
+              <button type="button" class="primary save-taluk-cred-btn" data-taluk="${esc(tr.name)}" data-code="${esc(tr.code)}" data-slug="${tSlug}" style="padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 7px; background: #8b5cf6; color: #fff; border: none; cursor: pointer;">
+                💾 Save ${esc(tr.name)} Login
+              </button>
+            ` : `
+              <button type="button" class="ghost" disabled style="padding: 8px 18px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); color: var(--muted); opacity: 0.6; cursor: not-allowed;" title="You do not have permission to update credentials">
+                🔒 Save Disabled (Read-only)
+              </button>
+            `}
             <button type="button" class="ghost test-taluk-cred-btn" data-taluk="${esc(tr.name)}" data-code="${esc(tr.code)}" data-slug="${tSlug}" style="padding: 8px 16px; font-size: 12.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--line-2); cursor: pointer;">
               ⚡ Test Connection
             </button>
@@ -5038,6 +5148,11 @@ async function renderTnCredsTab() {
   // Save Taluk Credential listeners
   box.querySelectorAll('.save-taluk-cred-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+      if (!isAdmin && !canUpdateCreds()) {
+        toast('Permission Denied', 'You do not have permission to update credentials.', 'err');
+        return;
+      }
       const talukName = btn.dataset.taluk;
       const talukCode = btn.dataset.code;
       const slug = btn.dataset.slug;
@@ -5047,7 +5162,11 @@ async function renderTnCredsTab() {
       const st = document.getElementById(`tnStatus_${slug}`);
 
       if (!u || !p) {
-        toast('Missing Information', `Username and password for ${talukName} are required.`, 'warn');
+        if (!p && !canViewCreds()) {
+          toast('Missing Password', `Please enter a new password for ${talukName} to update.`, 'warn');
+        } else {
+          toast('Missing Information', `Username and password for ${talukName} are required.`, 'warn');
+        }
         return;
       }
 
@@ -5103,9 +5222,14 @@ async function renderTnCredsTab() {
       const talukName = btn.dataset.taluk;
       const slug = btn.dataset.slug;
       const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
-      const p = document.getElementById(`tnCredPass_${slug}`)?.value;
+      let p = document.getElementById(`tnCredPass_${slug}`)?.value;
       const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
       const st = document.getElementById(`tnStatus_${slug}`);
+
+      if (!p) {
+        const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(talukName));
+        if (found && found.password) p = found.password;
+      }
 
       if (!u || !p) {
         if (st) { st.style.color = '#f59e0b'; st.textContent = '⚠ Enter username & password first'; }
@@ -7861,6 +7985,10 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   openUsersPanel();
 });
 document.getElementById('credsMenuBtn')?.addEventListener('click', () => {
+  if(!canManageCreds() && (!ME || ME.role !== 'admin')){
+    toast('Access restricted', 'You do not have credentials management access.', 'warn');
+    return;
+  }
   ADMIN_TAB = 'creds';
   openUsersPanel();
 });
