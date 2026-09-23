@@ -77,13 +77,13 @@
     background:var(--topbar-bg);
     border-bottom:1px solid var(--line);
     width:100%; max-width:100%; box-sizing:border-box;
-    overflow-x:hidden;
+    overflow:visible;
   }
   .topbar .inner{
     max-width:1360px; width:100%; box-sizing:border-box;
     margin:0 auto; padding:8px 16px;
     display:flex; align-items:center; flex-wrap:wrap; gap:10px;
-    overflow-x:hidden;
+    overflow:visible;
   }
   .brand{display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto}
   .brand img{width:32px; height:32px; border-radius:8px; flex:0 0 auto}
@@ -415,10 +415,12 @@
     #isdCard{page-break-after:always}
     body.print-isd-only .card:not(#isdCard){display:none!important}
     body.print-nisd-only .card:not(#nisdCard){display:none!important}
+    body.print-single-only .card:not(#singleReportCard){display:none!important}
     body.print-pick .pick-off{display:none!important}
     body.print-pick #isdCard{page-break-after:auto}
     body.print-nisd-only #nisdCard{page-break-before:auto; page-break-after:auto}
     body.print-isd-only #isdCard{page-break-after:auto}
+    body.print-single-only #singleReportCard{page-break-after:auto}
     #isdPrintVao{display:block!important; page-break-before:always}
     #isdPrintVao h3{font-size:15px!important; margin:0 0 7px!important}
     .tabcap{font-size:15px!important; margin:0 0 7px!important; color:#111827!important}
@@ -788,13 +790,47 @@
   }
 
   /* ============ Print picker ============ */
-  .printmenu-wrap{position:relative; display:inline-flex}
+  .printmenu-wrap{position:relative; display:inline-flex; z-index:110}
   .printmenu{
-    position:absolute; top:calc(100% + 9px); right:0; z-index:150; width:290px;
+    position:absolute; top:calc(100% + 9px); right:0; z-index:9999; width:320px;
     background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r);
-    box-shadow:var(--shadow-lg); animation:rise .16s cubic-bezier(.2,.7,.3,1);
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.25);
+    animation:rise .16s cubic-bezier(.2,.7,.3,1);
   }
   .printmenu[hidden]{display:none}
+
+  /* ============ Single Report Print Styles ============ */
+  body.print-single-only .card:not(#singleReportCard),
+  body.print-single-only .topbar,
+  body.print-single-only .no-print,
+  body.print-single-only #warnings,
+  body.print-single-only .shell > .card:not(#singleReportCard) {
+    display: none !important;
+  }
+  body.print-single-only #singleReportCard {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  body.print-single-only #singleReportTable {
+    font-size: 11px !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+  body.print-single-only #singleReportTable th,
+  body.print-single-only #singleReportTable td {
+    border: 1px solid #111 !important;
+    padding: 4px 3px !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  body.print-single-only #singleReportTable .vao-row {
+    background: #fde8db !important;
+  }
   .pm-head{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--line)}
   .pm-head b{flex:1 1 auto; font-size:13.5px}
   .pm-quick{font-size:11.5px; color:var(--muted)}
@@ -1006,6 +1042,7 @@
         <select id="talukSel"><option value="">All taluks</option></select>
       </label>
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center to configure dates &amp; pull reports for selected Taluk">⚡ Flash Fill Control Center</button>
+      <button type="button" class="tn-auto-btn" id="singleReportBtn" title="View Rural Overall Pending Single Report (Consolidated)" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff; font-weight:700;">📊 Single Report</button>
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
       <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
       <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Manage Tahsildar Portal Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5;">🔑 Credentials</button>
@@ -1149,6 +1186,7 @@
       <div style="display:inline-flex; align-items:center; gap:5px; background:var(--surface); padding:2px 8px; border-radius:7px; border:1px solid var(--line-2);">
         <label for="isdSortSelect" style="font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase;">Sort:</label>
         <select id="isdSortSelect" title="Sort Table" style="font-size:12px; padding:4px 6px; border:none; background:transparent; font-weight:600; color:var(--ink); cursor:pointer; outline:none;">
+          <option value="arakkonam_order">Arakkonam Official Order (Arun → Jayabharathi)</option>
           <option value="emp_asc">Employee Code (1 → 9 / A → Z)</option>
           <option value="emp_desc">Employee Code (9 → 1 / Z → A)</option>
           <option value="pending_desc">Total Pending (High → Low)</option>
@@ -1193,6 +1231,23 @@
       <div id="isdAppDrilldownContainer" style="border:1px solid var(--line); border-radius:8px; background:var(--surface); overflow:hidden;">
         <!-- Dynamic Drilldown Content -->
       </div>
+    </div>
+  </div>
+
+  <div class="card" id="singleReportCard">
+    <h2 class="no-print">
+      <span class="step">2B</span> <span id="singleReportCardTitle">Rural Overall Pending Report (Consolidated)</span>
+      <span class="grow"></span>
+      <span style="text-transform:none; letter-spacing:0; font-size:11.5px">Single combined report: OPT-Rural, OPT-Natham, F-Line Rural &amp; F-Line Natham</span>
+    </h2>
+    <div id="singleReportRep">
+      <div class="miss">
+        <b>Single Consolidated Report not ready.</b><br>Load the required files to generate the overall pending report.
+      </div>
+    </div>
+    <div class="actions no-print" id="singleReportActions" style="display:none; margin-top:14px; gap:9px; flex-wrap:wrap; align-items:center;">
+      <button type="button" class="primary" id="singleReportPrintBtn">&#128424; Print Single Report</button>
+      <button type="button" class="ghost" id="singleReportXlsBtn" style="color:#0284c7; font-weight:700;">📊 Export to Excel</button>
     </div>
   </div>
 
@@ -2350,6 +2405,7 @@ function render(){
   renderWarnings(A);
   updateChips();
   buildInteractiveTable();
+  if (typeof renderSingleReport === 'function') renderSingleReport();
 
   /* print/export tables — always all users, unfiltered */
   const cnt = (cat,u,bk) => (A.counts[cat][u] && A.counts[cat][u][bk]) || 0;
@@ -3377,9 +3433,221 @@ function naturalCompare(a, b){
   return String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+const ARAKKONAM_SURVEYOR_ORDER = [
+  'arun',
+  'lakshmanadas',
+  'c.yuvaraj',
+  'yuvaraj c',
+  'm.sathiyaseelan',
+  'sathiyaseelan m',
+  'sathiyaseelan',
+  'sethuraman',
+  'kumaresan',
+  'prasath',
+  'prasad',
+  'sudhakar',
+  'm.yuvaraj',
+  'yuvaraj m',
+  'jayabharathi'
+];
+
+function getArakkonamOrderRank(name){
+  const n = norm(name);
+  if(n.includes('yuvaraj')){
+    if(n.includes('c') || n.startsWith('c')) return 3;
+    if(n.includes('m') || n.startsWith('m')) return 9;
+  }
+  if(n.includes('arun')) return 1;
+  if(n.includes('lakshman')) return 2;
+  if(n.includes('sathiya')) return 4;
+  if(n.includes('sethuram')) return 5;
+  if(n.includes('kumares')) return 6;
+  if(n.includes('prasath') || n.includes('prasad')) return 7;
+  if(n.includes('sudhakar')) return 8;
+  if(n.includes('jayabharath')) return 10;
+  return 100;
+}
+
+const ARAKKONAM_DESIGNATIONS = {
+  'arun': 'SIS',
+  'lakshmanadas': 'TDS',
+  'c.yuvaraj': 'SIS',
+  'yuvaraj c': 'SIS',
+  'm.sathiyaseelan': 'SIS',
+  'sathiyaseelan m': 'SIS',
+  'sathiyaseelan': 'SIS',
+  'sethuraman': 'LS',
+  'kumaresan': 'MFS',
+  'prasath': 'MFS',
+  'prasad': 'MFS',
+  'sudhakar': 'MFS',
+  'm.yuvaraj': 'LS',
+  'yuvaraj m': 'LS',
+  'jayabharathi': 'LS',
+  'vao': 'VAO',
+  "vao's": 'VAO'
+};
+
+function getSurveyorDesignation(name){
+  if(!name) return '';
+  const n = norm(name);
+  if(n === 'vao' || n === "vao's" || n.startsWith('vao')) return 'VAO';
+  if(n.includes('yuvaraj')){
+    if(n.includes('c') || n.startsWith('c')) return 'SIS';
+    if(n.includes('m') || n.startsWith('m')) return 'LS';
+  }
+  for(const [k, v] of Object.entries(ARAKKONAM_DESIGNATIONS)){
+    if(n.includes(k)) return v;
+  }
+  if(store.village && store.village.header && Array.isArray(store.village.objs)){
+    const dKey = findKey(store.village.header, ['Designation', 'Desig', 'Role', 'Post', 'Cadre']);
+    const uKey = findKeyStrict(store.village.header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor']);
+    if(dKey && uKey){
+      const row = store.village.objs.find(o => norm(String(o[uKey]||'')) === n);
+      if(row && row[dKey]) return String(row[dKey]).trim();
+    }
+  }
+  return 'Surveyor';
+}
+
+const ARAKKONAM_VILLAGE_COUNTS = {
+  'arun': 5,
+  'lakshmanadas': 4,
+  'c.yuvaraj': 3,
+  'yuvaraj c': 3,
+  'm.sathiyaseelan': 4,
+  'sathiyaseelan m': 4,
+  'sathiyaseelan': 4,
+  'sethuraman': 4,
+  'kumaresan': 4,
+  'prasath': 4,
+  'prasad': 4,
+  'sudhakar': 3,
+  'm.yuvaraj': 3,
+  'yuvaraj m': 3,
+  'jayabharathi': 4,
+  'vao': 15,
+  "vao's": 15
+};
+
+function getSurveyorVillageCount(name, rRec){
+  const n = norm(name);
+  if(n === 'vao' || n === "vao's" || n.startsWith('vao')) {
+    if(R && R.vaoNames && R.vaoNames.length){
+      const vaoSet = new Set();
+      R.vaoNames.forEach(vn => {
+        const vr = R.vaos[vn];
+        if(vr && vr.villages) Object.keys(vr.villages).forEach(v => vaoSet.add(v));
+      });
+      if(vaoSet.size > 0) return vaoSet.size;
+    }
+    return 15;
+  }
+
+  // 1. From store.village
+  if(store.village && store.village.header && Array.isArray(store.village.objs)){
+    const vK = findKey(store.village.header, ['Village', 'Village Name', 'VillageName']);
+    const uK = findKeyStrict(store.village.header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor']);
+    const tK = talukKeyOf(store.village.header);
+    const set = new Set();
+    store.village.objs.filter(o => !tK || inTaluk(o[tK])).forEach(o => {
+      const uStr = norm(String(o[uK]||''));
+      if(uStr === n || uStr.includes(n) || n.includes(uStr)){
+        if(o[vK]) set.add(String(o[vK]).trim());
+      }
+    });
+    if(set.size > 0) return set.size;
+  }
+
+  // 2. From rRec
+  if(rRec && rRec.villages){
+    const cnt = Object.keys(rRec.villages).length;
+    if(cnt > 0) return cnt;
+  }
+
+  // 3. Fallback to predefined Arakkonam counts
+  if(n.includes('yuvaraj')){
+    if(n.includes('c') || n.startsWith('c')) return 3;
+    if(n.includes('m') || n.startsWith('m')) return 3;
+  }
+  for(const [k, v] of Object.entries(ARAKKONAM_VILLAGE_COUNTS)){
+    if(n.includes(k)) return v;
+  }
+  return 0;
+}
+
+function getCountsForSurveyor(sName, aggA){
+  const res = {
+    isdNatham: { b0:0, b1:0, b2:0, b3:0, total:0 },
+    flineRural: { b0:0, b1:0, b2:0, b3:0, total:0 },
+    flineNatham: { b0:0, b1:0, b2:0, b3:0, total:0 }
+  };
+  if(!aggA || !aggA.counts) return res;
+
+  const normS = norm(sName);
+  let matchedUser = null;
+  if(aggA.users){
+    for(const u of aggA.users){
+      if(norm(u) === normS){ matchedUser = u; break; }
+    }
+    if(!matchedUser){
+      const isYuvaraj = normS.includes('yuvaraj');
+      const isC = isYuvaraj && (normS.includes('c') || normS.startsWith('c'));
+      const isM = isYuvaraj && (normS.includes('m') || normS.startsWith('m'));
+
+      for(const u of aggA.users){
+        const nu = norm(u);
+        if(isYuvaraj){
+          if(nu.includes('yuvaraj')){
+            const uIsC = nu.includes('c') || nu.startsWith('c');
+            const uIsM = nu.includes('m') || nu.startsWith('m');
+            if((isC && uIsC) || (isM && uIsM)){ matchedUser = u; break; }
+          }
+        } else {
+          if(nu.includes(normS) || normS.includes(nu)){ matchedUser = u; break; }
+        }
+      }
+    }
+  }
+
+  if(matchedUser){
+    ['isdNatham', 'flineRural', 'flineNatham'].forEach(ck => {
+      const cObj = aggA.counts[ck] && aggA.counts[ck][matchedUser];
+      if(cObj){
+        res[ck].b0 = cObj['b0'] || 0;
+        res[ck].b1 = cObj['b1'] || 0;
+        res[ck].b2 = cObj['b2'] || 0;
+        res[ck].b3 = cObj['b3'] || 0;
+        res[ck].total = res[ck].b0 + res[ck].b1 + res[ck].b2 + res[ck].b3;
+      }
+    });
+  }
+  return res;
+}
+
+function getSingleReportTitle(taluk){
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const tName = cleanTalukName(taluk || TALUK || 'Arakkonam') || 'Arakkonam';
+  return `Upto ${dd}-${mm}-${yyyy} ${tName} Taluk Rural Overall Pending Report`;
+}
+
 function sortSurveyorNames(names, taluk, sortMode, surveyorsBag){
-  const mode = sortMode || currentIsdSortMode || 'emp_asc';
+  const isArakkonam = normTaluk(taluk || TALUK || '').includes('arakkon');
+  const mode = sortMode || currentIsdSortMode || (isArakkonam ? 'arakkonam_order' : 'emp_asc');
   const codes = getIsdEmpCodes(taluk);
+
+  if(mode === 'arakkonam_order' || (isArakkonam && (!sortMode || mode === 'emp_asc'))){
+    return names.slice().sort((a, b) => {
+      const rankA = getArakkonamOrderRank(a);
+      const rankB = getArakkonamOrderRank(b);
+      if(rankA !== rankB) return rankA - rankB;
+      return naturalCompare(a, b);
+    });
+  }
+
   return names.slice().sort((a, b) => {
     const codeA = (codes[a] || '').trim();
     const codeB = (codes[b] || '').trim();
@@ -3765,6 +4033,7 @@ function renderIsdReport(){
   const sortSel = document.getElementById('isdSortSelect');
   if (sortSel) sortSel.value = currentIsdSortMode;
   if (typeof renderIsdAppDrilldownSection === 'function') renderIsdAppDrilldownSection();
+  if (typeof renderSingleReport === 'function') renderSingleReport();
 }
 
 /* dedicated print page: VAO name + village breakdown */
@@ -3820,6 +4089,498 @@ function isdMatrix(sTotal, vTotal, gTotal){
   rows.push(line('', 'Taluk Total', gTotal));
   isdLastMatrix = rows;
 }
+
+/* ============================================================
+   Single Consolidated Report (Rural Overall Pending Report)
+   ============================================================ */
+function renderSingleReport(){
+  const box = document.getElementById('singleReportRep');
+  const card = document.getElementById('singleReportCard');
+  const actions = document.getElementById('singleReportActions');
+  const titleEl = document.getElementById('singleReportCardTitle');
+  if(!box) return;
+
+  const hasR = R && R.ready;
+  const hasA = A && A.users && A.users.length;
+  const hasVillage = store.village && store.village.objs && store.village.objs.length;
+
+  if(!hasR && !hasA && !hasVillage){
+    box.innerHTML = '<div class="miss"><b>Single Consolidated Report not ready.</b><br>' +
+      'Load Village Details, VAO Details and at least one pending export or ISD Rural file to generate this report.</div>';
+    if(actions) actions.style.display = 'none';
+    return;
+  }
+  if(actions) actions.style.display = 'flex';
+
+  const title = getSingleReportTitle(TALUK);
+  if(titleEl) titleEl.textContent = title;
+
+  const isArakkonam = normTaluk(TALUK || '').includes('arakkon');
+
+  let surveyorNames = [];
+  if(hasR && R.surveyorNames && R.surveyorNames.length){
+    surveyorNames = R.surveyorNames.slice();
+  } else if(hasA){
+    surveyorNames = A.users.slice();
+  } else if(hasVillage){
+    const uKey = findKeyStrict(store.village.header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor']);
+    const tKey = talukKeyOf(store.village.header);
+    const uSet = new Set();
+    store.village.objs.filter(o => !tKey || inTaluk(o[tKey])).forEach(o => {
+      const u = String(o[uKey]||'').trim();
+      if(u) uSet.add(u);
+    });
+    surveyorNames = Array.from(uSet);
+  }
+
+  if(isArakkonam){
+    const arakkonamStaff = [
+      'Arun',
+      'Lakshmanadas',
+      'C.Yuvaraj',
+      'M.Sathiyaseelan',
+      'Sethuraman',
+      'Kumaresan',
+      'Prasath',
+      'Sudhakar',
+      'M.Yuvaraj',
+      'Jayabharathi'
+    ];
+    const merged = arakkonamStaff.slice();
+    surveyorNames.forEach(n => {
+      const normN = norm(n);
+      if(!merged.some(m => {
+        const normM = norm(m);
+        return normM === normN || (normN.includes(normM) && !normN.includes('yuvaraj'));
+      })){
+        merged.push(n);
+      }
+    });
+    surveyorNames = sortSurveyorNames(merged, 'Arakkonam', 'arakkonam_order', R ? R.surveyors : null);
+  } else {
+    surveyorNames = sortSurveyorNames(surveyorNames, TALUK, currentIsdSortMode, R ? R.surveyors : null);
+  }
+
+  let sVillageSum = 0;
+  const colSums = {
+    optR: { b2: 0, b1: 0, b0: 0, total: 0 },
+    optN: { b3: 0, b2: 0, b1: 0, b0: 0, total: 0 },
+    flR:  { b3: 0, b2: 0, b1: 0, b0: 0, total: 0 },
+    flN:  { b3: 0, b2: 0, b1: 0, b0: 0, total: 0 }
+  };
+
+  const rowsHtml = surveyorNames.map((name, idx) => {
+    let rRec = (R && R.surveyors) ? R.surveyors[name] : null;
+    if(!rRec && R && R.surveyors){
+      const normN = norm(name);
+      const isYuvaraj = normN.includes('yuvaraj');
+      const isC = isYuvaraj && (normN.includes('c') || normN.startsWith('c'));
+      const isM = isYuvaraj && (normN.includes('m') || normN.startsWith('m'));
+
+      for(const [sn, sv] of Object.entries(R.surveyors)){
+        const normSn = norm(sn);
+        if(isYuvaraj && normSn.includes('yuvaraj')){
+          const snIsC = normSn.includes('c') || normSn.startsWith('c');
+          const snIsM = normSn.includes('m') || normSn.startsWith('m');
+          if((isC && snIsC) || (isM && snIsM)){ rRec = sv; break; }
+        } else if(normSn === normN || normSn.includes(normN) || normN.includes(normSn)){
+          rRec = sv; break;
+        }
+      }
+    }
+
+    const desig = getSurveyorDesignation(name);
+    const vCount = getSurveyorVillageCount(name, rRec);
+    sVillageSum += vCount;
+
+    const optR = {
+      b2: (rRec && rRec.b && rRec.b.b2) || 0,
+      b1: (rRec && rRec.b && rRec.b.b1) || 0,
+      b0: (rRec && rRec.b && rRec.b.b0) || 0,
+      total: (rRec && rRec.pending) || 0
+    };
+    colSums.optR.b2 += optR.b2;
+    colSums.optR.b1 += optR.b1;
+    colSums.optR.b0 += optR.b0;
+    colSums.optR.total += optR.total;
+
+    const extraCounts = getCountsForSurveyor(name, A);
+    const optN = extraCounts.isdNatham;
+    const flR  = extraCounts.flineRural;
+    const flN  = extraCounts.flineNatham;
+
+    ['b3', 'b2', 'b1', 'b0', 'total'].forEach(k => {
+      colSums.optN[k] += optN[k] || 0;
+      colSums.flR[k]  += flR[k] || 0;
+      colSums.flN[k]  += flN[k] || 0;
+    });
+
+    const cCell = (v, isTot, isOld) => {
+      const cls = ['num', v === 0 ? 'zero' : '', isTot ? 'tot' : '', isOld && v > 0 ? 'b-last' : ''].filter(Boolean).join(' ');
+      return `<td class="${cls}">${v}</td>`;
+    };
+
+    return `<tr>
+      <td class="sn" style="text-align:center;">${idx + 1}</td>
+      <td class="nm" style="text-align:left; font-weight:600; padding-left:8px;">${esc(name)}</td>
+      <td class="desig" style="text-align:center; font-weight:700; color:var(--primary);">${esc(desig)}</td>
+      <td class="num" style="text-align:center; font-weight:700;">${vCount}</td>
+      ${cCell(optR.b2, false, true)}
+      ${cCell(optR.b1, false, false)}
+      ${cCell(optR.b0, false, false)}
+      ${cCell(optR.total, true, false)}
+      ${cCell(optN.b3, false, true)}
+      ${cCell(optN.b2, false, false)}
+      ${cCell(optN.b1, false, false)}
+      ${cCell(optN.b0, false, false)}
+      ${cCell(optN.total, true, false)}
+      ${cCell(flR.b3, false, true)}
+      ${cCell(flR.b2, false, false)}
+      ${cCell(flR.b1, false, false)}
+      ${cCell(flR.b0, false, false)}
+      ${cCell(flR.total, true, false)}
+      ${cCell(flN.b3, false, true)}
+      ${cCell(flN.b2, false, false)}
+      ${cCell(flN.b1, false, false)}
+      ${cCell(flN.b0, false, false)}
+      ${cCell(flN.total, true, false)}
+    </tr>`;
+  }).join('');
+
+  let vaoVCount = getSurveyorVillageCount("VAO's", null);
+  const vTotal = (R && R.vaos) ? sumRows(Object.values(R.vaos)) : blankRow();
+  const vaoOptR = {
+    b2: vTotal.b.b2 || 0,
+    b1: vTotal.b.b1 || 0,
+    b0: vTotal.b.b0 || 0,
+    total: vTotal.pending || 0
+  };
+
+  const grandVillages = sVillageSum + vaoVCount;
+  const grandOptR = {
+    b2: colSums.optR.b2 + vaoOptR.b2,
+    b1: colSums.optR.b1 + vaoOptR.b1,
+    b0: colSums.optR.b0 + vaoOptR.b0,
+    total: colSums.optR.total + vaoOptR.total
+  };
+
+  const numC = (v, isTot, isOld) => {
+    const cls = ['num', v === 0 ? 'zero' : '', isTot ? 'tot' : '', isOld && v > 0 ? 'b-last' : ''].filter(Boolean).join(' ');
+    return `<td class="${cls}">${v}</td>`;
+  };
+
+  const surveyorsTotalRow = `<tr class="subtotal" style="background:var(--surface-2); font-weight:700;">
+    <td colspan="3" style="text-align:center; font-weight:800; letter-spacing:0.5px;">SURVEYORS'S PENDING</td>
+    <td class="num" style="text-align:center; font-weight:800;">${sVillageSum}</td>
+    ${numC(colSums.optR.b2, false, true)}
+    ${numC(colSums.optR.b1, false, false)}
+    ${numC(colSums.optR.b0, false, false)}
+    ${numC(colSums.optR.total, true, false)}
+    ${numC(colSums.optN.b3, false, true)}
+    ${numC(colSums.optN.b2, false, false)}
+    ${numC(colSums.optN.b1, false, false)}
+    ${numC(colSums.optN.b0, false, false)}
+    ${numC(colSums.optN.total, true, false)}
+    ${numC(colSums.flR.b3, false, true)}
+    ${numC(colSums.flR.b2, false, false)}
+    ${numC(colSums.flR.b1, false, false)}
+    ${numC(colSums.flR.b0, false, false)}
+    ${numC(colSums.flR.total, true, false)}
+    ${numC(colSums.flN.b3, false, true)}
+    ${numC(colSums.flN.b2, false, false)}
+    ${numC(colSums.flN.b1, false, false)}
+    ${numC(colSums.flN.b0, false, false)}
+    ${numC(colSums.flN.total, true, false)}
+  </tr>`;
+
+  const vaoRow = `<tr class="vao-row" style="background:#fde8db; font-weight:600;">
+    <td class="sn" style="text-align:center;">${surveyorNames.length + 1}</td>
+    <td class="nm" style="font-weight:700; text-align:left; padding-left:8px;">VAO's</td>
+    <td class="desig" style="text-align:center; font-weight:700; color:#b45309;">VAO</td>
+    <td class="num" style="text-align:center; font-weight:700;">${vaoVCount}</td>
+    ${numC(vaoOptR.b2, false, true)}
+    ${numC(vaoOptR.b1, false, false)}
+    ${numC(vaoOptR.b0, false, false)}
+    ${numC(vaoOptR.total, true, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, true, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, true, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, false, false)}
+    ${numC(0, true, false)}
+  </tr>`;
+
+  const grandTotalRow = `<tr class="grand" style="background:#fef3c7; font-weight:800; font-size:13px; border-top:2px solid #333;">
+    <td colspan="3" style="text-align:center; font-weight:900; letter-spacing:0.5px;">GRAND TOTAL</td>
+    <td class="num" style="text-align:center; font-weight:900;">${grandVillages}</td>
+    ${numC(grandOptR.b2, false, true)}
+    ${numC(grandOptR.b1, false, false)}
+    ${numC(grandOptR.b0, false, false)}
+    ${numC(grandOptR.total, true, false)}
+    ${numC(colSums.optN.b3, false, true)}
+    ${numC(colSums.optN.b2, false, false)}
+    ${numC(colSums.optN.b1, false, false)}
+    ${numC(colSums.optN.b0, false, false)}
+    ${numC(colSums.optN.total, true, false)}
+    ${numC(colSums.flR.b3, false, true)}
+    ${numC(colSums.flR.b2, false, false)}
+    ${numC(colSums.flR.b1, false, false)}
+    ${numC(colSums.flR.b0, false, false)}
+    ${numC(colSums.flR.total, true, false)}
+    ${numC(colSums.flN.b3, false, true)}
+    ${numC(colSums.flN.b2, false, false)}
+    ${numC(colSums.flN.b1, false, false)}
+    ${numC(colSums.flN.b0, false, false)}
+    ${numC(colSums.flN.total, true, false)}
+  </tr>`;
+
+  const tableHtml = `
+    <div style="margin-bottom:10px; font-size:15px; font-weight:800; color:var(--text); text-align:center; letter-spacing:0.3px;">
+      ${esc(title)}
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="rep-t single-rep-t" id="singleReportTable" style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="background:#1e40af; color:#fff;">
+          <th rowspan="2" style="width:36px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">S.No</th>
+          <th rowspan="2" style="min-width:130px; border:1px solid #cbd5e1; text-align:left; vertical-align:middle; padding-left:8px;">Firka</th>
+          <th rowspan="2" style="width:70px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">Designation</th>
+          <th rowspan="2" style="width:65px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">Number of Villages</th>
+          <th colspan="4" style="background:#2563eb; color:#fff; border:1px solid #93c5fd; text-align:center;">OPT-Rural</th>
+          <th colspan="5" style="background:#0284c7; color:#fff; border:1px solid #7dd3fc; text-align:center;">OPT-Natham</th>
+          <th colspan="5" style="background:#16a34a; color:#fff; border:1px solid #86efac; text-align:center;">F-Line Rural</th>
+          <th colspan="5" style="background:#7c3aed; color:#fff; border:1px solid #c4b5fd; text-align:center;">F-Line Natham</th>
+        </tr>
+        <tr style="background:#f8fafc; color:#1e293b; font-size:11px;">
+          <!-- OPT-Rural -->
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">over 30 Daya</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 25 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 25 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total</th>
+          <!-- OPT-Natham -->
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 60 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 30 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 25 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 25 Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total</th>
+          <!-- F-Line Rural -->
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 120 &gt; Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 3 Months (90&gt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 2 Months (60&gt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 2 Months (60&lt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total Pending</th>
+          <!-- F-Line Natham -->
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 120 &gt; Days</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 3 Months (90&gt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 2 Months (60&gt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 2 Months (60&lt; Days)</th>
+          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total Pending</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        ${surveyorsTotalRow}
+        ${vaoRow}
+        ${grandTotalRow}
+      </tbody>
+    </table>
+    </div>
+  `;
+  box.innerHTML = tableHtml;
+}
+
+function printSingleReport(){
+  document.body.classList.add('print-single-only');
+  const restore = forceLightForPrint();
+  window.print();
+  setTimeout(()=>{
+    document.body.classList.remove('print-single-only');
+    restore();
+  }, 500);
+}
+
+async function exportSingleReportExcel(){
+  const table = document.getElementById('singleReportTable');
+  if(!table){
+    toast('Nothing to export', 'Single Report is not ready yet.', 'warn');
+    return;
+  }
+  const title = getSingleReportTitle(TALUK);
+  const fileName = talukSlug() + '_Rural_Overall_Pending_Report.xlsx';
+
+  if(!window.ExcelJS){
+    const rows = [];
+    table.querySelectorAll('tr').forEach(tr => {
+      const row = [];
+      tr.querySelectorAll('th, td').forEach(c => row.push(c.innerText.trim()));
+      rows.push(row);
+    });
+    exportPlain(rows, 'Overall Pending Report', fileName);
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Taluk ISD Dashboard';
+  const ws = wb.addWorksheet('Overall Pending', {
+    pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+  });
+
+  // Row 1: Title
+  ws.mergeCells('A1:W1');
+  const titleCell = ws.getCell('A1');
+  titleCell.value = title;
+  titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF1E3A8A' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 28;
+
+  // Row 2 & 3: Headers
+  ws.mergeCells('A2:A3'); ws.getCell('A2').value = 'S.No';
+  ws.mergeCells('B2:B3'); ws.getCell('B2').value = 'Firka';
+  ws.mergeCells('C2:C3'); ws.getCell('C2').value = 'Designation';
+  ws.mergeCells('D2:D3'); ws.getCell('D2').value = 'Number of Villages';
+
+  ws.mergeCells('E2:H2'); ws.getCell('E2').value = 'OPT-Rural';
+  ws.mergeCells('I2:M2'); ws.getCell('I2').value = 'OPT-Natham';
+  ws.mergeCells('N2:R2'); ws.getCell('N2').value = 'F-Line Rural';
+  ws.mergeCells('S2:W2'); ws.getCell('S2').value = 'F-Line Natham';
+
+  const subHeaders = [
+    // OPT-Rural (E-H)
+    'over 30 Daya', 'Over 25 Days', 'Below 25 Days', 'Total',
+    // OPT-Natham (I-M)
+    'Over 60 Days', 'Over 30 Days', 'Over 25 Days', 'Below 25 Days', 'Total',
+    // F-Line Rural (N-R)
+    'Over 120 > Days', 'Over 3 Months (90> Days)', 'Over 2 Months (60> Days)', 'Below 2 Months (60< Days)', 'Total Pending',
+    // F-Line Natham (S-W)
+    'Over 120 > Days', 'Over 3 Months (90> Days)', 'Over 2 Months (60> Days)', 'Below 2 Months (60< Days)', 'Total Pending'
+  ];
+
+  subHeaders.forEach((sh, idx) => {
+    ws.getCell(3, 5 + idx).value = sh;
+  });
+
+  const r2 = ws.getRow(2);
+  const r3 = ws.getRow(3);
+  r2.height = 22;
+  r3.height = 24;
+
+  const headerFills = {
+    fixed: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } },
+    optR:  { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } },
+    optN:  { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0284C7' } },
+    flR:   { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16A34A' } },
+    flN:   { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } },
+    sub:   { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+  };
+
+  for(let c = 1; c <= 4; c++){
+    const cell = ws.getCell(2, c);
+    cell.fill = headerFills.fixed;
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  }
+  for(let c = 5; c <= 8; c++){ ws.getCell(2, c).fill = headerFills.optR; }
+  for(let c = 9; c <= 13; c++){ ws.getCell(2, c).fill = headerFills.optN; }
+  for(let c = 14; c <= 18; c++){ ws.getCell(2, c).fill = headerFills.flR; }
+  for(let c = 19; c <= 23; c++){ ws.getCell(2, c).fill = headerFills.flN; }
+
+  for(let c = 5; c <= 23; c++){
+    const cell2 = ws.getCell(2, c);
+    cell2.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const cell3 = ws.getCell(3, c);
+    cell3.fill = headerFills.sub;
+    cell3.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF1E293B' } };
+    cell3.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  }
+
+  let curRow = 4;
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    const isSurveyorsTotal = tr.classList.contains('subtotal');
+    const isVao = tr.classList.contains('vao-row');
+    const isGrand = tr.classList.contains('grand');
+
+    const wsRow = ws.getRow(curRow);
+    wsRow.height = isGrand ? 22 : 18;
+
+    if(isSurveyorsTotal || isGrand){
+      ws.mergeCells(curRow, 1, curRow, 3);
+      const mCell = ws.getCell(curRow, 1);
+      mCell.value = isGrand ? 'GRAND TOTAL' : "SURVEYORS'S PENDING";
+      mCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      mCell.font = { name: 'Arial', size: 10, bold: true };
+
+      const vCell = ws.getCell(curRow, 4);
+      const vText = tr.children[1] ? tr.children[1].innerText.trim() : '0';
+      vCell.value = isNaN(+vText) ? vText : +vText;
+      vCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      vCell.font = { name: 'Arial', size: 10, bold: true };
+
+      for(let i = 2; i < tr.children.length; i++){
+        const cell = ws.getCell(curRow, i + 3);
+        const val = tr.children[i].innerText.trim();
+        cell.value = isNaN(+val) ? val : +val;
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.font = { name: 'Arial', size: 10, bold: true };
+      }
+
+      const fill = isGrand ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }
+                           : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+      for(let c = 1; c <= 23; c++){
+        ws.getCell(curRow, c).fill = fill;
+      }
+    } else {
+      let colIdx = 1;
+      tr.querySelectorAll('td').forEach((td, idx) => {
+        const cell = ws.getCell(curRow, colIdx);
+        const txt = td.innerText.trim();
+        cell.value = (idx === 1 || idx === 2) ? txt : (isNaN(+txt) ? txt : +txt);
+        cell.alignment = { horizontal: idx === 1 ? 'left' : 'center', vertical: 'middle' };
+        cell.font = { name: 'Arial', size: 9.5, bold: idx === 2 || td.classList.contains('tot') };
+        if(isVao){
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE8DB' } };
+        }
+        colIdx++;
+      });
+    }
+
+    curRow++;
+  });
+
+  const thinBorder = {
+    top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+  };
+  for(let r = 2; r < curRow; r++){
+    for(let c = 1; c <= 23; c++){
+      ws.getCell(r, c).border = thinBorder;
+    }
+  }
+
+  ws.getColumn(1).width = 6;
+  ws.getColumn(2).width = 18;
+  ws.getColumn(3).width = 13;
+  ws.getColumn(4).width = 11;
+  for(let c = 5; c <= 23; c++){
+    ws.getColumn(c).width = 10;
+  }
+
+  await downloadWorkbook(wb, fileName);
+  toast('Excel exported', `${fileName} downloaded successfully`, 'ok');
+}
+
 
 /* ---------- ISD report events ---------- */
 document.addEventListener('click', e=>{
@@ -3881,6 +4642,30 @@ document.getElementById('isdPrintBtn').addEventListener('click', ()=>{
   window.print();
   setTimeout(()=>{ document.body.classList.remove('print-isd-only'); restore(); }, 400);
 });
+
+const singleBtn = document.getElementById('singleReportBtn');
+if(singleBtn){
+  singleBtn.addEventListener('click', ()=>{
+    const card = document.getElementById('singleReportCard');
+    if(card){
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      card.style.transition = 'box-shadow 0.4s ease, border-color 0.4s ease';
+      card.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.45)';
+      card.style.borderColor = '#2563eb';
+      setTimeout(()=>{
+        card.style.boxShadow = '';
+        card.style.borderColor = '';
+      }, 1500);
+    }
+  });
+}
+
+const spBtn = document.getElementById('singleReportPrintBtn');
+if(spBtn) spBtn.addEventListener('click', printSingleReport);
+
+const sxBtn = document.getElementById('singleReportXlsBtn');
+if(sxBtn) sxBtn.addEventListener('click', exportSingleReportExcel);
+
 
 /* ============================================================
    Employee Code Modal & Sort Selector Events
@@ -8743,6 +9528,10 @@ document.addEventListener('keydown', e=>{
    Print picker — tick the reports you want, then print
    ============================================================ */
 const PRINT_ITEMS = [
+  {key:'single', card:'singleReportCard', label:'Single Report — Overall Pending',
+   hint:'Consolidated OPT Rural, Natham & F-Line (Arakkonam / All Taluks)',
+   els:()=>['singleReportCard'],
+   ready:()=>!!document.querySelector('#singleReportTable')},
   {key:'isd',    card:'isdCard',     label:'ISD Rural — pending details',
    hint:'surveyors, VAO total and taluk total',
    els:()=>['isdPrintHeader','isdTableCap','isdRep'],
