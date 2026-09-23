@@ -4726,47 +4726,77 @@ async function exportSingleReportImage(){
     return;
   }
 
-  toast('Generating image', 'Capturing Single Consolidated Report as PNG...', 'info');
+  toast('Generating image', 'Capturing full Single Consolidated Report as PNG...', 'info');
 
   try {
     const themeWas = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
+
+    // Create off-screen container for full-width capturing
+    const host = document.createElement('div');
+    host.style.cssText = 'position:absolute; left:-9999px; top:0; background:#ffffff; color:#111827; padding:24px 28px; width:max-content; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;';
+
+    // Clone the report card content (excluding action buttons)
+    const cloneCard = card.cloneNode(true);
+    cloneCard.querySelectorAll('.no-print').forEach(el => el.remove());
+    cloneCard.querySelectorAll('[style*="overflow"]').forEach(el => {
+      el.style.overflow = 'visible';
+      el.style.overflowX = 'visible';
+      el.style.width = 'auto';
+    });
+
+    const cloneTable = cloneCard.querySelector('#singleReportTable');
+    if(cloneTable){
+      cloneTable.style.width = 'auto';
+      cloneTable.style.minWidth = '1450px';
+      cloneTable.style.tableLayout = 'auto';
+    }
+
+    host.appendChild(cloneCard);
+    document.body.appendChild(host);
+
+    // Apply inline light styling guard to ensure 100% crisp contrast and plain colors
     const guard = document.createElement('style');
     guard.textContent = `
-      #singleReportCard { background: #ffffff !important; color: #111827 !important; padding: 18px !important; border-radius: 8px !important; }
-      #singleReportCard * { color: inherit; }
-      #singleReportCard h2 { color: #111827 !important; }
-      #singleReportTable { background: #ffffff !important; color: #111827 !important; font-size: 12px !important; width: 100% !important; border-collapse: collapse !important; }
-      #singleReportTable th, #singleReportTable td { border: 1px solid #cbd5e1 !important; padding: 6px 4px !important; text-align: center !important; }
-      #singleReportTable thead tr.sh-row-1 th.sh-fixed { background: #1e40af !important; color: #ffffff !important; }
-      #singleReportTable thead tr.sh-row-1 th.sh-optr { background: #2563eb !important; color: #ffffff !important; }
-      #singleReportTable thead tr.sh-row-1 th.sh-optn { background: #0284c7 !important; color: #ffffff !important; }
-      #singleReportTable thead tr.sh-row-1 th.sh-flr { background: #16a34a !important; color: #ffffff !important; }
-      #singleReportTable thead tr.sh-row-1 th.sh-fln { background: #7c3aed !important; color: #ffffff !important; }
+      #singleReportCard, .card { background: #ffffff !important; color: #111827 !important; border: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+      #singleReportTable { background: #ffffff !important; color: #111827 !important; font-size: 13px !important; width: 100% !important; border-collapse: collapse !important; border-spacing: 0 !important; }
+      #singleReportTable th, #singleReportTable td { border: 1px solid #94a3b8 !important; padding: 7px 6px !important; text-align: center !important; white-space: nowrap !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-fixed { background: #1e40af !important; color: #ffffff !important; font-weight: 700 !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-optr { background: #2563eb !important; color: #ffffff !important; font-weight: 700 !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-optn { background: #0284c7 !important; color: #ffffff !important; font-weight: 700 !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-flr { background: #16a34a !important; color: #ffffff !important; font-weight: 700 !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-fln { background: #7c3aed !important; color: #ffffff !important; font-weight: 700 !important; }
       #singleReportTable thead tr.sh-row-2 th { background: #f8fafc !important; color: #1e293b !important; font-weight: 600 !important; }
       #singleReportTable thead tr.sh-row-2 th.sh-sub-tot { background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800 !important; }
       #singleReportTable tbody td { color: #111827 !important; }
-      #singleReportTable tbody td.nm { text-align: left !important; font-weight: 600 !important; padding-left: 8px !important; }
-      #singleReportTable tbody td.desig { color: #2563eb !important; font-weight: 700 !important; }
+      #singleReportTable tbody td.nm { text-align: left !important; font-weight: 600 !important; padding-left: 10px !important; }
+      #singleReportTable tbody td.desig { color: #1d4ed8 !important; font-weight: 700 !important; }
       #singleReportTable tbody td.num.tot { background: #f1f5f9 !important; font-weight: 800 !important; }
       #singleReportTable tbody td.num.b-last { background: #ffe4e6 !important; color: #e11d48 !important; font-weight: 700 !important; }
-      #singleReportTable tbody td.num.zero { color: #94a3b8 !important; opacity: 0.65 !important; }
+      #singleReportTable tbody td.num.zero { color: #94a3b8 !important; opacity: 0.7 !important; }
       #singleReportTable tbody tr.subtotal td { background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800 !important; }
       #singleReportTable tbody tr.vao-row td { background: #fde8db !important; color: #7c2d12 !important; font-weight: 700 !important; }
       #singleReportTable tbody tr.grand td { background: #fef3c7 !important; color: #78350f !important; font-weight: 900 !important; }
     `;
     document.head.appendChild(guard);
-    document.documentElement.setAttribute('data-theme', 'light');
 
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 100));
 
-    const canvas = await html2canvas(card, {
+    const fullWidth = host.scrollWidth || host.offsetWidth;
+    const fullHeight = host.scrollHeight || host.offsetHeight;
+
+    const canvas = await html2canvas(host, {
       backgroundColor: '#ffffff',
       scale: 2,
+      width: fullWidth,
+      height: fullHeight,
+      windowWidth: fullWidth + 100,
+      windowHeight: fullHeight + 100,
       logging: false,
-      useCORS: true,
-      ignoreElements: (el) => el.classList.contains('no-print')
+      useCORS: true
     });
 
+    document.body.removeChild(host);
     guard.remove();
     if(themeWas) document.documentElement.setAttribute('data-theme', themeWas);
     else document.documentElement.removeAttribute('data-theme');
@@ -4779,7 +4809,7 @@ async function exportSingleReportImage(){
     link.click();
     document.body.removeChild(link);
 
-    toast('Image downloaded', `${fileName} downloaded successfully`, 'ok');
+    toast('Image downloaded', `${fileName} (Full Page) downloaded successfully`, 'ok');
   } catch(err) {
     console.error('Single report image export failed:', err);
     toast('Image export failed', err.message, 'err');
