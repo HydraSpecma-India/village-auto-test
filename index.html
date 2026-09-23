@@ -831,6 +831,137 @@
   body.print-single-only #singleReportTable .vao-row {
     background: #fde8db !important;
   }
+
+  /* ============ Single Report Table Styling (Light & Dark Mode) ============ */
+  #singleReportTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+  #singleReportTable th, #singleReportTable td {
+    border: 1px solid var(--line-2);
+    padding: 6px 4px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  #singleReportTable thead tr.sh-row-1 th.sh-fixed {
+    background: #1e40af !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  #singleReportTable thead tr.sh-row-1 th.sh-optr {
+    background: #2563eb !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  #singleReportTable thead tr.sh-row-1 th.sh-optn {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  #singleReportTable thead tr.sh-row-1 th.sh-flr {
+    background: #16a34a !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  #singleReportTable thead tr.sh-row-1 th.sh-fln {
+    background: #7c3aed !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  #singleReportTable thead tr.sh-row-2 {
+    background: var(--surface-2) !important;
+  }
+  #singleReportTable thead tr.sh-row-2 th {
+    color: var(--ink) !important;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 5px 3px;
+    border: 1px solid var(--line-2);
+  }
+  #singleReportTable thead tr.sh-row-2 th.sh-sub-tot {
+    background: var(--grp-bg, rgba(37,99,235,0.15)) !important;
+    color: var(--ink) !important;
+    font-weight: 800;
+  }
+  html[data-theme="dark"] #singleReportTable thead tr.sh-row-2 th {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+    border-color: #334155 !important;
+  }
+  html[data-theme="dark"] #singleReportTable thead tr.sh-row-2 th.sh-sub-tot {
+    background: #334155 !important;
+    color: #38bdf8 !important;
+  }
+  #singleReportTable tbody td {
+    color: var(--ink);
+  }
+  #singleReportTable tbody td.sn {
+    text-align: center;
+    color: var(--muted);
+  }
+  #singleReportTable tbody td.nm {
+    text-align: left;
+    font-weight: 600;
+    padding-left: 8px;
+    color: var(--ink);
+  }
+  #singleReportTable tbody td.desig {
+    text-align: center;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  #singleReportTable tbody td.num {
+    text-align: center;
+  }
+  #singleReportTable tbody td.num.tot {
+    font-weight: 800;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  #singleReportTable tbody td.num.b-last {
+    background: rgba(225, 29, 72, 0.2) !important;
+    color: #e11d48 !important;
+    font-weight: 700;
+  }
+  html[data-theme="dark"] #singleReportTable tbody td.num.b-last {
+    background: rgba(244, 63, 94, 0.3) !important;
+    color: #fda4af !important;
+  }
+  #singleReportTable tbody td.num.zero {
+    opacity: 0.55;
+    color: var(--muted);
+  }
+  #singleReportTable tbody tr.subtotal td {
+    background: var(--surface-2) !important;
+    color: var(--ink) !important;
+    font-weight: 800;
+  }
+  html[data-theme="dark"] #singleReportTable tbody tr.subtotal td {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+  }
+  #singleReportTable tbody tr.vao-row td {
+    background: #fde8db !important;
+    color: #1e293b !important;
+    font-weight: 600;
+  }
+  html[data-theme="dark"] #singleReportTable tbody tr.vao-row td {
+    background: #7c2d12 !important;
+    color: #ffedd5 !important;
+  }
+  #singleReportTable tbody tr.grand td {
+    background: #fef3c7 !important;
+    color: #78350f !important;
+    font-weight: 900;
+  }
+  html[data-theme="dark"] #singleReportTable tbody tr.grand td {
+    background: #78350f !important;
+    color: #fef3c7 !important;
+  }
   .pm-head{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--line)}
   .pm-head b{flex:1 1 auto; font-size:13.5px}
   .pm-quick{font-size:11.5px; color:var(--muted)}
@@ -1248,6 +1379,7 @@
     <div class="actions no-print" id="singleReportActions" style="display:none; margin-top:14px; gap:9px; flex-wrap:wrap; align-items:center;">
       <button type="button" class="primary" id="singleReportPrintBtn">&#128424; Print Single Report</button>
       <button type="button" class="ghost" id="singleReportXlsBtn" style="color:#0284c7; font-weight:700;">📊 Export to Excel</button>
+      <button type="button" class="ghost" id="singleReportImgBtn" style="color:#16a34a; font-weight:700;">🖼️ Download Image (PNG)</button>
     </div>
   </div>
 
@@ -4350,40 +4482,40 @@ function renderSingleReport(){
     <div style="overflow-x:auto;">
     <table class="rep-t single-rep-t" id="singleReportTable" style="width:100%; border-collapse:collapse; font-size:12px;">
       <thead>
-        <tr style="background:#1e40af; color:#fff;">
-          <th rowspan="2" style="width:36px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">S.No</th>
-          <th rowspan="2" style="min-width:130px; border:1px solid #cbd5e1; text-align:left; vertical-align:middle; padding-left:8px;">Firka</th>
-          <th rowspan="2" style="width:70px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">Designation</th>
-          <th rowspan="2" style="width:65px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">Number of Villages</th>
-          <th colspan="4" style="background:#2563eb; color:#fff; border:1px solid #93c5fd; text-align:center;">OPT-Rural</th>
-          <th colspan="5" style="background:#0284c7; color:#fff; border:1px solid #7dd3fc; text-align:center;">OPT-Natham</th>
-          <th colspan="5" style="background:#16a34a; color:#fff; border:1px solid #86efac; text-align:center;">F-Line Rural</th>
-          <th colspan="5" style="background:#7c3aed; color:#fff; border:1px solid #c4b5fd; text-align:center;">F-Line Natham</th>
+        <tr class="sh-row-1">
+          <th rowspan="2" class="sh-fixed" style="width:36px;">S.No</th>
+          <th rowspan="2" class="sh-fixed" style="min-width:130px; text-align:left; padding-left:8px;">Firka</th>
+          <th rowspan="2" class="sh-fixed" style="width:70px;">Designation</th>
+          <th rowspan="2" class="sh-fixed" style="width:65px;">Number of Villages</th>
+          <th colspan="4" class="sh-optr">OPT-Rural</th>
+          <th colspan="5" class="sh-optn">OPT-Natham</th>
+          <th colspan="5" class="sh-flr">F-Line Rural</th>
+          <th colspan="5" class="sh-fln">F-Line Natham</th>
         </tr>
-        <tr style="background:#f8fafc; color:#1e293b; font-size:11px;">
+        <tr class="sh-row-2">
           <!-- OPT-Rural -->
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">over 30 Daya</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 25 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 25 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total</th>
+          <th>Over 30 Days</th>
+          <th>Over 25 Days</th>
+          <th>Below 25 Days</th>
+          <th class="sh-sub-tot">Total</th>
           <!-- OPT-Natham -->
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 60 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 30 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 25 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 25 Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total</th>
+          <th>Over 60 Days</th>
+          <th>Over 30 Days</th>
+          <th>Over 25 Days</th>
+          <th>Below 25 Days</th>
+          <th class="sh-sub-tot">Total</th>
           <!-- F-Line Rural -->
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 120 &gt; Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 3 Months (90&gt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 2 Months (60&gt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 2 Months (60&lt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total Pending</th>
+          <th>Over 120 &gt; Days</th>
+          <th>Over 3 Months (90&gt; Days)</th>
+          <th>Over 2 Months (60&gt; Days)</th>
+          <th>Below 2 Months (60&lt; Days)</th>
+          <th class="sh-sub-tot">Total Pending</th>
           <!-- F-Line Natham -->
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 120 &gt; Days</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 3 Months (90&gt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Over 2 Months (60&gt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px;">Below 2 Months (60&lt; Days)</th>
-          <th style="border:1px solid #cbd5e1; text-align:center; white-space:nowrap; padding:4px 3px; font-weight:800; background:#e2e8f0;">Total Pending</th>
+          <th>Over 120 &gt; Days</th>
+          <th>Over 3 Months (90&gt; Days)</th>
+          <th>Over 2 Months (60&gt; Days)</th>
+          <th>Below 2 Months (60&lt; Days)</th>
+          <th class="sh-sub-tot">Total Pending</th>
         </tr>
       </thead>
       <tbody>
@@ -4581,6 +4713,79 @@ async function exportSingleReportExcel(){
   toast('Excel exported', `${fileName} downloaded successfully`, 'ok');
 }
 
+async function exportSingleReportImage(){
+  const card = document.getElementById('singleReportCard');
+  const table = document.getElementById('singleReportTable');
+  if(!card || !table){
+    toast('Nothing to export', 'Single Report is not ready yet.', 'warn');
+    return;
+  }
+
+  if(typeof html2canvas === 'undefined'){
+    toast('Image library unavailable', 'html2canvas library could not be loaded.', 'err');
+    return;
+  }
+
+  toast('Generating image', 'Capturing Single Consolidated Report as PNG...', 'info');
+
+  try {
+    const themeWas = document.documentElement.getAttribute('data-theme');
+    const guard = document.createElement('style');
+    guard.textContent = `
+      #singleReportCard { background: #ffffff !important; color: #111827 !important; padding: 18px !important; border-radius: 8px !important; }
+      #singleReportCard * { color: inherit; }
+      #singleReportCard h2 { color: #111827 !important; }
+      #singleReportTable { background: #ffffff !important; color: #111827 !important; font-size: 12px !important; width: 100% !important; border-collapse: collapse !important; }
+      #singleReportTable th, #singleReportTable td { border: 1px solid #cbd5e1 !important; padding: 6px 4px !important; text-align: center !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-fixed { background: #1e40af !important; color: #ffffff !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-optr { background: #2563eb !important; color: #ffffff !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-optn { background: #0284c7 !important; color: #ffffff !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-flr { background: #16a34a !important; color: #ffffff !important; }
+      #singleReportTable thead tr.sh-row-1 th.sh-fln { background: #7c3aed !important; color: #ffffff !important; }
+      #singleReportTable thead tr.sh-row-2 th { background: #f8fafc !important; color: #1e293b !important; font-weight: 600 !important; }
+      #singleReportTable thead tr.sh-row-2 th.sh-sub-tot { background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800 !important; }
+      #singleReportTable tbody td { color: #111827 !important; }
+      #singleReportTable tbody td.nm { text-align: left !important; font-weight: 600 !important; padding-left: 8px !important; }
+      #singleReportTable tbody td.desig { color: #2563eb !important; font-weight: 700 !important; }
+      #singleReportTable tbody td.num.tot { background: #f1f5f9 !important; font-weight: 800 !important; }
+      #singleReportTable tbody td.num.b-last { background: #ffe4e6 !important; color: #e11d48 !important; font-weight: 700 !important; }
+      #singleReportTable tbody td.num.zero { color: #94a3b8 !important; opacity: 0.65 !important; }
+      #singleReportTable tbody tr.subtotal td { background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800 !important; }
+      #singleReportTable tbody tr.vao-row td { background: #fde8db !important; color: #7c2d12 !important; font-weight: 700 !important; }
+      #singleReportTable tbody tr.grand td { background: #fef3c7 !important; color: #78350f !important; font-weight: 900 !important; }
+    `;
+    document.head.appendChild(guard);
+    document.documentElement.setAttribute('data-theme', 'light');
+
+    await new Promise(r => setTimeout(r, 60));
+
+    const canvas = await html2canvas(card, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      ignoreElements: (el) => el.classList.contains('no-print')
+    });
+
+    guard.remove();
+    if(themeWas) document.documentElement.setAttribute('data-theme', themeWas);
+    else document.documentElement.removeAttribute('data-theme');
+
+    const fileName = talukSlug() + '_Rural_Overall_Pending_Report.png';
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast('Image downloaded', `${fileName} downloaded successfully`, 'ok');
+  } catch(err) {
+    console.error('Single report image export failed:', err);
+    toast('Image export failed', err.message, 'err');
+  }
+}
+
 
 /* ---------- ISD report events ---------- */
 document.addEventListener('click', e=>{
@@ -4665,6 +4870,10 @@ if(spBtn) spBtn.addEventListener('click', printSingleReport);
 
 const sxBtn = document.getElementById('singleReportXlsBtn');
 if(sxBtn) sxBtn.addEventListener('click', exportSingleReportExcel);
+
+const siBtn = document.getElementById('singleReportImgBtn');
+if(siBtn) siBtn.addEventListener('click', exportSingleReportImage);
+
 
 
 /* ============================================================
