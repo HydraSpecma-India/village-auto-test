@@ -6964,13 +6964,139 @@ function generateBlobFromPayload(kind, payload, filename){
   }
 }
 
-async function downloadStoredFile(row){
+async function generateFormattedExcelFromPayload(kind, payload, taluk, filename){
+  const tName = cleanTalukName(taluk || TALUK || 'Arakkonam') || 'Arakkonam';
+  const now = new Date().toLocaleDateString('en-GB');
+
+  if(kind === 'singleReport' || kind === 'overall'){
+    const table = document.getElementById('singleReportTable');
+    if(table && typeof exportSingleReportExcel === 'function'){
+      await exportSingleReportExcel();
+      return null;
+    }
+  }
+
+  if((kind === 'isdRural' || kind === 'isdRuralPdf') && typeof exportIsdStyled === 'function' && R && R.ready){
+    await exportIsdStyled();
+    return null;
+  }
+
+  if(window.ExcelJS){
+    try {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Taluk ISD Dashboard';
+      const catTitle = FILE_NAMES[kind] || kind;
+      const ws = wb.addWorksheet(catTitle.slice(0, 31), {properties:{defaultRowHeight:18}});
+
+      // Header Title Row 1
+      ws.mergeCells('A1:J1');
+      const titleCell = ws.getCell('A1');
+      titleCell.value = `${tName} Taluk — ${catTitle} (Official Report Template)`;
+      titleCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF1E3A8A' } };
+      titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+      ws.getRow(1).height = 28;
+
+      // Subtitle Row 2
+      ws.mergeCells('A2:J2');
+      const subCell = ws.getCell('A2');
+      subCell.value = `Generated on ${now} · Official Report Template Format`;
+      subCell.font = { name: 'Arial', size: 9.5, italic: true, color: { argb: 'FF475569' } };
+
+      // Extract rows from payload or store
+      let rows = [];
+      if(payload){
+        if(payload.objs && Array.isArray(payload.objs)) rows = payload.objs;
+        else if(payload.rows && Array.isArray(payload.rows)) rows = payload.rows;
+        else if(payload.villages){
+          const list = payload.villages;
+          rows = Array.isArray(list) ? list : (list instanceof Map ? Array.from(list.values()) : Object.values(list));
+        }
+      }
+      if(!rows.length && store && store[kind]){
+        const s = store[kind];
+        rows = s.objs || s.rows || [];
+      }
+
+      if(rows.length){
+        let headers = [];
+        if(typeof rows[0] === 'object' && !Array.isArray(rows[0])){
+          headers = Object.keys(rows[0]);
+        } else if(Array.isArray(rows[0])){
+          headers = rows[0].map((_, i) => `Col ${i+1}`);
+        }
+
+        const hRow = ws.getRow(4);
+        headers.forEach((h, idx) => {
+          const cell = hRow.getCell(idx + 1);
+          cell.value = h;
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+          cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        hRow.height = 24;
+
+        rows.forEach((r, rIdx) => {
+          const dRow = ws.getRow(5 + rIdx);
+          dRow.height = 18;
+          if(typeof r === 'object' && !Array.isArray(r)){
+            headers.forEach((h, cIdx) => {
+              const cell = dRow.getCell(cIdx + 1);
+              const val = r[h];
+              cell.value = val == null ? '' : (isNaN(+val) || String(val).trim() === '' ? String(val) : +val);
+              cell.alignment = { horizontal: typeof cell.value === 'number' ? 'center' : 'left', vertical: 'middle' };
+              cell.font = { name: 'Arial', size: 9.5 };
+            });
+          } else if(Array.isArray(r)){
+            r.forEach((val, cIdx) => {
+              const cell = dRow.getCell(cIdx + 1);
+              cell.value = val == null ? '' : (isNaN(+val) || String(val).trim() === '' ? String(val) : +val);
+              cell.alignment = { horizontal: typeof cell.value === 'number' ? 'center' : 'left', vertical: 'middle' };
+              cell.font = { name: 'Arial', size: 9.5 };
+            });
+          }
+        });
+
+        const thinBorder = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+        for(let r = 4; r < 5 + rows.length; r++){
+          for(let c = 1; c <= headers.length; c++){
+            ws.getCell(r, c).border = thinBorder;
+          }
+        }
+        for(let c = 1; c <= headers.length; c++){
+          ws.getColumn(c).width = 16;
+        }
+      }
+
+      const buffer = await wb.xlsx.writeBuffer();
+      return new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    } catch(e) {
+      console.warn('generateFormattedExcelFromPayload exception:', e);
+    }
+  }
+
+  return generateBlobFromPayload(kind, payload, filename);
+}
+
+async function downloadStoredFile(row, forceTemplate = false){
   if(!row) return;
-  const fileName = row.file_name || `${row.kind}_${row.taluk || 'all'}.xlsx`;
-  toast('Downloading…', `Fetching ${fileName}`, 'sync');
+  const rawName = row.file_name || `${row.kind}_${row.taluk || 'all'}.xlsx`;
+  const templateName = rawName.replace(/\.[^/.]+$/, "") + '_Template.xlsx';
+  const fileName = forceTemplate ? templateName : rawName;
+
+  toast('Downloading…', `Fetching ${fileName} as per template format…`, 'sync');
   try {
     let blob = null;
-    if(row.storage_path){
+
+    if(forceTemplate){
+      blob = await generateFormattedExcelFromPayload(row.kind, row.payload, row.taluk || TALUK, fileName);
+    }
+
+    if(!blob && row.storage_path){
       try {
         const { data, error } = await sb.storage.from(SB_BUCKET).download(row.storage_path);
         if(!error && data){
@@ -6982,20 +7108,24 @@ async function downloadStoredFile(row){
         console.warn('Storage download exception:', e);
       }
     }
+
     if(!blob && row.payload){
-      blob = generateBlobFromPayload(row.kind, row.payload, fileName);
+      blob = await generateFormattedExcelFromPayload(row.kind, row.payload, row.taluk || TALUK, fileName);
     }
     if(!blob && window.store && window.store[row.kind]){
       const ser = serialiseParsed(row.kind, window.store[row.kind]);
-      if(ser) blob = generateBlobFromPayload(row.kind, ser, fileName);
+      if(ser) blob = await generateFormattedExcelFromPayload(row.kind, ser, row.taluk || TALUK, fileName);
     }
+
     if(!blob){
       toast('Download failed', 'No file data available in storage or table payload.', 'err');
       return;
     }
+
     triggerBlobDownload(blob, fileName);
-    toast('Downloaded', `${fileName} saved.`, 'ok');
+    toast('Downloaded', `${fileName} saved in official Excel template format.`, 'ok');
   } catch(err){
+    console.error('downloadStoredFile error:', err);
     toast('Download error', err.message || String(err), 'err');
   }
 }
@@ -7099,7 +7229,13 @@ async function renderFiles(){
           Stored datasets in Supabase Cloud. Download any original file directly, or export all files for your taluk in a single ZIP bundle.
         </p>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button type="button" class="btn primary" id="dlZipTalukBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+          <button type="button" class="btn primary" id="dlTemplateSingleBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb;">
+            📊 Single Report (Template)
+          </button>
+          <button type="button" class="btn primary" id="dlTemplateIsdBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">
+            📑 ISD Rural Details (Template)
+          </button>
+          <button type="button" class="btn ghost" id="dlZipTalukBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
             📦 Download ZIP (${esc(activeTaluk)})
           </button>
           <button type="button" class="btn ghost" id="dlZipAllBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
@@ -7153,8 +7289,11 @@ async function renderFiles(){
           <td class="fstate">${new Date(r.uploaded_at).toLocaleString('en-GB')}</td>
           <td class="fstate">${esc(uploader)}</td>
           <td style="text-align:right; white-space:nowrap;">
-            <button type="button" class="btn ghost" data-act="dl" data-rowkey="${esc(rowKey)}" style="color:var(--accent); font-weight:700; font-size:12px; padding:4px 10px; margin-right:6px; cursor:pointer;" title="Download original file">
-              ⬇ Download
+            <button type="button" class="btn ghost" data-act="dltpl" data-rowkey="${esc(rowKey)}" style="color:#0284c7; font-weight:700; font-size:12px; padding:4px 10px; margin-right:6px; cursor:pointer;" title="Download dataset formatted in official Excel report template">
+              📊 Template Excel
+            </button>
+            <button type="button" class="btn ghost" data-act="dl" data-rowkey="${esc(rowKey)}" style="color:var(--accent); font-weight:700; font-size:12px; padding:4px 10px; margin-right:6px; cursor:pointer;" title="Download original stored file">
+              ⬇ Original File
             </button>
             ${isAdmin ? `<button type="button" class="btn ghost" data-act="del" data-kind="${esc(r.kind)}" data-taluk="${esc(r.taluk || '')}" style="color:var(--err); font-size:12px; padding:4px 8px; cursor:pointer;" title="Delete dataset">Delete</button>` : ''}
           </td>
@@ -7194,6 +7333,22 @@ async function renderFiles(){
     filterRows();
   }
 
+  document.getElementById('dlTemplateSingleBtn')?.addEventListener('click', async () => {
+    if(typeof exportSingleReportExcel === 'function'){
+      await exportSingleReportExcel();
+    } else {
+      toast('Not available', 'Single Report export function not found.', 'warn');
+    }
+  });
+
+  document.getElementById('dlTemplateIsdBtn')?.addEventListener('click', async () => {
+    if(typeof exportIsdStyled === 'function' && R && R.ready){
+      await exportIsdStyled();
+    } else {
+      toast('Not ready', 'Load ISD Rural files first to export ISD details template.', 'warn');
+    }
+  });
+
   document.getElementById('dlZipTalukBtn')?.addEventListener('click', () => {
     const sel = document.getElementById('storedFilesTalukFilter')?.value || activeTaluk;
     downloadAllStoredFilesForTaluk(sel, true);
@@ -7203,11 +7358,20 @@ async function renderFiles(){
     downloadAllStoredFilesForTaluk('', true);
   });
 
+  box.querySelectorAll('[data-act="dltpl"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.rowkey;
+      const row = rowMap.get(key);
+      if(row) downloadStoredFile(row, true);
+      else toast('Not found', 'Dataset reference not found.', 'warn');
+    });
+  });
+
   box.querySelectorAll('[data-act="dl"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.rowkey;
       const row = rowMap.get(key);
-      if(row) downloadStoredFile(row);
+      if(row) downloadStoredFile(row, false);
       else toast('Not found', 'Dataset reference not found.', 'warn');
     });
   });
