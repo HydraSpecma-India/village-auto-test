@@ -438,6 +438,104 @@
     #isdPrintVao tr.grand td{background:#c8ccd4!important; font-weight:800}
   }
 
+  /* ============ Employee Code Badge & ISD Drilldown Styles ============ */
+  .isd-emp-badge {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .isd-emp-badge.empty {
+    background: var(--surface-2);
+    color: var(--muted);
+    border-color: var(--line-2);
+    font-weight: 400;
+    padding: 0 4px;
+  }
+  .isd-emp-badge.vao {
+    background: #f5f3ff;
+    color: #6d28d9;
+    border-color: #ddd6fe;
+  }
+  .isd-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6);
+    z-index: 99999; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px); animation: fadeIn .18s ease;
+  }
+  .isd-modal-box {
+    background: var(--surface); width: min(680px, 94vw); max-height: 85vh;
+    border-radius: var(--r); box-shadow: var(--shadow-lg); display: flex;
+    flex-direction: column; overflow: hidden; border: 1px solid var(--line-2);
+  }
+  .drill-tree { display: flex; flex-direction: column; }
+  .drill-surveyor-card { border-bottom: 1px solid var(--line); }
+  .drill-surveyor-card:last-child { border-bottom: none; }
+  .drill-surveyor-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 14px; background: var(--surface); cursor: pointer;
+    user-select: none; transition: background .15s ease;
+  }
+  .drill-surveyor-header:hover { background: var(--surface-2); }
+  .drill-surveyor-left, .drill-village-left {
+    display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--ink);
+  }
+  .drill-surveyor-right, .drill-village-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .drill-chev {
+    display: inline-block; font-size: 10px; color: var(--muted);
+    transition: transform .2s ease; width: 12px; text-align: center;
+  }
+  .drill-surveyor-card.is-open > .drill-surveyor-header .drill-chev,
+  .drill-village-card.is-open > .drill-village-header .drill-chev {
+    transform: rotate(90deg);
+  }
+  .drill-pill {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 7px; border-radius: 999px; line-height: 1.2;
+  }
+  .drill-pill.total { background: #e0e7ff; color: #3730a3; }
+  .drill-pill.b30 { background: #fee2e2; color: #991b1b; }
+  .drill-pill.b25 { background: #fef3c7; color: #92400e; }
+  .drill-pill.bBelow25 { background: #dcfce7; color: #166534; }
+  .drill-village-card {
+    border-top: 1px solid var(--line); background: var(--bg-2);
+  }
+  .drill-village-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 14px 7px 32px; cursor: pointer; user-select: none;
+    transition: background .15s ease; font-size: 12.5px;
+  }
+  .drill-village-header:hover { background: var(--surface); }
+  .drill-village-body {
+    padding: 6px 14px 12px 32px; background: var(--surface); overflow-x: auto;
+  }
+  .drill-app-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px;
+    border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  }
+  .drill-app-table th {
+    background: var(--surface-2); color: var(--muted); font-size: 11px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left;
+  }
+  .drill-app-table td {
+    padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--ink);
+  }
+  .drill-app-table tr:last-child td { border-bottom: none; }
+  .drill-app-table tr:hover td { background: var(--row-alt); }
+  .drill-app-table code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 700; color: var(--accent); font-size: 11.5px;
+  }
+
   /* ============ Taluk picker ============ */
   .taluksel{display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap}
   .taluksel select{
@@ -1045,12 +1143,55 @@
     </div>
     <div class="print-only" id="isdPrintVao"></div>
 
-    <div class="actions no-print" id="isdActions" style="display:none; margin-top:12px">
+    <div class="actions no-print" id="isdActions" style="display:none; margin-top:12px; flex-wrap:wrap; align-items:center; gap:8px;">
       <button class="ghost" id="isdExpandBtn">&#8942; Expand all</button>
+      <div style="display:inline-flex; align-items:center; gap:5px; background:var(--surface); padding:2px 8px; border-radius:7px; border:1px solid var(--line-2);">
+        <label for="isdSortSelect" style="font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase;">Sort:</label>
+        <select id="isdSortSelect" title="Sort Table" style="font-size:12px; padding:4px 6px; border:none; background:transparent; font-weight:600; color:var(--ink); cursor:pointer; outline:none;">
+          <option value="emp_asc">Employee Code (1 → 9 / A → Z)</option>
+          <option value="emp_desc">Employee Code (9 → 1 / Z → A)</option>
+          <option value="pending_desc">Total Pending (High → Low)</option>
+          <option value="pending_asc">Total Pending (Low → High)</option>
+          <option value="name_asc">Name (A → Z)</option>
+        </select>
+      </div>
+      <button class="ghost" id="isdSetEmpCodeBtn" style="font-weight:600;">⚙️ Set Employee Codes</button>
       <button class="ghost" id="isdXlsBtn">&#128202; Export all pages to Excel</button>
+      <button class="ghost" id="isdAppXlsBtn" style="color:#0284c7; font-weight:700;">📊 Export Application IDs Excel</button>
       <button class="ghost" id="isdAllBtn">&#128203; Export all data (no disposal)</button>
       <button class="ghost" id="isdPrintBtn">&#128424; Print this table</button>
       <button class="ghost" id="isdDownloadPdfActionBtn" style="color:#16a34a; font-weight:700;">⬇ Download Status PDF (Current Month)</button>
+    </div>
+
+    <!-- Application ID Drilldown Section -->
+    <div id="isdAppDrilldownSection" class="no-print" style="display:none; margin-top:20px; border-top:1px solid var(--line); padding-top:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+        <div>
+          <h3 style="margin:0; font-size:15px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:8px;">
+            <span>🔍 Application ID-wise Drilldown</span>
+            <span style="font-size:12px; font-weight:500; color:var(--muted);">(Surveyor → Village → Application ID)</span>
+          </h3>
+          <p style="margin:4px 0 0 0; font-size:11.5px; color:var(--muted);" id="isdAppDrilldownSubtitle">
+            Expand level-by-level to view individual pending application IDs and survey numbers.
+          </p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="text" id="isdAppSearchInput" placeholder="🔍 Search App ID, Survey No, Village, Staff..." style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); min-width:220px;">
+          <select id="isdAppAgeFilter" style="font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid var(--line-2); background:var(--surface); font-weight:600; color:var(--ink); cursor:pointer;">
+            <option value="all">All Pending Days</option>
+            <option value="b30">30+ Days</option>
+            <option value="b25">25 - 29 Days</option>
+            <option value="bBelow25">&lt; 25 Days</option>
+          </select>
+          <button class="ghost" id="isdAppExpandAllBtn" style="font-size:12px; padding:5px 10px;">⊞ Expand All</button>
+          <button class="ghost" id="isdAppCollapseAllBtn" style="font-size:12px; padding:5px 10px;">⊟ Collapse All</button>
+          <button class="ghost" id="isdAppFetchBtn" style="color:var(--accent); font-weight:700; font-size:12px; padding:5px 10px;" title="Fetch latest applications from Tamil Nilam">⚡ Fetch / Refresh IDs</button>
+          <button class="ghost" id="isdAppDrilldownXlsBtn" style="color:#0284c7; font-weight:700; font-size:12px; padding:5px 10px;">📊 Export Excel</button>
+        </div>
+      </div>
+      <div id="isdAppDrilldownContainer" style="border:1px solid var(--line); border-radius:8px; background:var(--surface); overflow:hidden;">
+        <!-- Dynamic Drilldown Content -->
+      </div>
     </div>
   </div>
 
@@ -1136,6 +1277,40 @@
   </div>
 
 
+</div>
+
+<!-- Modal: Set Surveyor Employee Codes -->
+<div class="isd-modal-backdrop" id="isdEmpCodeModal" style="display:none;">
+  <div class="isd-modal-box">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:16px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:8px;">
+        <span>⚙️ Set Surveyor Employee Codes</span>
+        <span id="isdEmpModalTalukBadge" style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:4px; background:var(--accent-soft); color:var(--accent);">Taluk</span>
+      </h3>
+      <button type="button" class="iconbtn" id="isdEmpModalClose" title="Close" style="border:none; font-size:20px; cursor:pointer; background:none; color:var(--muted); line-height:1;">&times;</button>
+    </div>
+    <div style="padding:14px 20px; background:var(--surface-2); border-bottom:1px solid var(--line); font-size:12.5px; color:var(--muted);">
+      <div>Assign employee codes to surveyors. The table and Excel report will automatically sort by this code series (e.g. <code>EMP01</code>, <code>EMP02</code>).</div>
+      <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--surface); padding:8px 12px; border-radius:6px; border:1px solid var(--line-2);">
+        <span style="font-weight:700; color:var(--ink); font-size:12px;">Quick Series Fill:</span>
+        <input type="text" id="isdEmpPrefix" placeholder="Prefix" value="EMP" style="width:75px; padding:4px 7px; font-size:12px; border:1px solid var(--line-2); border-radius:4px; background:var(--surface); color:var(--ink);">
+        <input type="number" id="isdEmpStartNum" placeholder="Start" value="1" min="1" style="width:55px; padding:4px 7px; font-size:12px; border:1px solid var(--line-2); border-radius:4px; background:var(--surface); color:var(--ink);">
+        <input type="number" id="isdEmpPad" placeholder="Digits" value="2" min="1" max="5" style="width:55px; padding:4px 7px; font-size:12px; border:1px solid var(--line-2); border-radius:4px; background:var(--surface); color:var(--ink);">
+        <button type="button" class="btn" id="isdEmpAutoAssignBtn" style="padding:4px 10px; font-size:12px; background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">Auto-Assign Series</button>
+        <button type="button" class="ghost" id="isdEmpClearBtn" style="padding:4px 8px; font-size:12px;">Clear All</button>
+      </div>
+    </div>
+    <div style="flex:1 1 auto; overflow-y:auto; padding:12px 20px; max-height:48vh;" id="isdEmpModalBody">
+      <!-- Surveyor rows dynamically rendered here -->
+    </div>
+    <div style="padding:12px 20px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:var(--surface-2);">
+      <span style="font-size:11.5px; color:var(--muted);" id="isdEmpModalCount">0 surveyors</span>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="ghost" id="isdEmpCancelBtn">Cancel</button>
+        <button type="button" class="btn" id="isdEmpSaveBtn" style="background:var(--ok); color:#fff; border:none; padding:7px 16px; border-radius:6px; font-weight:700; cursor:pointer;">💾 Save & Apply Sort</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2465,7 +2640,11 @@ async function exportIsdStyled(){
   ws.mergeCells(grp.number, 1, grp.number, NC);
   xStyleRow(grp, {fill:XC.grp, bold:true, leftCols:NC});
 
-  R.surveyorNames.forEach((n,i)=> xDataRow(ws, [i+1, n], R.surveyors[n]));
+  R.surveyorNames.forEach((n,i)=>{
+    const emp = getSurveyorEmpCode(n, TALUK);
+    const displayName = emp ? `[${emp}] ${n}` : n;
+    xDataRow(ws, [i+1, displayName], R.surveyors[n]);
+  });
   const tr = xDataRow(ws, ['', 'Total'], sTotal, {fill:XC.subtotal, bold:true, tall:true});
   ws.mergeCells(tr.number, 1, tr.number, 2);
   tr.getCell(1).value = 'Total';
@@ -3145,6 +3324,91 @@ function isdMissing(){
   return m;
 }
 
+/* ============================================================
+   Employee Code Helpers & Series Sorter for ISD Rural
+   ============================================================ */
+let currentIsdSortMode = (function(){
+  try { return localStorage.getItem('isd_sort_mode') || 'emp_asc'; } catch(e){ return 'emp_asc'; }
+})();
+
+function getIsdEmpCodes(taluk){
+  const t = norm(taluk || TALUK || 'default');
+  let map = {};
+  try {
+    const saved = localStorage.getItem('isd_emp_codes_' + t);
+    if(saved) map = JSON.parse(saved) || {};
+  } catch(e){}
+
+  // Auto-detect employee codes from store.village if available
+  if(store.village && store.village.header && Array.isArray(store.village.objs)){
+    const {header, objs} = store.village;
+    const empKey = findKeyStrict(header, [
+      'Employee Code', 'Emp Code', 'EmpCode', 'Employee ID', 'Emp ID',
+      'Surveyor Code', 'Staff ID', 'Staff Code', 'User Code', 'Code'
+    ]);
+    const uKey = findKeyStrict(header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor', 'Officer', 'User']);
+    if(empKey && uKey){
+      objs.forEach(o => {
+        const name = String(o[uKey] == null ? '' : o[uKey]).trim();
+        const code = String(o[empKey] == null ? '' : o[empKey]).trim();
+        if(name && code && !map[name]){
+          map[name] = code;
+        }
+      });
+    }
+  }
+  return map;
+}
+
+function saveIsdEmpCodes(taluk, map){
+  const t = norm(taluk || TALUK || 'default');
+  try {
+    localStorage.setItem('isd_emp_codes_' + t, JSON.stringify(map || {}));
+  } catch(e){}
+}
+
+function getSurveyorEmpCode(name, taluk){
+  const map = getIsdEmpCodes(taluk);
+  return (map[name] || '').trim();
+}
+
+function naturalCompare(a, b){
+  return String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function sortSurveyorNames(names, taluk, sortMode, surveyorsBag){
+  const mode = sortMode || currentIsdSortMode || 'emp_asc';
+  const codes = getIsdEmpCodes(taluk);
+  return names.slice().sort((a, b) => {
+    const codeA = (codes[a] || '').trim();
+    const codeB = (codes[b] || '').trim();
+    const recA = (surveyorsBag && surveyorsBag[a]) || { pending: 0 };
+    const recB = (surveyorsBag && surveyorsBag[b]) || { pending: 0 };
+
+    if(mode === 'emp_asc'){
+      if(codeA && codeB) return naturalCompare(codeA, codeB);
+      if(codeA) return -1;
+      if(codeB) return 1;
+      return a.localeCompare(b);
+    }
+    if(mode === 'emp_desc'){
+      if(codeA && codeB) return naturalCompare(codeB, codeA);
+      if(codeA) return -1;
+      if(codeB) return 1;
+      return b.localeCompare(a);
+    }
+    if(mode === 'pending_desc'){
+      if(recB.pending !== recA.pending) return recB.pending - recA.pending;
+      return a.localeCompare(b);
+    }
+    if(mode === 'pending_asc'){
+      if(recA.pending !== recB.pending) return recA.pending - recB.pending;
+      return a.localeCompare(b);
+    }
+    return a.localeCompare(b);
+  });
+}
+
 function aggregateIsdRural(){
   if(!isdReady()) return {ready:false, missing:isdMissing()};
 
@@ -3291,9 +3555,10 @@ function aggregateIsdRural(){
   }
 
   const names = o => Object.keys(o).sort((a,b)=>a.localeCompare(b));
+  const sortedSurveyorNames = sortSurveyorNames(Object.keys(surveyors), TALUK, currentIsdSortMode, surveyors);
   return {
     ready:true, missing:[],
-    surveyors, vaos, surveyorNames:names(surveyors), vaoNames:names(vaos),
+    surveyors, vaos, surveyorNames:sortedSurveyorNames, vaoNames:names(vaos),
     loadedSlots, slotTotals, slotChecks,
     noSurveyor, noVao, otherRoles, pdfNoOwner, pdfApproved, pdfRejected,
     pdfGrand: pdf ? pdf.grand : null, hasPdf: !!pdf
@@ -3373,6 +3638,8 @@ function renderIsdReport(){
       '<ul>' + need.map(k=>'<li class="'+(store[k]?'have':'')+'">'+(store[k]?'✓ ':'')+esc(FILE_NAMES[k])+'</li>').join('') + '</ul></div>';
     note.textContent = '';
     document.getElementById('isdActions').style.display = 'none';
+    const drillSec = document.getElementById('isdAppDrilldownSection');
+    if (drillSec) drillSec.style.display = 'none';
     document.getElementById('isdPrintSub').textContent = '';
     document.getElementById('isdPrintVao').innerHTML = '';
     return;
@@ -3397,9 +3664,13 @@ function renderIsdReport(){
   h += '<tr class="grp"><td colspan="'+COLS+'">Surveyor</td></tr>';
   R.surveyorNames.forEach((n,i)=>{
     const rec = R.surveyors[n], key = 's::'+n, open = openIsd.has(key);
+    const empCode = getSurveyorEmpCode(n, TALUK);
+    const empBadge = empCode
+      ? `<span class="isd-emp-badge" title="Employee Code: ${esc(empCode)}">${esc(empCode)}</span>`
+      : `<span class="isd-emp-badge empty" title="No Employee Code set. Click '⚙️ Set Employee Codes' to assign.">—</span>`;
     h += '<tr class="owner'+(open?' open':'')+'" data-k="'+esc(key)+'">'+
          '<td class="sn">'+(i+1)+'</td>'+
-         '<td class="nm"><span class="chev">&#9654;</span>'+esc(n)+'</td>'+ repCells(rec) +'</tr>';
+         '<td class="nm"><span class="chev">&#9654;</span>' + empBadge + esc(n) + '</td>'+ repCells(rec) +'</tr>';
     if(open) h += '<tr class="sub"><td colspan="'+COLS+'"><div class="inner">'+villageSubTable(rec)+'</div></td></tr>';
   });
   h += '<tr class="subtotal"><td colspan="2" style="text-align:center">Total</td>'+ repCells(sTotal) +'</tr>';
@@ -3407,7 +3678,7 @@ function renderIsdReport(){
   const vKey = 'vao::all', vOpen = openIsd.has(vKey);
   h += '<tr class="owner vaorow'+(vOpen?' open':'')+'" data-k="'+vKey+'">'+
        '<td class="sn">'+(R.surveyorNames.length+1)+'</td>'+
-       '<td class="nm"><span class="chev">&#9654;</span>VAO</td>'+ repCells(vTotal) +'</tr>';
+       '<td class="nm"><span class="chev">&#9654;</span><span class="isd-emp-badge vao">VAO</span>VAO</td>'+ repCells(vTotal) +'</tr>';
   if(vOpen){
     let inner = '<table><thead>' + subHead('VAO Name', true) + '</thead><tbody>';
     let any = false;
@@ -3490,6 +3761,9 @@ function renderIsdReport(){
   renderVaoPrintPage(vTotal);
 
   isdMatrix(sTotal, vTotal, gTotal);
+  const sortSel = document.getElementById('isdSortSelect');
+  if (sortSel) sortSel.value = currentIsdSortMode;
+  if (typeof renderIsdAppDrilldownSection === 'function') renderIsdAppDrilldownSection();
 }
 
 /* dedicated print page: VAO name + village breakdown */
@@ -3606,6 +3880,888 @@ document.getElementById('isdPrintBtn').addEventListener('click', ()=>{
   window.print();
   setTimeout(()=>{ document.body.classList.remove('print-isd-only'); restore(); }, 400);
 });
+
+/* ============================================================
+   Employee Code Modal & Sort Selector Events
+   ============================================================ */
+const isdSortSelect = document.getElementById('isdSortSelect');
+if (isdSortSelect) {
+  isdSortSelect.addEventListener('change', e => {
+    currentIsdSortMode = e.target.value;
+    try { localStorage.setItem('isd_sort_mode', currentIsdSortMode); } catch(err){}
+    renderIsdReport();
+  });
+}
+
+const isdSetEmpCodeBtn = document.getElementById('isdSetEmpCodeBtn');
+const isdEmpCodeModal = document.getElementById('isdEmpCodeModal');
+const isdEmpModalClose = document.getElementById('isdEmpModalClose');
+const isdEmpCancelBtn = document.getElementById('isdEmpCancelBtn');
+const isdEmpSaveBtn = document.getElementById('isdEmpSaveBtn');
+const isdEmpAutoAssignBtn = document.getElementById('isdEmpAutoAssignBtn');
+const isdEmpClearBtn = document.getElementById('isdEmpClearBtn');
+const isdEmpModalBody = document.getElementById('isdEmpModalBody');
+const isdEmpModalCount = document.getElementById('isdEmpModalCount');
+const isdEmpModalTalukBadge = document.getElementById('isdEmpModalTalukBadge');
+
+function openEmpCodeModal() {
+  if (!isdEmpCodeModal) return;
+  const tName = cleanTalukTitle(TALUK || 'Taluk');
+  if (isdEmpModalTalukBadge) isdEmpModalTalukBadge.textContent = tName;
+
+  const names = (R && R.surveyorNames && R.surveyorNames.length) ? R.surveyorNames : (function(){
+    if (!store.village || !store.village.objs) return [];
+    const { header, objs } = store.village;
+    const uK = findKeyStrict(header, ['Name','User name','User Name','Username','Surveyor Name','Surveyor','Officer','User']);
+    const tK = talukKeyOf(header);
+    const set = new Set();
+    (objs || []).filter(o => !tK || inTaluk(o[tK])).forEach(o => {
+      const n = String(o[uK] == null ? '' : o[uK]).trim();
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort((a,b)=>a.localeCompare(b));
+  })();
+
+  if (!names.length) {
+    isdEmpModalBody.innerHTML = '<div style="text-align:center; padding:24px; color:var(--muted); font-size:13px;">No surveyors found. Please load the Village Details file first.</div>';
+    if (isdEmpModalCount) isdEmpModalCount.textContent = '0 surveyors';
+    isdEmpCodeModal.style.display = 'flex';
+    return;
+  }
+
+  let h = '';
+  names.forEach((name, i) => {
+    const curCode = getSurveyorEmpCode(name, TALUK);
+    const rec = (R && R.surveyors && R.surveyors[name]) || null;
+    const vCount = rec ? Object.keys(rec.villages || {}).length : 0;
+    const pCount = rec ? rec.pending : 0;
+    h += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); gap:12px;">
+      <div style="flex:1 1 auto; min-width:0;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; font-weight:700; color:var(--muted); min-width:20px;">${i+1}.</span>
+          <span style="font-weight:700; font-size:13px; color:var(--ink);">${esc(name)}</span>
+        </div>
+        <div style="font-size:11.5px; color:var(--muted); margin-left:28px;">
+          ${vCount ? vCount + ' village(s)' : ''}${pCount ? ' · ' + pCount + ' pending apps' : ''}
+        </div>
+      </div>
+      <div style="flex:0 0 auto;">
+        <input type="text" class="isd-emp-code-input" data-surveyor="${esc(name)}" value="${esc(curCode)}" placeholder="e.g. EMP${String(i+1).padStart(2,'0')}" style="font-family:ui-monospace,SFMono-Regular,monospace; font-weight:700; width:130px; padding:6px 10px; font-size:12.5px; border:1px solid var(--line-2); border-radius:6px; background:var(--surface); color:var(--ink);">
+      </div>
+    </div>`;
+  });
+
+  isdEmpModalBody.innerHTML = h;
+  if (isdEmpModalCount) isdEmpModalCount.textContent = `${names.length} surveyor${names.length !== 1 ? 's' : ''}`;
+  isdEmpCodeModal.style.display = 'flex';
+}
+
+if (isdSetEmpCodeBtn) isdSetEmpCodeBtn.addEventListener('click', openEmpCodeModal);
+if (isdEmpModalClose) isdEmpModalClose.addEventListener('click', () => { isdEmpCodeModal.style.display = 'none'; });
+if (isdEmpCancelBtn) isdEmpCancelBtn.addEventListener('click', () => { isdEmpCodeModal.style.display = 'none'; });
+
+if (isdEmpAutoAssignBtn) {
+  isdEmpAutoAssignBtn.addEventListener('click', () => {
+    const prefix = document.getElementById('isdEmpPrefix')?.value || 'EMP';
+    const startNum = parseInt(document.getElementById('isdEmpStartNum')?.value || '1', 10) || 1;
+    const pad = parseInt(document.getElementById('isdEmpPad')?.value || '2', 10) || 2;
+    const inputs = document.querySelectorAll('.isd-emp-code-input');
+    inputs.forEach((inp, idx) => {
+      inp.value = prefix + String(startNum + idx).padStart(pad, '0');
+    });
+  });
+}
+
+if (isdEmpClearBtn) {
+  isdEmpClearBtn.addEventListener('click', () => {
+    document.querySelectorAll('.isd-emp-code-input').forEach(inp => inp.value = '');
+  });
+}
+
+if (isdEmpSaveBtn) {
+  isdEmpSaveBtn.addEventListener('click', () => {
+    const map = {};
+    document.querySelectorAll('.isd-emp-code-input').forEach(inp => {
+      const s = inp.dataset.surveyor;
+      const v = (inp.value || '').trim();
+      if (s) map[s] = v;
+    });
+    saveIsdEmpCodes(TALUK, map);
+    isdEmpCodeModal.style.display = 'none';
+    renderIsdReport();
+    toast('Saved', 'Surveyor Employee Codes saved and sorted!', 'ok');
+  });
+}
+
+/* ============================================================
+   Application ID-wise Drilldown Section
+   ============================================================ */
+let openDrillSurveyors = new Set();
+let openDrillVillages = new Set();
+let isdAppSearchQuery = '';
+let isdAppAgeFilterValue = 'all';
+
+async function fetchIsdRuralApplications(talukName) {
+  const tName = talukName || cleanTalukTitle(TALUK || 'Nemili');
+  const tCode = (typeof resolveTalukCode === 'function') ? resolveTalukCode(tName) : '03';
+  const dCode = '37';
+  const creds = (typeof getTnCreds === 'function') ? getTnCreds('secondary', tName) : null;
+  if (!creds || !creds.username) {
+    toast('Credentials Missing', 'Tamil Nilam credentials not found.', 'warn');
+    return [];
+  }
+  const fromDate = '01-01-2025';
+  const formatD = d => String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+  const toDate = formatD(new Date());
+
+  const btn = document.getElementById('isdAppFetchBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⚡ Fetching IDs...'; }
+
+  try {
+    const url = `/api/nisd-rural?landCategory=rural&flag=I&fromDate=${fromDate}&toDate=${toDate}&distCode=${dCode}&talukCode=${tCode}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId || '8')}`;
+    const res = await fetch(url).then(r => r.json());
+    if (res && res.success && Array.isArray(res.applications)) {
+      const filtered = (typeof filterAppsByTaluk === 'function') ? filterAppsByTaluk(res.applications, tCode, tName) : res.applications;
+      window.store['isd_raw_apps'] = filtered;
+      toast('Applications Loaded', `Loaded ${filtered.length} applications for ${tName}`, 'ok');
+      renderIsdAppDrilldownSection();
+      return filtered;
+    } else {
+      toast('Fetch Failed', (res && res.error) || 'Failed to retrieve applications', 'err');
+      return [];
+    }
+  } catch (err) {
+    toast('Error', err.message, 'err');
+    return [];
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '⚡ Fetch / Refresh IDs'; }
+  }
+}
+
+function getDrilldownData() {
+  const raw = window.store['isd_raw_apps'];
+  if (!raw || !raw.length) return null;
+
+  const villageL = (()=>{
+    if (!store.village) return new Map();
+    const { header, objs } = store.village;
+    const vK = findKey(header, ['Village','Village Name','VillageName']);
+    const uK = findKeyStrict(header, ['Name','User name','User Name','Username','Surveyor Name','Surveyor','Officer','User']);
+    const tK = talukKeyOf(header);
+    return makeLookup((objs||[]).filter(o => !tK || inTaluk(o[tK]))
+      .map(o => [o[vK], String(o[uK]==null?'':o[uK]).trim()]).filter(p => p[0] && p[1]));
+  })();
+  const vaoL = (()=>{
+    if (!store.vaoDetails) return new Map();
+    const { header, objs } = store.vaoDetails;
+    const vK = findKey(header, ['Village Name','Village','VillageName']);
+    const nK = findKeyStrict(header, ['VAO Name','VAO','Name','User name']);
+    const tK = talukKeyOf(header);
+    return makeLookup((objs||[]).filter(o => !tK || inTaluk(o[tK]))
+      .map(o => [o[vK], String(o[nK]==null?'':o[nK]).trim()]).filter(p => p[0] && p[1]));
+  })();
+
+  const calcDays = (app) => {
+    if (typeof calculatePendingDays === 'function') return calculatePendingDays(app);
+    const d = parseInt(app.pending_at_days || app.pending_days || '0', 10);
+    return isNaN(d) ? 0 : d;
+  };
+
+  const owners = new Map();
+  const getOwner = (name, type) => {
+    if (!owners.has(name)) {
+      owners.set(name, {
+        name, type, empCode: getSurveyorEmpCode(name, TALUK),
+        total: 0, bBelow25: 0, b25: 0, b30: 0,
+        villages: new Map()
+      });
+    }
+    return owners.get(name);
+  };
+
+  const q = (isdAppSearchQuery || '').trim().toLowerCase();
+  const ageF = isdAppAgeFilterValue;
+
+  let totalMatchedApps = 0;
+
+  raw.forEach(app => {
+    const vName = (app.village_name || app.village || 'Unknown').trim();
+    const appId = String(app.appl_id || '').trim();
+    const sNo = String(app.survey_no_dis || app.survey_no || '').trim();
+    const sDiv = String(app.survey_subdivno || app.subdiv || '').trim();
+    const date = String(app.appl_date || app.appl_dt || '').trim();
+    const role = String(app.role_name || app.pending_at || '').trim();
+    const rtr = String(app.rtr_str || '').trim().toUpperCase();
+    const days = calcDays(app);
+
+    // Age filter check
+    if (ageF === 'b30' && days < 30) return;
+    if (ageF === 'b25' && (days < 25 || days >= 30)) return;
+    if (ageF === 'bBelow25' && days >= 25) return;
+
+    // Search query check
+    if (q) {
+      const match = appId.toLowerCase().includes(q) ||
+                    sNo.toLowerCase().includes(q) ||
+                    sDiv.toLowerCase().includes(q) ||
+                    vName.toLowerCase().includes(q) ||
+                    role.toLowerCase().includes(q) ||
+                    rtr.toLowerCase().includes(q);
+      if (!match) {
+        const sOwner = lookupVillage(vName, villageL) || '';
+        const vOwner = lookupVillage(vName, vaoL) || '';
+        if (!sOwner.toLowerCase().includes(q) && !vOwner.toLowerCase().includes(q)) return;
+      }
+    }
+
+    const isVao = role.toUpperCase().includes('VAO');
+    let ownerName = '', ownerType = '';
+    if (isVao) {
+      ownerName = (vaoL ? lookupVillage(vName, vaoL) : '') || ('VAO — ' + vName);
+      ownerType = 'VAO';
+    } else {
+      ownerName = (villageL ? lookupVillage(vName, villageL) : '') || ('Surveyor — ' + vName);
+      ownerType = 'Surveyor';
+    }
+
+    const own = getOwner(ownerName, ownerType);
+    own.total++;
+    if (days >= 30) own.b30++;
+    else if (days >= 25) own.b25++;
+    else own.bBelow25++;
+
+    if (!own.villages.has(vName)) {
+      own.villages.set(vName, {
+        name: vName, total: 0, bBelow25: 0, b25: 0, b30: 0, apps: []
+      });
+    }
+    const vil = own.villages.get(vName);
+    vil.total++;
+    if (days >= 30) vil.b30++;
+    else if (days >= 25) vil.b25++;
+    else vil.bBelow25++;
+
+    vil.apps.push({
+      appId, vName, surveyNo: sNo, subdiv: sDiv,
+      date, days, role, rtrStr: rtr, owner: ownerName, ownerType
+    });
+
+    totalMatchedApps++;
+  });
+
+  const surveyorBag = {};
+  const surveyorList = [];
+  const vaoList = [];
+  owners.forEach(o => {
+    if (o.type === 'Surveyor') {
+      surveyorBag[o.name] = { pending: o.total };
+      surveyorList.push(o.name);
+    } else {
+      vaoList.push(o);
+    }
+  });
+
+  const sortedSurveyorNames = sortSurveyorNames(surveyorList, TALUK, currentIsdSortMode, surveyorBag);
+  const sortedOwners = sortedSurveyorNames.map(n => owners.get(n)).filter(Boolean);
+  vaoList.sort((a,b) => a.name.localeCompare(b.name));
+  sortedOwners.push(...vaoList);
+
+  sortedOwners.forEach(o => {
+    o.villages.forEach(vil => {
+      vil.apps.sort((a,b) => b.days - a.days || a.appId.localeCompare(b.appId));
+    });
+  });
+
+  return {
+    owners: sortedOwners,
+    totalApps: totalMatchedApps,
+    totalOwners: sortedOwners.length
+  };
+}
+
+function renderIsdAppDrilldownSection() {
+  const section = document.getElementById('isdAppDrilldownSection');
+  const container = document.getElementById('isdAppDrilldownContainer');
+  const subtitle = document.getElementById('isdAppDrilldownSubtitle');
+  if (!section || !container) return;
+
+  section.style.display = 'block';
+
+  const raw = window.store['isd_raw_apps'];
+  if (!raw || !raw.length) {
+    container.innerHTML = `
+      <div style="padding:28px 20px; text-align:center; color:var(--muted); font-size:13px;">
+        <span style="font-size:28px; display:block; margin-bottom:8px;">📋</span>
+        <b>No application IDs loaded in memory yet.</b><br>
+        Run <b>Flash Fill</b> with <i>ISD Rural</i> checked, or click
+        <button type="button" class="btn" onclick="fetchIsdRuralApplications()" style="margin-left:6px; padding:4px 12px; font-size:12px; background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer;">⚡ Fetch Application IDs</button>
+        to pull live pending IDs from Tamil Nilam.
+      </div>`;
+    if (subtitle) subtitle.textContent = 'Individual application IDs not loaded yet.';
+    return;
+  }
+
+  const data = getDrilldownData();
+  if (!data || !data.owners.length) {
+    container.innerHTML = `
+      <div style="padding:24px 20px; text-align:center; color:var(--muted); font-size:13px;">
+        No applications match the current filter or search criteria.
+      </div>`;
+    if (subtitle) subtitle.textContent = '0 matching applications.';
+    return;
+  }
+
+  if (subtitle) {
+    const isSearching = !!isdAppSearchQuery || isdAppAgeFilterValue !== 'all';
+    subtitle.innerHTML = `Showing <b>${data.totalApps}</b> application${data.totalApps !== 1 ? 's' : ''} across <b>${data.totalOwners}</b> staff group${data.totalOwners !== 1 ? 's' : ''}${isSearching ? ' (filtered)' : ''}`;
+  }
+
+  const autoExpand = !!isdAppSearchQuery.trim();
+
+  let html = '<div class="drill-tree">';
+  data.owners.forEach(owner => {
+    const isOwnerOpen = autoExpand || openDrillSurveyors.has(owner.name);
+    const empCode = owner.empCode;
+    const empBadge = empCode
+      ? `<span class="isd-emp-badge" title="Employee Code: ${esc(empCode)}">${esc(empCode)}</span>`
+      : `<span class="isd-emp-badge empty">—</span>`;
+
+    html += `<div class="drill-surveyor-card ${isOwnerOpen ? 'is-open' : ''}" data-owner="${esc(owner.name)}">
+      <div class="drill-surveyor-header" onclick="toggleDrillOwner('${esc(owner.name)}')">
+        <div class="drill-surveyor-left">
+          <span class="drill-chev">▶</span>
+          ${empBadge}
+          <span class="drill-owner-name">${esc(owner.name)}</span>
+          <span class="drill-pill total">${owner.total} apps</span>
+        </div>
+        <div class="drill-surveyor-right">
+          ${owner.b30 ? `<span class="drill-pill b30" title="30+ Days">${owner.b30} (30+d)</span>` : ''}
+          ${owner.b25 ? `<span class="drill-pill b25" title="25-29 Days">${owner.b25} (25-29d)</span>` : ''}
+          ${owner.bBelow25 ? `<span class="drill-pill bBelow25" title="<25 Days">${owner.bBelow25} (&lt;25d)</span>` : ''}
+        </div>
+      </div>
+      <div class="drill-surveyor-body" style="display:${isOwnerOpen ? 'block' : 'none'};">`;
+
+    owner.villages.forEach(village => {
+      const vKey = owner.name + '::' + village.name;
+      const isVilOpen = autoExpand || openDrillVillages.has(vKey);
+
+      html += `<div class="drill-village-card ${isVilOpen ? 'is-open' : ''}" data-vkey="${esc(vKey)}">
+        <div class="drill-village-header" onclick="toggleDrillVillage('${esc(vKey)}')">
+          <div class="drill-village-left">
+            <span class="drill-chev">▶</span>
+            <span style="font-size:13px;">🏡</span>
+            <span class="drill-village-name">${esc(village.name)}</span>
+            <span class="drill-pill" style="background:#f1f5f9; color:#475569; font-weight:700;">${village.total} apps</span>
+          </div>
+          <div class="drill-village-right">
+            ${village.b30 ? `<span class="drill-pill b30">${village.b30} (30+d)</span>` : ''}
+            ${village.b25 ? `<span class="drill-pill b25">${village.b25} (25-29d)</span>` : ''}
+            ${village.bBelow25 ? `<span class="drill-pill bBelow25">${village.bBelow25} (&lt;25d)</span>` : ''}
+          </div>
+        </div>
+        <div class="drill-village-body" style="display:${isVilOpen ? 'block' : 'none'};">
+          <table class="drill-app-table">
+            <thead>
+              <tr>
+                <th style="width:40px; text-align:center;">S.No</th>
+                <th style="width:170px;">Application ID</th>
+                <th>Survey / Sub-Div</th>
+                <th style="width:100px;">Appl Date</th>
+                <th style="width:105px; text-align:center;">Days Pending</th>
+                <th style="width:90px;">Role</th>
+                <th style="width:70px; text-align:center;">RTR/STR</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+      village.apps.forEach((app, aIdx) => {
+        let dayCls = 'bBelow25';
+        let dayStyle = 'background:#dcfce7; color:#166534;';
+        if (app.days >= 30) {
+          dayCls = 'b30';
+          dayStyle = 'background:#fee2e2; color:#991b1b;';
+        } else if (app.days >= 25) {
+          dayCls = 'b25';
+          dayStyle = 'background:#fef3c7; color:#92400e;';
+        }
+
+        html += `<tr>
+          <td style="text-align:center; color:var(--muted); font-size:11px;">${aIdx + 1}</td>
+          <td><code title="Click to copy" onclick="navigator.clipboard?.writeText('${esc(app.appId)}'); toast('Copied', 'Application ID copied to clipboard', 'ok');" style="cursor:pointer;">${esc(app.appId)}</code></td>
+          <td>${esc(app.surveyNo)} <span style="color:var(--muted); font-size:11px;">${esc(app.subdiv)}</span></td>
+          <td>${esc(app.date)}</td>
+          <td style="text-align:center;"><span class="drill-pill ${dayCls}" style="${dayStyle}">${app.days} days</span></td>
+          <td>${esc(app.role)}</td>
+          <td style="text-align:center;"><span style="font-weight:700; font-size:11px; padding:1px 5px; border-radius:3px; background:var(--surface-2);">${esc(app.rtrStr || '—')}</span></td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>
+        </div>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+window.renderIsdAppDrilldownSection = renderIsdAppDrilldownSection;
+
+window.toggleDrillOwner = function(ownerName) {
+  if (openDrillSurveyors.has(ownerName)) openDrillSurveyors.delete(ownerName);
+  else openDrillSurveyors.add(ownerName);
+  renderIsdAppDrilldownSection();
+};
+
+window.toggleDrillVillage = function(vKey) {
+  if (openDrillVillages.has(vKey)) openDrillVillages.delete(vKey);
+  else openDrillVillages.add(vKey);
+  renderIsdAppDrilldownSection();
+};
+
+// Wire Search & Filter controls
+const isdAppSearchInput = document.getElementById('isdAppSearchInput');
+if (isdAppSearchInput) {
+  let searchTimer = null;
+  isdAppSearchInput.addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      isdAppSearchQuery = e.target.value;
+      renderIsdAppDrilldownSection();
+    }, 180);
+  });
+}
+
+const isdAppAgeFilter = document.getElementById('isdAppAgeFilter');
+if (isdAppAgeFilter) {
+  isdAppAgeFilter.addEventListener('change', e => {
+    isdAppAgeFilterValue = e.target.value;
+    renderIsdAppDrilldownSection();
+  });
+}
+
+const isdAppExpandAllBtn = document.getElementById('isdAppExpandAllBtn');
+if (isdAppExpandAllBtn) {
+  isdAppExpandAllBtn.addEventListener('click', () => {
+    const raw = window.store['isd_raw_apps'];
+    if (!raw) return;
+    const data = getDrilldownData();
+    if (!data) return;
+    openDrillSurveyors.clear();
+    openDrillVillages.clear();
+    data.owners.forEach(o => {
+      openDrillSurveyors.add(o.name);
+      o.villages.forEach(v => openDrillVillages.add(o.name + '::' + v.name));
+    });
+    renderIsdAppDrilldownSection();
+  });
+}
+
+const isdAppCollapseAllBtn = document.getElementById('isdAppCollapseAllBtn');
+if (isdAppCollapseAllBtn) {
+  isdAppCollapseAllBtn.addEventListener('click', () => {
+    openDrillSurveyors.clear();
+    openDrillVillages.clear();
+    renderIsdAppDrilldownSection();
+  });
+}
+
+const isdAppFetchBtn = document.getElementById('isdAppFetchBtn');
+if (isdAppFetchBtn) {
+  isdAppFetchBtn.addEventListener('click', () => {
+    fetchIsdRuralApplications(TALUK);
+  });
+}
+
+/* ============================================================
+   Excel Export with Application ID Drilldown
+   ============================================================ */
+async function exportIsdApplicationsExcel(talukName) {
+  if (!window.ExcelJS) {
+    toast('Library Missing', 'ExcelJS library is not loaded.', 'err');
+    return;
+  }
+  const tName = cleanTalukTitle(talukName || TALUK || 'Nemili');
+  let raw = window.store['isd_raw_apps'];
+  if (!raw || !raw.length) {
+    toast('Fetching Application IDs', 'Pulling live applications from Tamil Nilam...', 'info');
+    raw = await fetchIsdRuralApplications(tName);
+    if (!raw || !raw.length) {
+      toast('Export Failed', 'No applications available to export.', 'warn');
+      return;
+    }
+  }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Tamil Nilam Village Dashboard';
+  wb.created = new Date();
+
+  const data = getDrilldownData();
+  const todayStr = new Date().toLocaleDateString('en-GB');
+
+  /* ---------- Sheet 1: ISD Staff & Village Summary ---------- */
+  const wsSum = wb.addWorksheet('Staff & Village Summary', { properties: { defaultRowHeight: 18 } });
+  wsSum.views = [{ showGridLines: true }];
+
+  // Title Block
+  wsSum.mergeCells('A1:M1');
+  const t1 = wsSum.getCell('A1');
+  t1.value = `TAMIL NADU REVENUE DEPARTMENT — ${tName.toUpperCase()} TALUK`;
+  t1.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  t1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+  t1.alignment = { horizontal: 'center', vertical: 'middle' };
+  wsSum.getRow(1).height = 28;
+
+  wsSum.mergeCells('A2:M2');
+  const t2 = wsSum.getCell('A2');
+  t2.value = `ISD (Rural) Involving Sub-Division — Staff & Village Summary (As on ${todayStr})`;
+  t2.font = { bold: true, size: 11, color: { argb: 'FF334155' } };
+  t2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+  t2.alignment = { horizontal: 'center', vertical: 'middle' };
+  wsSum.getRow(2).height = 20;
+
+  // Header Row
+  const sumHeaders = [
+    'S.No', 'Employee Code', 'Staff Type', 'Staff Name', 'Village Name',
+    '< 25 Days', '25 - 29 Days', '30+ Days', 'Total Pending',
+    'Approved', 'Rejected', 'Total Disposal', 'Rejection %'
+  ];
+  const hRow1 = wsSum.addRow(sumHeaders);
+  hRow1.height = 24;
+  hRow1.eachCell((cell) => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      bottom: { style: 'medium', color: { argb: 'FF1E3A8A' } },
+      right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+    };
+  });
+
+  let sIdx = 1;
+  let totBBelow25 = 0, totB25 = 0, totB30 = 0, totPending = 0;
+  let totAppr = 0, totRej = 0;
+
+  if (R && R.ready) {
+    // Write surveyors
+    R.surveyorNames.forEach(n => {
+      const rec = R.surveyors[n];
+      const emp = getSurveyorEmpCode(n, TALUK);
+      const vNames = Object.keys(rec.villages || {}).sort();
+      if (!vNames.length) {
+        const row = wsSum.addRow([
+          sIdx++, emp || '—', 'Surveyor', n, '—',
+          rec.b['isd_0'] || 0, rec.b['isd_1'] || 0, rec.b['isd_2'] || 0, rec.pending,
+          rec.approved, rec.rejected, rec.approved + rec.rejected,
+          rejPct(rec) == null ? '—' : rejPct(rec) + '%'
+        ]);
+        styleSumRow(row);
+      } else {
+        vNames.forEach((vn, vi) => {
+          const vx = rec.villages[vn];
+          const row = wsSum.addRow([
+            vi === 0 ? sIdx++ : '',
+            vi === 0 ? (emp || '—') : '',
+            vi === 0 ? 'Surveyor' : '',
+            vi === 0 ? n : '',
+            vn,
+            vx.b['isd_0'] || 0, vx.b['isd_1'] || 0, vx.b['isd_2'] || 0, vx.pending,
+            vx.approved, vx.rejected, vx.approved + vx.rejected,
+            rejPct(vx) == null ? '—' : rejPct(vx) + '%'
+          ]);
+          styleSumRow(row);
+        });
+      }
+      totBBelow25 += rec.b['isd_0'] || 0;
+      totB25 += rec.b['isd_1'] || 0;
+      totB30 += rec.b['isd_2'] || 0;
+      totPending += rec.pending;
+      totAppr += rec.approved;
+      totRej += rec.rejected;
+    });
+
+    // Write VAO rows
+    R.vaoNames.forEach(n => {
+      const rec = R.vaos[n];
+      Object.keys(rec.villages || {}).sort().forEach(vn => {
+        const vx = rec.villages[vn];
+        if (!vx.pending && !vx.approved && !vx.rejected) return;
+        const row = wsSum.addRow([
+          sIdx++, 'VAO', 'VAO', n, vn,
+          vx.b['isd_0'] || 0, vx.b['isd_1'] || 0, vx.b['isd_2'] || 0, vx.pending,
+          vx.approved, vx.rejected, vx.approved + vx.rejected,
+          rejPct(vx) == null ? '—' : rejPct(vx) + '%'
+        ]);
+        styleSumRow(row);
+        totBBelow25 += vx.b['isd_0'] || 0;
+        totB25 += vx.b['isd_1'] || 0;
+        totB30 += vx.b['isd_2'] || 0;
+        totPending += vx.pending;
+        totAppr += vx.approved;
+        totRej += vx.rejected;
+      });
+    });
+
+    // Total Row
+    const dTot = totAppr + totRej;
+    const pct = dTot ? Math.round(totRej / dTot * 100) + '%' : '—';
+    const totRow = wsSum.addRow([
+      '', 'TOTAL', '', 'Taluk Grand Total', '',
+      totBBelow25, totB25, totB30, totPending,
+      totAppr, totRej, dTot, pct
+    ]);
+    totRow.height = 22;
+    totRow.eachCell((cell) => {
+      cell.font = { bold: true, size: 10.5, color: { argb: 'FF0F172A' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF64748B' } },
+        bottom: { style: 'double', color: { argb: 'FF1E3A8A' } }
+      };
+    });
+  }
+
+  function styleSumRow(row) {
+    row.height = 18;
+    const isEven = row.number % 2 === 0;
+    row.eachCell((cell, colNum) => {
+      cell.font = { size: 9.5, color: { argb: 'FF1E293B' } };
+      if (isEven) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      }
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      };
+      if (colNum === 1 || colNum === 2 || colNum === 3) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if (colNum >= 6) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'left', vertical: 'middle' };
+      }
+    });
+  }
+
+  /* ---------- Sheet 2: Application ID Drilldown ---------- */
+  const wsApps = wb.addWorksheet('Application ID Details', { properties: { defaultRowHeight: 18 } });
+  wsApps.views = [{ showGridLines: true }];
+
+  wsApps.mergeCells('A1:M1');
+  const at1 = wsApps.getCell('A1');
+  at1.value = `ISD (RURAL) — ALL PENDING APPLICATIONS WITH SURVEY DETAILS — ${tName.toUpperCase()} TALUK`;
+  at1.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+  at1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+  at1.alignment = { horizontal: 'center', vertical: 'middle' };
+  wsApps.getRow(1).height = 26;
+
+  wsApps.mergeCells('A2:M2');
+  const at2 = wsApps.getCell('A2');
+  at2.value = `Total Pending: ${raw.length} Applications | Generated: ${new Date().toLocaleString()}`;
+  at2.font = { bold: true, size: 10.5, color: { argb: 'FF334155' } };
+  at2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDFA' } };
+  at2.alignment = { horizontal: 'center', vertical: 'middle' };
+  wsApps.getRow(2).height = 19;
+
+  const appHeaders = [
+    'S.No', 'Employee Code', 'Staff Name', 'Village Name', 'Application ID',
+    'Survey No', 'Sub-Division No', 'Appl Date', 'Days Pending',
+    'Age Category', 'Role / Pending At', 'RTR / STR', 'Status'
+  ];
+  const hRow2 = wsApps.addRow(appHeaders);
+  hRow2.height = 22;
+  hRow2.eachCell((cell) => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = {
+      bottom: { style: 'medium', color: { argb: 'FF0F766E' } },
+      right: { style: 'thin', color: { argb: 'FFCCFBF1' } }
+    };
+  });
+
+  // Flat list of applications ordered by Staff -> Village -> Days
+  let aCount = 1;
+  data.owners.forEach(owner => {
+    owner.villages.forEach(village => {
+      village.apps.forEach(app => {
+        let ageCat = '< 25 Days';
+        let dayColor = 'FF166534';
+        let dayBg = 'FFDCFCE7';
+        if (app.days >= 30) {
+          ageCat = '30+ Days';
+          dayColor = 'FF991B1B';
+          dayBg = 'FFFEE2E2';
+        } else if (app.days >= 25) {
+          ageCat = '25 - 29 Days';
+          dayColor = 'FF92400E';
+          dayBg = 'FFFEF3C7';
+        }
+
+        const r = wsApps.addRow([
+          aCount++,
+          owner.empCode || '—',
+          owner.name,
+          village.name,
+          app.appId,
+          app.surveyNo,
+          app.subdiv,
+          app.date,
+          app.days,
+          ageCat,
+          app.role,
+          app.rtrStr || '—',
+          'Pending'
+        ]);
+        r.height = 17;
+
+        r.eachCell((cell, colNum) => {
+          cell.font = { size: 9.5, color: { argb: 'FF1E293B' } };
+          cell.border = {
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+          if (colNum === 1 || colNum === 2 || colNum === 8 || colNum === 12 || colNum === 13) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 5) {
+            cell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: 'FF1D4ED8' } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 9) {
+            cell.font = { bold: true, size: 9.5, color: { argb: dayColor } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: dayBg } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      });
+    });
+  });
+
+  wsApps.autoFilter = { from: 'A3', to: `M${aCount + 2}` };
+
+  /* ---------- Sheet 3: Expandable Tree (Native Excel Outlines) ---------- */
+  const wsTree = wb.addWorksheet('Expandable Tree', { properties: { defaultRowHeight: 18 } });
+  wsTree.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
+  wsTree.views = [{ showOutlineSymbols: true, showGridLines: true }];
+
+  wsTree.mergeCells('A1:H1');
+  const tt1 = wsTree.getCell('A1');
+  tt1.value = `ISD RURAL HIERARCHICAL DRILLDOWN TREE — ${tName.toUpperCase()}`;
+  tt1.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  tt1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+  tt1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const treeHeaders = ['Hierarchy / Level', 'Employee Code', 'Staff / Village / Application ID', 'Survey No / Sub-Div', 'Appl Date', 'Days Pending', 'Age Category', 'Pending Count / Role'];
+  const hRow3 = wsTree.addRow(treeHeaders);
+  hRow3.height = 22;
+  hRow3.eachCell(cell => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+
+  data.owners.forEach(owner => {
+    // Level 0: Surveyor
+    const oRow = wsTree.addRow([
+      '▼ STAFF',
+      owner.empCode || '—',
+      owner.name,
+      '',
+      '',
+      '',
+      '',
+      `${owner.total} apps (${owner.b30} 30+d, ${owner.b25} 25-29d, ${owner.bBelow25} <25d)`
+    ]);
+    oRow.outlineLevel = 0;
+    oRow.height = 20;
+    oRow.eachCell(cell => {
+      cell.font = { bold: true, size: 10, color: { argb: 'FF1E3A8A' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      cell.border = { top: { style: 'thin', color: { argb: 'FF93C5FD' } }, bottom: { style: 'thin', color: { argb: 'FF93C5FD' } } };
+    });
+
+    owner.villages.forEach(village => {
+      // Level 1: Village
+      const vRow = wsTree.addRow([
+        '  ▶ VILLAGE',
+        '',
+        village.name,
+        '',
+        '',
+        '',
+        '',
+        `${village.total} apps`
+      ]);
+      vRow.outlineLevel = 1;
+      vRow.height = 18;
+      vRow.eachCell(cell => {
+        cell.font = { bold: true, italic: true, size: 9.5, color: { argb: 'FF334155' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+      });
+
+      village.apps.forEach(app => {
+        // Level 2: Application ID
+        const aRow = wsTree.addRow([
+          '    • APP',
+          '',
+          app.appId,
+          `${app.surveyNo} ${app.subdiv}`,
+          app.date,
+          app.days,
+          app.days >= 30 ? '30+ Days' : (app.days >= 25 ? '25 - 29 Days' : '< 25 Days'),
+          `${app.role} (${app.rtrStr || '—'})`
+        ]);
+        aRow.outlineLevel = 2;
+        aRow.height = 16;
+        aRow.eachCell((cell, colNum) => {
+          cell.font = { size: 9, color: { argb: 'FF475569' } };
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
+          if (colNum === 3) {
+            cell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: 'FF2563EB' } };
+          }
+        });
+      });
+    });
+  });
+
+  // Adjust column widths across all sheets
+  [wsSum, wsApps, wsTree].forEach(ws => {
+    ws.columns.forEach(col => {
+      let maxLen = 10;
+      col.eachCell({ includeEmpty: false }, (cell) => {
+        const val = cell.value ? String(cell.value) : '';
+        if (val.length > maxLen && val.length < 50) maxLen = val.length;
+      });
+      col.width = maxLen + 3;
+    });
+  });
+
+  const filename = `${talukSlug()}_isd_rural_application_ids_drilldown.xlsx`;
+  await downloadWorkbook(wb, filename);
+  toast('Excel Exported', `${filename} generated with 3 detailed sheets!`, 'ok');
+}
+
+window.exportIsdApplicationsExcel = exportIsdApplicationsExcel;
+
+const isdAppXlsBtn = document.getElementById('isdAppXlsBtn');
+if (isdAppXlsBtn) {
+  isdAppXlsBtn.addEventListener('click', () => exportIsdApplicationsExcel(TALUK));
+}
+
+const isdAppDrilldownXlsBtn = document.getElementById('isdAppDrilldownXlsBtn');
+if (isdAppDrilldownXlsBtn) {
+  isdAppDrilldownXlsBtn.addEventListener('click', () => exportIsdApplicationsExcel(TALUK));
+}
 
 /* ============================================================
    Taluk selector

@@ -2553,6 +2553,7 @@
         }
 
         if (item.key === 'isd_rural') {
+          window.store['isd_raw_apps'] = rawApps;
           if (rawApps.length > 0) {
             const b30 = [], b25 = [], bBelow25 = [];
             rawApps.forEach(app => {
@@ -2573,6 +2574,9 @@
 
             setStatus('isd_rural', `✓ ${rawApps.length} apps`, 'ok');
             summaryStats.push(`ISD Rural: ${rawApps.length} apps`);
+            if (typeof window.renderIsdAppDrilldownSection === 'function') {
+              window.renderIsdAppDrilldownSection();
+            }
           } else if (window.store['isdRuralPdf'] && window.store['isdRuralPdf'].villages) {
             const vList = (window.store['isdRuralPdf'].villages instanceof Map)
               ? Array.from(window.store['isdRuralPdf'].villages.values())
