@@ -230,6 +230,7 @@
               <div class="tn-btn-bar">
                 <button type="button" class="tn-btn-submit" id="tnBtnSubmit">Submit</button>
                 <button type="button" class="tn-quick-btn" id="tnDirectIsdPdfBtn" style="background:#2563eb; color:#fff; font-weight:700; padding:8px 14px; border-radius:7px; cursor:pointer;" title="Direct 1-click pull of current month ISD Rural status PDF">⚡ 1-Click Pull ISD PDF</button>
+                <button type="button" class="tn-quick-btn" id="tnAutoDownloadIsdPdfBtn" style="background:#16a34a; color:#fff; font-weight:700; padding:8px 14px; border-radius:7px; cursor:pointer;" title="Download ISD Rural status PDF for current month">⬇ Download ISD PDF</button>
                 <button type="button" class="tn-btn-excel" id="tnBtnExcel" style="display:none">ExportToExcel</button>
                 <div id="tnApplyWrap" style="display:none; align-items:center; gap:10px;">
                   <span id="tnBucketSummary" class="tn-bucket-tag" style="display:none;"></span>
@@ -311,7 +312,10 @@
               <tbody>
                 <tr data-ff-group="isd_pdf">
                   <td style="text-align:center;"><input type="checkbox" id="ff_chk_isd_rural_pdf" checked></td>
-                  <td><b>ISD Rural — Application Status (PDF)</b><br><small style="color:var(--muted)">drilldowntasildar.html (Tahsildar ID 2)</small></td>
+                  <td>
+                    <b>ISD Rural — Application Status (PDF)</b><br><small style="color:var(--muted)">drilldowntasildar.html (Tahsildar ID 2)</small>
+                    <button type="button" class="tn-quick-btn" id="ff_row_download_isd_pdf_btn" style="margin-top:4px; padding:3px 9px; font-size:11px; background:#16a34a; color:#fff; border:1px solid #15803d; border-radius:5px; cursor:pointer; font-weight:700;" title="Download current month ISD Rural status PDF in official format">⬇ Download PDF</button>
+                  </td>
                   <td><span class="tn-badge-role">Rural</span></td>
                   <td>Application Status PDF</td>
                   <td><input type="text" id="ff_from_isd_rural_pdf" class="tn-ff-date-input" value="${curMonthRange.fromDate}"></td>
@@ -395,7 +399,10 @@
           </div>
           <div class="tn-ff-footer">
             <span id="tnFFSummaryText" style="font-size:12px; font-weight:600; color:var(--muted);">Select reports &amp; date ranges to pull from Tamil Nilam</span>
-            <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFFRunBtn" style="padding:10px 24px; font-size:14px; font-weight:700;">⚡ Run Flash Fill (Selected Reports)</button>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <button type="button" id="tnFFDownloadIsdPdfBtn" title="Download Approved &amp; Rejected PDF for ISD Rural in official format (current month)" style="background:#16a34a; color:#fff; font-weight:700; border:1.5px solid #15803d; padding:8px 16px; border-radius:7px; font-size:13px; cursor:pointer;">⬇ Download ISD Rural PDF</button>
+              <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFFRunBtn" style="padding:10px 24px; font-size:14px; font-weight:700;">⚡ Run Flash Fill (Selected Reports)</button>
+            </div>
           </div>
         </div>
       </div>
@@ -731,6 +738,26 @@
     }
 
     if (ffRunBtn) ffRunBtn.addEventListener('click', handleFlashFillExecute);
+
+    // Download ISD Rural Status PDF buttons (Auto-Pull modal & Flash Fill modal)
+    const handleDownloadIsdPdf = () => {
+      if (typeof window.downloadIsdRuralStatusPdf === 'function') {
+        window.downloadIsdRuralStatusPdf();
+      } else {
+        if (typeof window.toast === 'function') {
+          window.toast('PDF download not ready', 'Download function is still initializing. Please try again.', 'warn');
+        }
+      }
+    };
+
+    const autoDownloadBtn = document.getElementById('tnAutoDownloadIsdPdfBtn');
+    if (autoDownloadBtn) autoDownloadBtn.addEventListener('click', handleDownloadIsdPdf);
+
+    const ffRowDownloadBtn = document.getElementById('ff_row_download_isd_pdf_btn');
+    if (ffRowDownloadBtn) ffRowDownloadBtn.addEventListener('click', handleDownloadIsdPdf);
+
+    const ffFooterDownloadBtn = document.getElementById('tnFFDownloadIsdPdfBtn');
+    if (ffFooterDownloadBtn) ffFooterDownloadBtn.addEventListener('click', handleDownloadIsdPdf);
 
     // 3-Way Taluk Synchronization
     let isSyncingTaluk = false;

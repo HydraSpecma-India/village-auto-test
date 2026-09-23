@@ -998,6 +998,7 @@
           <span class="lab"><b>ISD Rural — Application Status</b><small>PDF from drilldowntasildar.html (Tahsildar ID 2)</small></span>
           <input type="file" data-cat="isdRuralPdf" accept=".pdf,.html,.htm,.xls,.xlsx">
           <button type="button" class="tmpl" id="pullIsdRuralPdfBtn" title="Auto-pull ISD Rural Application Status directly from Tamil Nilam drilldowntasildar.html" style="background:#2563eb; color:#fff; font-weight:700; border-color:#1d4ed8; padding:5px 12px; border-radius:7px; font-size:12px; margin-right:8px; cursor:pointer; position:relative; z-index:10; pointer-events:auto;">⚡ Auto Pull PDF</button>
+          <button type="button" class="tmpl" id="downloadIsdRuralPdfBtn" title="Download ISD Rural Application Status PDF for current month in official format" style="background:#16a34a; color:#fff; font-weight:700; border-color:#15803d; padding:5px 12px; border-radius:7px; font-size:12px; margin-right:8px; cursor:pointer; position:relative; z-index:10; pointer-events:auto;">⬇ Download PDF</button>
           <span class="badge" data-badge="isdRuralPdf">not loaded</span>
         </div>
         <div class="drop" data-drop="nisdFirka">
@@ -1049,6 +1050,7 @@
       <button class="ghost" id="isdXlsBtn">&#128202; Export all pages to Excel</button>
       <button class="ghost" id="isdAllBtn">&#128203; Export all data (no disposal)</button>
       <button class="ghost" id="isdPrintBtn">&#128424; Print this table</button>
+      <button class="ghost" id="isdDownloadPdfActionBtn" style="color:#16a34a; font-weight:700;">⬇ Download Status PDF (Current Month)</button>
     </div>
   </div>
 
@@ -3186,7 +3188,7 @@ function aggregateIsdRural(){
 
       pdfVillages.forEach(pv => {
         const label = pv.village || pv.village_name || '';
-        const pend = (pv.inv && pv.inv.pending != null) ? pv.inv.pending : (pv.pending || 0);
+        const pend = (pv.inv && pv.inv.pending != null) ? pv.inv.pending : 0;
         if(!pend) return;
 
         const pk = norm(label) || label;
@@ -3267,8 +3269,9 @@ function aggregateIsdRural(){
       ? Array.from(pdf.villages.values())
       : (Array.isArray(pdf.villages) ? pdf.villages : Object.values(pdf.villages || {}));
     for(const pv of pdfVillages){
-      const appr = (pv.inv && pv.inv.approved != null) ? pv.inv.approved : (pv.approved || 0);
-      const rej = (pv.inv && pv.inv.rejected != null) ? pv.inv.rejected : (pv.rejected || 0);
+      // Use Involving Sub-Division counts only — matches portal calculation standard
+      const appr = (pv.inv && pv.inv.approved != null) ? pv.inv.approved : 0;
+      const rej  = (pv.inv && pv.inv.rejected != null) ? pv.inv.rejected : 0;
       pdfApproved += appr; pdfRejected += rej;
       if(!appr && !rej) continue;
 
@@ -3469,9 +3472,9 @@ function renderIsdReport(){
 
     const got = gTotal.approved + gTotal.rejected;
     if(inv){
-      const want = inv.approved + inv.rejected;
+      const want = (inv.approved || 0) + (inv.rejected || 0);
       extra += '<br><span style="color:'+(want===got?'var(--ok)':'var(--muted)')+'">'+(want===got?'✓ ':'')+
-        'Today’s Disposal (PDF): '+inv.approved+' approved, '+inv.rejected+' rejected'+
+        'Disposal (Involving Sub-Division only): '+(inv.approved || 0)+' approved, '+(inv.rejected || 0)+' rejected'+
         (want===got ? ' — fully attributed.' : ' · attributed '+gTotal.approved+' / '+gTotal.rejected+'.')+
         (want === 0 ? ' (Disposals are 0; all ' + invPend + ' Involving applications are in Pending status).' : '') + '</span>';
     }
@@ -8161,6 +8164,334 @@ if(pullPdfBtn){
     e.stopPropagation();
     e.preventDefault();
     await pullIsdRuralPdfDirect();
+  });
+}
+
+// ---- ISD Rural PDF Download in official Tamil Nilam drilldowntasildar.html format ----
+async function downloadIsdRuralStatusPdf(pdfData) {
+  let pdf = pdfData || store['isdRuralPdf'];
+  const mine = (typeof myTaluks === 'function') ? myTaluks() : null;
+  let activeTaluk = (typeof talukName === 'function' && talukName()) || TALUK || (mine && mine[0]) || localStorage.getItem(TALUK_SELECTED_KEY) || 'Arakkonam';
+  if (mine && mine.length && !mayUseTaluk(activeTaluk)) {
+    activeTaluk = mine[0];
+  }
+  const cleanTaluk = cleanTalukName(activeTaluk);
+  const talukCode = resolveTalukCode(cleanTaluk);
+
+  const now = new Date();
+  const curDay = String(now.getDate()).padStart(2, '0');
+  const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const curYear = now.getFullYear();
+  const fromDate = `01-${curMonth}-${curYear}`;
+  const toDate = `${curDay}-${curMonth}-${curYear}`;
+
+  const hasVillages = pdf && (pdf.villages instanceof Map ? pdf.villages.size > 0 : (Array.isArray(pdf.villages) ? pdf.villages.length > 0 : false));
+  // If not loaded or empty, auto-fetch current month data live first
+  if (!hasVillages) {
+    if (typeof toast === 'function') {
+      toast('Fetching Status Data', `Pulling current month (${fromDate} to ${toDate}) ISD Rural status for ${cleanTaluk}...`, 'info');
+    }
+    try {
+      const secCreds = getTnCreds('secondary', cleanTaluk);
+      const u = (secCreds && secCreds.username) || 'rpt_panneerselvam';
+      const p = (secCreds && secCreds.password) || 'Nemili@1970';
+      const r = (secCreds && secCreds.roleId) || '8';
+      const url = `/api/nisd-rural?mode=isd_status&talukCode=${encodeURIComponent(talukCode)}&talukName=${encodeURIComponent(cleanTaluk)}&distCode=37&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}&fromDate=${fromDate}&toDate=${toDate}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.villages) && data.villages.length > 0) {
+        const vMap = new Map();
+        data.villages.forEach(v => { if (v.village) vMap.set(v.village, v); });
+        const parsedPdf = {
+          name: `TamilNilam_Auto_ISD_Status_${cleanTaluk}.json`,
+          villages: vMap,
+          grand: data.grand || {}
+        };
+        store['isdRuralPdf'] = parsedPdf;
+        if (typeof window.ensureVillageAndVaoDetails === 'function') {
+          window.ensureVillageAndVaoDetails(Array.from(vMap.keys()), cleanTaluk);
+        }
+        if (typeof markLoaded === 'function') {
+          markLoaded('isdRuralPdf', parsedPdf.name, vMap.size, false);
+        }
+        if (typeof updateRail === 'function') updateRail();
+        if (typeof render === 'function') render();
+        pdf = parsedPdf;
+      }
+    } catch (e) {
+      console.warn('Live fetch note in downloadIsdRuralStatusPdf:', e);
+    }
+  }
+
+  if (!pdf || !pdf.villages) {
+    if (typeof toast === 'function') {
+      toast('No data loaded', 'Could not load ISD Rural data. Please check connection and try again.', 'warn');
+    }
+    return;
+  }
+
+  try {
+    if (!window.jspdf && !window.jsPDF) {
+      if (typeof toast === 'function') toast('PDF library not ready', 'jsPDF is still loading. Please try again.', 'warn');
+      return;
+    }
+    const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const LM = 10, TM = 12, PW = 190;
+
+    const villages = (pdf.villages instanceof Map)
+      ? Array.from(pdf.villages.values())
+      : (Array.isArray(pdf.villages) ? pdf.villages : Object.values(pdf.villages || {}));
+    const sorted = [...villages].sort((a,b) => ((a.sno||0) - (b.sno||0)) || String(a.village||'').localeCompare(String(b.village||'')));
+
+    const colW = [10, 18, 52, 22, 22, 22, 22, 22];
+
+    function drawHeader(pageNum) {
+      if (pageNum > 1) doc.addPage();
+      let y = TM;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text('GOVERNMENT OF TAMIL NADU - REVENUE DEPARTMENT', LM + PW/2, y, { align: 'center' });
+
+      y += 5.5;
+      doc.setFontSize(9.5);
+      doc.setTextColor(3, 105, 161);
+      doc.text('TAHSILDAR RECOMMENDATION - Application Status', LM + PW/2, y, { align: 'center' });
+
+      y += 5.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`District: Ranipet (37)       Taluk: ${cleanTaluk} (${talukCode})       Period: ${fromDate} to ${toDate} (Current Month)`, LM + PW/2, y, { align: 'center' });
+
+      y += 3;
+      doc.setDrawColor(2, 132, 199);
+      doc.setLineWidth(0.5);
+      doc.line(LM, y, LM + PW, y);
+
+      y += 2.5;
+      doc.setFillColor(226, 232, 240);
+      doc.rect(LM, y, PW, 7, 'F');
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.2);
+      doc.rect(LM, y, PW, 7, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+
+      const headers = ['S.No', 'Village Code', 'Village Name', 'Approved', 'Pending', 'Rejected', 'Returned', 'Total'];
+      let cx = LM;
+      headers.forEach((h, i) => {
+        const align = (i === 2) ? 'left' : 'center';
+        const tx = (i === 2) ? cx + 2 : cx + colW[i]/2;
+        doc.text(h, tx, y + 4.8, { align });
+        if (i > 0) doc.line(cx, y, cx, y + 7);
+        cx += colW[i];
+      });
+
+      return y + 7;
+    }
+
+    let pageNum = 1;
+    let y = drawHeader(pageNum);
+
+    let gAppr = 0, gPend = 0, gRej = 0, gRet = 0, gTot = 0;
+    let gInvA = 0, gInvP = 0, gInvR = 0, gInvRet = 0, gInvTot = 0;
+    let gNotInvA = 0, gNotInvP = 0, gNotInvR = 0, gNotInvRet = 0, gNotInvTot = 0;
+
+    sorted.forEach((v, idx) => {
+      if (y + 16 > 280) {
+        pageNum++;
+        y = drawHeader(pageNum);
+      }
+
+      const appr = v.approved || 0;
+      const pend = v.pending || 0;
+      const rej = v.rejected || 0;
+      const ret = v.returned || 0;
+      const tot = v.total || (appr + pend + rej + ret);
+
+      const invA = (v.inv && v.inv.approved != null) ? v.inv.approved : 0;
+      const invP = (v.inv && v.inv.pending != null) ? v.inv.pending : 0;
+      const invR = (v.inv && v.inv.rejected != null) ? v.inv.rejected : 0;
+      const invRet = (v.inv && v.inv.returned != null) ? v.inv.returned : 0;
+      const invTot = (v.inv && v.inv.total != null) ? v.inv.total : (invA + invP + invR + invRet);
+
+      const notInvA = (v.notinv && v.notinv.approved != null) ? v.notinv.approved : Math.max(0, appr - invA);
+      const notInvP = (v.notinv && v.notinv.pending != null) ? v.notinv.pending : Math.max(0, pend - invP);
+      const notInvR = (v.notinv && v.notinv.rejected != null) ? v.notinv.rejected : Math.max(0, rej - invR);
+      const notInvRet = (v.notinv && v.notinv.returned != null) ? v.notinv.returned : Math.max(0, ret - invRet);
+      const notInvTot = (v.notinv && v.notinv.total != null) ? v.notinv.total : (notInvA + notInvP + notInvR + notInvRet);
+
+      gAppr += appr; gPend += pend; gRej += rej; gRet += ret; gTot += tot;
+      gInvA += invA; gInvP += invP; gInvR += invR; gInvRet += invRet; gInvTot += invTot;
+      gNotInvA += notInvA; gNotInvP += notInvP; gNotInvR += notInvR; gNotInvRet += notInvRet; gNotInvTot += notInvTot;
+
+      // Row 1: Village Main Row
+      doc.setFillColor(248, 250, 252);
+      doc.rect(LM, y, PW, 5.5, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.15);
+      doc.rect(LM, y, PW, 5.5, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+
+      let cx = LM;
+      doc.text(String(idx + 1), cx + colW[0]/2, y + 4, { align: 'center' }); cx += colW[0];
+      doc.text(String(v.code || ''), cx + colW[1]/2, y + 4, { align: 'center' }); cx += colW[1];
+      const vName = String(v.village || '');
+      doc.text(vName.length > 25 ? vName.substring(0, 24) + '…' : vName, cx + 2, y + 4, { align: 'left' }); cx += colW[2];
+      doc.text(String(appr), cx + colW[3]/2, y + 4, { align: 'center' }); cx += colW[3];
+      doc.text(String(pend), cx + colW[4]/2, y + 4, { align: 'center' }); cx += colW[4];
+      doc.text(String(rej), cx + colW[5]/2, y + 4, { align: 'center' }); cx += colW[5];
+      doc.text(String(ret), cx + colW[6]/2, y + 4, { align: 'center' }); cx += colW[6];
+      doc.text(String(tot), cx + colW[7]/2, y + 4, { align: 'center' });
+
+      y += 5.5;
+
+      // Row 2: Involving Sub-Division
+      doc.setFillColor(240, 249, 255);
+      doc.rect(LM, y, PW, 4.8, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(LM, y, PW, 4.8, 'S');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(51, 65, 85);
+
+      const col012W = colW[0] + colW[1] + colW[2];
+      doc.text('Involving Sub-Division', LM + col012W - 4, y + 3.5, { align: 'right' });
+      cx = LM + col012W;
+      doc.text(String(invA), cx + colW[3]/2, y + 3.5, { align: 'center' }); cx += colW[3];
+      doc.text(String(invP), cx + colW[4]/2, y + 3.5, { align: 'center' }); cx += colW[4];
+      doc.text(String(invR), cx + colW[5]/2, y + 3.5, { align: 'center' }); cx += colW[5];
+      doc.text(String(invRet), cx + colW[6]/2, y + 3.5, { align: 'center' }); cx += colW[6];
+      doc.text(String(invTot), cx + colW[7]/2, y + 3.5, { align: 'center' });
+
+      y += 4.8;
+
+      // Row 3: Not Involving Sub-Division
+      doc.setFillColor(240, 249, 255);
+      doc.rect(LM, y, PW, 4.8, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(LM, y, PW, 4.8, 'S');
+
+      doc.text('Not Involving Sub-Division', LM + col012W - 4, y + 3.5, { align: 'right' });
+      cx = LM + col012W;
+      doc.text(String(notInvA), cx + colW[3]/2, y + 3.5, { align: 'center' }); cx += colW[3];
+      doc.text(String(notInvP), cx + colW[4]/2, y + 3.5, { align: 'center' }); cx += colW[4];
+      doc.text(String(notInvR), cx + colW[5]/2, y + 3.5, { align: 'center' }); cx += colW[5];
+      doc.text(String(notInvRet), cx + colW[6]/2, y + 3.5, { align: 'center' }); cx += colW[6];
+      doc.text(String(notInvTot), cx + colW[7]/2, y + 3.5, { align: 'center' });
+
+      y += 4.8;
+    });
+
+    // Grand Total Row
+    if (y + 22 > 280) {
+      pageNum++;
+      y = drawHeader(pageNum);
+    }
+
+    y += 1;
+    doc.setFillColor(224, 242, 254);
+    doc.rect(LM, y, PW, 6, 'F');
+    doc.setDrawColor(2, 132, 199);
+    doc.setLineWidth(0.3);
+    doc.rect(LM, y, PW, 6, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+
+    const col012W = colW[0] + colW[1] + colW[2];
+    doc.text('Total', LM + col012W - 4, y + 4.2, { align: 'right' });
+    let cx = LM + col012W;
+    doc.text(String(gAppr), cx + colW[3]/2, y + 4.2, { align: 'center' }); cx += colW[3];
+    doc.text(String(gPend), cx + colW[4]/2, y + 4.2, { align: 'center' }); cx += colW[4];
+    doc.text(String(gRej), cx + colW[5]/2, y + 4.2, { align: 'center' }); cx += colW[5];
+    doc.text(String(gRet), cx + colW[6]/2, y + 4.2, { align: 'center' }); cx += colW[6];
+    doc.text(String(gTot), cx + colW[7]/2, y + 4.2, { align: 'center' });
+
+    y += 6;
+
+    // Sub-row: Involving Sub-Division
+    doc.setFillColor(186, 230, 253);
+    doc.rect(LM, y, PW, 5.2, 'F');
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.2);
+    doc.rect(LM, y, PW, 5.2, 'S');
+
+    doc.text('Involving Sub-Division', LM + col012W - 4, y + 3.8, { align: 'right' });
+    cx = LM + col012W;
+    doc.text(String(gInvA), cx + colW[3]/2, y + 3.8, { align: 'center' }); cx += colW[3];
+    doc.text(String(gInvP), cx + colW[4]/2, y + 3.8, { align: 'center' }); cx += colW[4];
+    doc.text(String(gInvR), cx + colW[5]/2, y + 3.8, { align: 'center' }); cx += colW[5];
+    doc.text(String(gInvRet), cx + colW[6]/2, y + 3.8, { align: 'center' }); cx += colW[6];
+    doc.text(String(gInvTot), cx + colW[7]/2, y + 3.8, { align: 'center' });
+
+    y += 5.2;
+
+    // Sub-row: Not Involving Sub-Division
+    doc.setFillColor(186, 230, 253);
+    doc.rect(LM, y, PW, 5.2, 'F');
+    doc.rect(LM, y, PW, 5.2, 'S');
+
+    doc.text('Not Involving Sub-Division', LM + col012W - 4, y + 3.8, { align: 'right' });
+    cx = LM + col012W;
+    doc.text(String(gNotInvA), cx + colW[3]/2, y + 3.8, { align: 'center' }); cx += colW[3];
+    doc.text(String(gNotInvP), cx + colW[4]/2, y + 3.8, { align: 'center' }); cx += colW[4];
+    doc.text(String(gNotInvR), cx + colW[5]/2, y + 3.8, { align: 'center' }); cx += colW[5];
+    doc.text(String(gNotInvRet), cx + colW[6]/2, y + 3.8, { align: 'center' }); cx += colW[6];
+    doc.text(String(gNotInvTot), cx + colW[7]/2, y + 3.8, { align: 'center' });
+
+    y += 8;
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`* Dashboard report calculation uses Involving Sub-Division counts only: ${gInvA} Approved, ${gInvR} Rejected (${gInvP} Pending).`, LM, y);
+
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Page ${p} of ${totalPages}  |  Tamil Nilam Revenue Department  |  Current Month Report`, LM + PW/2, 292, { align: 'center' });
+    }
+
+    const fname = `${cleanTaluk}_ISD_Rural_Status_Current_Month.pdf`;
+    doc.save(fname);
+    if (typeof toast === 'function') {
+      toast('PDF Downloaded', `${fname} — Involving Sub-Division: ${gInvA} Approved, ${gInvR} Rejected`, 'ok');
+    }
+  } catch (err) {
+    console.error('ISD Rural PDF generation error:', err);
+    if (typeof toast === 'function') toast('Download Failed', err.message, 'err');
+  }
+}
+window.downloadIsdRuralStatusPdf = downloadIsdRuralStatusPdf;
+
+const downloadIsdRuralPdfBtn = document.getElementById('downloadIsdRuralPdfBtn');
+if (downloadIsdRuralPdfBtn) {
+  downloadIsdRuralPdfBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    downloadIsdRuralStatusPdf();
+  });
+}
+
+const isdDownloadPdfActionBtn = document.getElementById('isdDownloadPdfActionBtn');
+if (isdDownloadPdfActionBtn) {
+  isdDownloadPdfActionBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    downloadIsdRuralStatusPdf();
   });
 }
 
