@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --g-isd:#B3A369; --s-isd:#E7E0C2; --t-isd:#CFC38C; --txt-isd:#3f3a12;
@@ -1042,7 +1043,7 @@
   <div class="no-print" style="height:20px"></div>
 
   <div class="card no-print">
-    <h2><span class="step">1</span> Upload source files <span class="grow"></span><span style="text-transform:none; letter-spacing:0; font-size:11.5px">Drag &amp; drop supported · nothing leaves your browser</span></h2>
+    <h2><span class="step">1</span> Upload source files <span class="grow"></span><button type="button" class="ghost" id="openStoredFilesBtn" style="font-size:12px; padding:4px 10px; font-weight:700; color:var(--accent); border:1px solid var(--accent-border); margin-right:8px; cursor:pointer;" title="View and download all stored files from cloud">📂 Stored Files &amp; Downloads</button><span style="text-transform:none; letter-spacing:0; font-size:11.5px">Drag &amp; drop supported · nothing leaves your browser</span></h2>
     
     <div class="uploads">
       <div class="drop" data-drop="isdNatham">
@@ -5574,11 +5575,11 @@ function openUsersPanel(){
   const canCreds = canManageCreds();
 
   if(!isAdmin){
-    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files'){
+    if(ADMIN_TAB === 'users'){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'none';
+      else ADMIN_TAB = 'files';
     }
   }
   const panel = document.getElementById('usersPanel');
@@ -5595,7 +5596,7 @@ function openUsersPanel(){
   }
   const titleEl = document.querySelector('#usersPanel .full-page-head h2 span:last-child');
   if(titleEl){
-    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Portal Credentials & Services Hub';
+    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Stored Files, Credentials & Services Hub';
   }
   renderAdminTabs();
 }
@@ -5626,29 +5627,29 @@ function renderAdminTabs(){
   const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  if(filesBtn) filesBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(filesBtn) filesBtn.style.display = (isAdmin || CLOUD_ON) ? 'inline-block' : 'none';
   if(credsBtn) credsBtn.style.display = (isAdmin || canCreds) ? 'inline-block' : 'none';
   if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
   
   if(!isAdmin){
-    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'files'){
+    if(ADMIN_TAB === 'users'){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'none';
+      else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'creds' && !canCreds){
       if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'none';
+      else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'chitta' && !canChitta){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'none';
+      else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'eservices' && !canEservices){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
-      else ADMIN_TAB = 'none';
+      else ADMIN_TAB = 'files';
     }
   }
   
@@ -5658,7 +5659,6 @@ function renderAdminTabs(){
     renderUsers();
   }
   else if(ADMIN_TAB === 'files'){
-    if(!isAdmin){ renderAdminTabs(); return; }
     renderFiles();
   }
   else if(ADMIN_TAB === 'creds'){
@@ -5887,64 +5887,317 @@ async function patchUser(id, patch, keep){
   if(!keep) renderUsers();
 }
 
-/* ---------- stored files ---------- */
+/* ---------- stored files & downloads ---------- */
+
+function triggerBlobDownload(blob, filename){
+  if(!blob) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'download';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1200);
+}
+
+function generateBlobFromPayload(kind, payload, filename){
+  if(!payload) return null;
+  try {
+    if(payload.type === 'sheet' || (payload.objs && Array.isArray(payload.objs))){
+      const rows = payload.objs || [];
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      return new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    if(payload.type === 'opt' || payload.type === 'nisdrange' || payload.type === 'rows' || (payload.rows && Array.isArray(payload.rows))){
+      const rows = payload.rows || [];
+      let ws;
+      if(rows.length && Array.isArray(rows[0])) ws = XLSX.utils.aoa_to_sheet(rows);
+      else ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Data');
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      return new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    if(payload.type === 'pdf' || kind === 'isdRuralPdf'){
+      const list = payload.villages || [];
+      const rows = Array.isArray(list) ? list : (list instanceof Map ? Array.from(list.values()) : []);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'ISD_Villages');
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      return new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    return new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  } catch(e) {
+    console.warn('generateBlobFromPayload fallback to JSON', e);
+    return new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  }
+}
+
+async function downloadStoredFile(row){
+  if(!row) return;
+  const fileName = row.file_name || `${row.kind}_${row.taluk || 'all'}.xlsx`;
+  toast('Downloading…', `Fetching ${fileName}`, 'sync');
+  try {
+    let blob = null;
+    if(row.storage_path){
+      try {
+        const { data, error } = await sb.storage.from(SB_BUCKET).download(row.storage_path);
+        if(!error && data){
+          blob = data;
+        } else if(error){
+          console.warn('Storage download failed, falling back to payload:', error);
+        }
+      } catch(e){
+        console.warn('Storage download exception:', e);
+      }
+    }
+    if(!blob && row.payload){
+      blob = generateBlobFromPayload(row.kind, row.payload, fileName);
+    }
+    if(!blob && window.store && window.store[row.kind]){
+      const ser = serialiseParsed(row.kind, window.store[row.kind]);
+      if(ser) blob = generateBlobFromPayload(row.kind, ser, fileName);
+    }
+    if(!blob){
+      toast('Download failed', 'No file data available in storage or table payload.', 'err');
+      return;
+    }
+    triggerBlobDownload(blob, fileName);
+    toast('Downloaded', `${fileName} saved.`, 'ok');
+  } catch(err){
+    toast('Download error', err.message || String(err), 'err');
+  }
+}
+
+async function downloadAllStoredFilesForTaluk(targetTaluk, asZip = true){
+  if(!CLOUD_ON){
+    toast('Not connected', 'Supabase Cloud is not active.', 'warn');
+    return;
+  }
+  const talukLabel = targetTaluk && targetTaluk !== 'all' ? targetTaluk : 'All Taluks';
+  toast('Preparing bundle…', `Fetching stored files for ${talukLabel}…`, 'sync');
+  try {
+    let query = sb.from('isd_test_datasets').select('*');
+    if(targetTaluk && targetTaluk !== 'all'){
+      query = query.eq('taluk', targetTaluk);
+    }
+    const { data: rows, error } = await query;
+    if(error) throw error;
+    if(!rows || !rows.length){
+      toast('No files found', `No stored files found for ${talukLabel}.`, 'warn');
+      return;
+    }
+
+    if(asZip && typeof JSZip !== 'undefined'){
+      const zip = new JSZip();
+      let count = 0;
+      for(const r of rows){
+        const fName = (r.taluk ? r.taluk + '_' : '') + (r.file_name || `${r.kind}.xlsx`);
+        let blob = null;
+        if(r.storage_path){
+          try {
+            const { data } = await sb.storage.from(SB_BUCKET).download(r.storage_path);
+            if(data) blob = data;
+          } catch(e){}
+        }
+        if(!blob && r.payload){
+          blob = generateBlobFromPayload(r.kind, r.payload, fName);
+        }
+        if(blob){
+          const ab = await blob.arrayBuffer();
+          zip.file(fName, ab);
+          count++;
+        }
+      }
+      if(!count){
+        toast('No content', 'Could not read file data for any stored dataset.', 'warn');
+        return;
+      }
+      const zipBlob = await zip.generateAsync({type:'blob'});
+      const zipName = `TamilNilam_Files_${talukLabel.replace(/[^A-Za-z0-9]+/g,'_')}.zip`;
+      triggerBlobDownload(zipBlob, zipName);
+      toast('ZIP Downloaded', `Successfully bundled ${count} files into ${zipName}`, 'ok');
+    } else {
+      let dlCount = 0;
+      for(const r of rows){
+        await downloadStoredFile(r);
+        dlCount++;
+        await new Promise(res => setTimeout(res, 400));
+      }
+      toast('Completed', `Downloaded ${dlCount} files.`, 'ok');
+    }
+  } catch(err){
+    toast('Download error', err.message || String(err), 'err');
+  }
+}
+window.downloadStoredFile = downloadStoredFile;
+window.downloadAllStoredFilesForTaluk = downloadAllStoredFilesForTaluk;
+
 async function renderFiles(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
   const box = document.getElementById('usersBody');
-  if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected.</div>'; return; }
-  box.innerHTML = '<div class="empty">Loading…</div>';
+  if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected to Cloud.</div>'; return; }
+  box.innerHTML = '<div class="empty">Loading stored files…</div>';
   const { data, error } = await sb.from('isd_test_datasets').select('*').order('kind');
   if(error){ box.innerHTML = '<div class="warn bad">'+esc(error.message)+'</div>'; return; }
   const byId = {};
   (await sb.from('isd_users').select('id,email,full_name')).data?.forEach(u=> byId[u.id] = u.full_name || u.email);
 
-  const kinds = ['village','vaoDetails','isdRuralPdf'].concat(OPT_KEYS, ['isdNatham','flineRural','flineNatham']);
-  let h = '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">' +
-            '<p class="fstate" style="margin:0">Every upload is stored securely in Supabase Cloud. Uploading again automatically replaces existing datasets for that taluk.</p>' +
-            '<div style="position:relative; width:260px;">' +
-              '<input type="text" id="fileSearchInput" placeholder="🔍 Search files or taluks..." style="width:100%; padding:7px 12px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface-2); font-size:12.5px; color:var(--ink);">' +
-            '</div>' +
-          '</div>';
-  h += '<table class="utable" id="storedFilesTable"><thead><tr><th>File</th><th>Taluk</th><th>Uploaded</th><th>By</th><th></th></tr></thead><tbody>';
-  kinds.forEach(k=>{
-    const rows = (data||[]).filter(r => r.kind === k);
+  const activeTaluk = (typeof TALUK !== 'undefined' && TALUK) ? TALUK : 'Nemili';
+  const allTaluksSet = new Set();
+  if(activeTaluk) allTaluksSet.add(activeTaluk);
+  (data || []).forEach(r => { if(r.taluk) allTaluksSet.add(r.taluk); });
+  if(typeof CLOUD_TALUKS !== 'undefined' && CLOUD_TALUKS.size){
+    CLOUD_TALUKS.forEach(t => allTaluksSet.add(t));
+  }
+  const talukList = Array.from(allTaluksSet).sort();
+
+  const knownKinds = ['village','vaoDetails','isdRuralPdf'].concat(OPT_KEYS, ['isdNatham','flineRural','flineNatham'], (typeof NISD_KEYS !== 'undefined' && NISD_KEYS) || []);
+  const dbKinds = (data || []).map(r => r.kind).filter(Boolean);
+  const kinds = Array.from(new Set(knownKinds.concat(dbKinds)));
+
+  const rowMap = new Map();
+  (data || []).forEach(r => {
+    rowMap.set(`${r.kind}:::${r.taluk || ''}`, r);
+  });
+
+  let h = `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; background:var(--surface-2); padding:14px 16px; border-radius:10px; border:1px solid var(--line-2);">
+      <div>
+        <p class="fstate" style="margin:0 0 8px 0; font-size:12.5px;">
+          Stored datasets in Supabase Cloud. Download any original file directly, or export all files for your taluk in a single ZIP bundle.
+        </p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="btn primary" id="dlZipTalukBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            📦 Download ZIP (${esc(activeTaluk)})
+          </button>
+          <button type="button" class="btn ghost" id="dlZipAllBtn" style="font-size:12px; padding:6px 14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            🗂️ Download All Taluks (ZIP)
+          </button>
+          <div style="display:inline-flex; align-items:center; gap:6px; font-size:12px;">
+            <label for="storedFilesTalukFilter" style="color:var(--muted); font-weight:600;">Filter Taluk:</label>
+            <select id="storedFilesTalukFilter" style="font-size:12px; padding:5px 10px; border-radius:6px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); font-weight:600;">
+              <option value="">All Taluks</option>
+              ${talukList.map(t => `<option value="${esc(t)}" ${t === activeTaluk ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="position:relative; width:260px;">
+        <input type="text" id="fileSearchInput" placeholder="🔍 Search file, taluk, uploader..." style="width:100%; padding:7px 12px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface); font-size:12.5px; color:var(--ink);">
+      </div>
+    </div>
+  `;
+
+  h += '<table class="utable" id="storedFilesTable"><thead><tr><th>File Category &amp; Name</th><th>Taluk</th><th>Uploaded At</th><th>Uploaded By</th><th style="text-align:right;">Actions</th></tr></thead><tbody>';
+
+  kinds.forEach(k => {
+    const rows = (data || []).filter(r => r.kind === k);
+    const catLabel = FILE_NAMES[k] || k;
     if(!rows.length){
-      h += '<tr class="off" data-search="'+esc(FILE_NAMES[k] || k)+'"><td class="who"><b>'+esc(FILE_NAMES[k] || k)+'</b><small>not uploaded yet</small></td>' +
-           '<td>—</td><td>—</td><td>—</td><td></td></tr>';
+      h += `
+        <tr class="off" data-kind="${esc(k)}" data-taluk="" data-search="${esc(catLabel).toLowerCase()} not uploaded yet">
+          <td class="who"><b>${esc(catLabel)}</b><small>not uploaded yet</small></td>
+          <td><span class="fstate">—</span></td>
+          <td><span class="fstate">—</span></td>
+          <td><span class="fstate">—</span></td>
+          <td style="text-align:right"><span class="fstate">—</span></td>
+        </tr>
+      `;
       return;
     }
-    rows.forEach(r=>{
-      const searchKey = `${FILE_NAMES[k] || k} ${r.file_name || ''} ${r.taluk || 'all'}`.toLowerCase();
-      h += '<tr data-kind="'+esc(r.kind)+'" data-taluk="'+esc(r.taluk)+'" data-search="'+esc(searchKey)+'">' +
-        '<td class="who"><b>'+esc(FILE_NAMES[k] || k)+'</b><small>'+esc(r.file_name||'')+' · '+(r.row_count||0)+' rows</small></td>' +
-        '<td>'+(r.taluk ? '<span class="pill" style="font-size:11px; padding:2px 8px;">'+esc(r.taluk)+'</span>' : '<span class="fstate">all</span>')+'</td>' +
-        '<td class="fstate">'+new Date(r.uploaded_at).toLocaleString('en-GB')+'</td>' +
-        '<td class="fstate">'+esc(byId[r.uploaded_by] || '—')+'</td>' +
-        '<td style="text-align:right"><button class="ghost" data-act="del" style="color:var(--err);">Delete</button></td></tr>';
+    rows.forEach(r => {
+      const uploader = byId[r.uploaded_by] || '—';
+      const searchKey = `${catLabel} ${r.file_name || ''} ${r.taluk || 'all'} ${uploader}`.toLowerCase();
+      const rowKey = `${r.kind}:::${r.taluk || ''}`;
+      h += `
+        <tr data-kind="${esc(r.kind)}" data-taluk="${esc(r.taluk || '')}" data-rowkey="${esc(rowKey)}" data-search="${esc(searchKey)}">
+          <td class="who">
+            <b>${esc(catLabel)}</b>
+            <small style="display:block; margin-top:2px; color:var(--ink-2); font-family:monospace; font-size:11px;">
+              📄 ${esc(r.file_name || 'dataset.xlsx')} · ${(r.row_count || 0)} rows
+            </small>
+          </td>
+          <td>${r.taluk ? '<span class="pill" style="font-size:11px; padding:2px 8px; font-weight:700;">' + esc(r.taluk) + '</span>' : '<span class="fstate">all</span>'}</td>
+          <td class="fstate">${new Date(r.uploaded_at).toLocaleString('en-GB')}</td>
+          <td class="fstate">${esc(uploader)}</td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button type="button" class="btn ghost" data-act="dl" data-rowkey="${esc(rowKey)}" style="color:var(--accent); font-weight:700; font-size:12px; padding:4px 10px; margin-right:6px; cursor:pointer;" title="Download original file">
+              ⬇ Download
+            </button>
+            ${isAdmin ? `<button type="button" class="btn ghost" data-act="del" data-kind="${esc(r.kind)}" data-taluk="${esc(r.taluk || '')}" style="color:var(--err); font-size:12px; padding:4px 8px; cursor:pointer;" title="Delete dataset">Delete</button>` : ''}
+          </td>
+        </tr>
+      `;
     });
   });
+
   h += '</tbody></table>';
   box.innerHTML = h;
 
-  const searchInp = document.getElementById('fileSearchInput');
-  if(searchInp){
-    searchInp.addEventListener('input', e=>{
-      const term = e.target.value.toLowerCase().trim();
-      document.querySelectorAll('#storedFilesTable tbody tr').forEach(tr=>{
-        const text = tr.dataset.search || tr.textContent.toLowerCase();
-        tr.style.display = (!term || text.includes(term)) ? '' : 'none';
-      });
+  const filterRows = () => {
+    const term = (document.getElementById('fileSearchInput')?.value || '').toLowerCase().trim();
+    const talukVal = (document.getElementById('storedFilesTalukFilter')?.value || '').toLowerCase().trim();
+    document.querySelectorAll('#storedFilesTable tbody tr').forEach(tr => {
+      const rowTaluk = (tr.dataset.taluk || '').toLowerCase().trim();
+      const matchTaluk = !talukVal || rowTaluk === talukVal || (!rowTaluk && tr.classList.contains('off'));
+      const text = tr.dataset.search || tr.textContent.toLowerCase();
+      const matchSearch = !term || text.includes(term);
+      tr.style.display = (matchTaluk && matchSearch) ? '' : 'none';
     });
+  };
+
+  const searchInp = document.getElementById('fileSearchInput');
+  if(searchInp) searchInp.addEventListener('input', filterRows);
+
+  const talukSelect = document.getElementById('storedFilesTalukFilter');
+  if(talukSelect){
+    talukSelect.addEventListener('change', () => {
+      filterRows();
+      const chosen = talukSelect.value;
+      const btn = document.getElementById('dlZipTalukBtn');
+      if(btn){
+        btn.textContent = `📦 Download ZIP (${chosen || 'Current Taluk'})`;
+      }
+    });
+    filterRows();
   }
 
-  box.querySelectorAll('[data-act="del"]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const tr = btn.closest('tr');
-      if(!confirm(`Delete stored file for ${tr.dataset.kind} (${tr.dataset.taluk || 'all'})?`)) return;
-      const { error } = await sb.from('isd_test_datasets').delete()
-        .eq('kind', tr.dataset.kind).eq('taluk', tr.dataset.taluk);
-      if(error) toast('Could not delete', error.message, 'err');
+  document.getElementById('dlZipTalukBtn')?.addEventListener('click', () => {
+    const sel = document.getElementById('storedFilesTalukFilter')?.value || activeTaluk;
+    downloadAllStoredFilesForTaluk(sel, true);
+  });
+
+  document.getElementById('dlZipAllBtn')?.addEventListener('click', () => {
+    downloadAllStoredFilesForTaluk('', true);
+  });
+
+  box.querySelectorAll('[data-act="dl"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.rowkey;
+      const row = rowMap.get(key);
+      if(row) downloadStoredFile(row);
+      else toast('Not found', 'Dataset reference not found.', 'warn');
+    });
+  });
+
+  box.querySelectorAll('[data-act="del"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const kind = btn.dataset.kind;
+      const taluk = btn.dataset.taluk;
+      if(!confirm(`Delete stored file for ${FILE_NAMES[kind] || kind} (${taluk || 'all'})?`)) return;
+      let q = sb.from('isd_test_datasets').delete().eq('kind', kind);
+      if(taluk) q = q.eq('taluk', taluk);
+      else q = q.is('taluk', null);
+      const { error: delErr } = await q;
+      if(delErr) toast('Could not delete', delErr.message, 'err');
       else { toast('Deleted', 'The stored file was removed.', 'ok'); renderFiles(); }
     });
   });
@@ -9127,6 +9380,10 @@ document.getElementById('acctBack').addEventListener('click', closeAcct);
 document.getElementById('pwSave').addEventListener('click', changePassword);
 document.getElementById('pwReset').addEventListener('click', sendOwnReset);
 document.getElementById('usersBtn').addEventListener('click', openUsersPanel);
+document.getElementById('openStoredFilesBtn')?.addEventListener('click', () => {
+  ADMIN_TAB = 'files';
+  openUsersPanel();
+});
 document.getElementById('chittaMenuBtn')?.addEventListener('click', () => {
   if(!hasMenu('chitta')){
     toast('Access restricted', 'Your account does not have access to Chitta Extract.', 'warn');
@@ -9158,7 +9415,7 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   if(b){
     const tab = b.dataset.tab;
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-    if(!isAdmin && (tab === 'users' || tab === 'files')){
+    if(!isAdmin && tab === 'users'){
       return;
     }
     if(tab === 'creds' && !canManageCreds()){
