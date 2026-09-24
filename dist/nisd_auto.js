@@ -452,9 +452,24 @@
     }
 
     const aregMenuBtn = document.getElementById('aregMenuBtn');
+    const isAdmin = (typeof window.CLOUD_ON === 'undefined' || !window.CLOUD_ON) || (window.ME && window.ME.role === 'admin');
+    if (aregMenuBtn) {
+      aregMenuBtn.style.display = isAdmin ? 'inline-block' : 'none';
+    }
+    document.querySelectorAll('[data-tab="areg"]').forEach(btn => {
+      btn.style.display = isAdmin ? 'inline-block' : 'none';
+    });
+
     if (aregMenuBtn && !aregMenuBtn.__aregBound) {
       aregMenuBtn.__aregBound = true;
       aregMenuBtn.addEventListener('click', () => {
+        const isAdmin = (typeof window.CLOUD_ON === 'undefined' || !window.CLOUD_ON) || (window.ME && window.ME.role === 'admin');
+        if (!isAdmin) {
+          if (typeof window.toast === 'function') {
+            window.toast('Access restricted', 'Access restricted: Only Admin accounts can access A-Register Approval Hub.', 'warn');
+          }
+          return;
+        }
         const currentTaluk = (typeof window.TALUK !== 'undefined' && window.TALUK) ? window.TALUK : 'Nemili';
         if (typeof window.openAregApprovalModal === 'function') {
           window.openAregApprovalModal(currentTaluk, '0109');
@@ -466,6 +481,13 @@
       if (!btn.__aregBound) {
         btn.__aregBound = true;
         btn.addEventListener('click', () => {
+          const isAdmin = (typeof window.CLOUD_ON === 'undefined' || !window.CLOUD_ON) || (window.ME && window.ME.role === 'admin');
+          if (!isAdmin) {
+            if (typeof window.toast === 'function') {
+              window.toast('Access restricted', 'Access restricted: Only Admin accounts can access A-Register Approval Hub.', 'warn');
+            }
+            return;
+          }
           if (typeof window.closeUsersPanel === 'function') {
             window.closeUsersPanel();
           } else {
@@ -1789,6 +1811,17 @@
 
     if (typeof window.XLSX !== 'undefined') {
       const wb = XLSX.utils.table_to_book(table, { sheet: 'Pending Report' });
+      const ws = wb.Sheets['Pending Report'];
+      if (ws && ws['!ref']) {
+        ws['!cols'] = ws['!cols'] || [];
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c: C })];
+          if (cell && cell.v && /survey/i.test(String(cell.v))) {
+            ws['!cols'][C] = { wch: 28 };
+          }
+        }
+      }
       const filename = `TamilNilam_Report_${document.getElementById('tnFromDate').value}_to_${document.getElementById('tnToDate').value}.xlsx`;
       XLSX.writeFile(wb, filename);
     } else {
@@ -1800,6 +1833,20 @@
       a.click();
     }
   }
+
+  window.handleExportExcel = handleExportExcel;
+  window.exportAppIdsExcel = window.exportAppIdsExcel || function() {
+    if (typeof window.exportIsdApplicationsExcel === 'function') {
+      return window.exportIsdApplicationsExcel(window.TALUK);
+    }
+  };
+  window.exportToExcel = window.exportToExcel || function() {
+    if (typeof window.exportIsdApplicationsExcel === 'function') {
+      return window.exportIsdApplicationsExcel(window.TALUK);
+    } else {
+      return handleExportExcel();
+    }
+  };
 
   async function ensureVillageAndVaoDetails(allVillages, explicitTaluk) {
     if (!window.store) window.store = {};
@@ -3027,6 +3074,13 @@
   let aregPendingApps = [];
 
   window.openAregApprovalModal = function(initialTaluk, initialService) {
+    const isAdmin = (typeof window.CLOUD_ON === 'undefined' || !window.CLOUD_ON) || (window.ME && window.ME.role === 'admin');
+    if (!isAdmin) {
+      if (typeof window.toast === 'function') {
+        window.toast('Access restricted', 'Access restricted: Only Admin accounts can access A-Register Approval Hub.', 'warn');
+      }
+      return;
+    }
     let backdrop = document.getElementById('aregModalBackdrop');
     if (!backdrop) {
       const modalHtml = `

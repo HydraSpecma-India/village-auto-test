@@ -5193,14 +5193,21 @@ function getDrilldownData() {
       }
     }
 
-    const isVao = role.toUpperCase().includes('VAO');
+    const roleUpper = role.toUpperCase();
+    const isVao = roleUpper.includes('VAO') || roleUpper.includes('V.A.O');
+    const isOther = roleUpper.includes('LRD') || roleUpper.includes('DIS') || roleUpper.includes('DISTRICT') || roleUpper.includes('THL') || roleUpper.includes('TAHSILDAR') || roleUpper.includes('TASHILDAR') || roleUpper.includes('HQ') || roleUpper.includes('ZDT') || roleUpper.includes('RI') || roleUpper.includes('INSPECTOR');
+    const isSurveyor = roleUpper.includes('SURVEYOR') || roleUpper.includes('SUR') || roleUpper.includes('FIELD') || roleUpper === '' || roleUpper === 'FIELD SURVEYOR' || !isOther;
+
     let ownerName = '', ownerType = '';
     if (isVao) {
       ownerName = (vaoL ? lookupVillage(vName, vaoL) : '') || ('VAO — ' + vName);
       ownerType = 'VAO';
-    } else {
+    } else if (isSurveyor && !isOther) {
       ownerName = (villageL ? lookupVillage(vName, villageL) : '') || ('Surveyor — ' + vName);
       ownerType = 'Surveyor';
+    } else {
+      // Exclude 'other' / non-surveyor / non-vao categories
+      return;
     }
 
     const own = getOwner(ownerName, ownerType);
@@ -5300,16 +5307,12 @@ function renderIsdAppDrilldownSection() {
   let html = '<div class="drill-tree">';
   data.owners.forEach(owner => {
     const isOwnerOpen = autoExpand || openDrillSurveyors.has(owner.name);
-    const empCode = owner.empCode;
-    const empBadge = empCode
-      ? `<span class="isd-emp-badge" title="Employee Code: ${esc(empCode)}">${esc(empCode)}</span>`
-      : `<span class="isd-emp-badge empty">—</span>`;
+
 
     html += `<div class="drill-surveyor-card ${isOwnerOpen ? 'is-open' : ''}" data-owner="${esc(owner.name)}">
       <div class="drill-surveyor-header" onclick="toggleDrillOwner('${esc(owner.name)}')">
         <div class="drill-surveyor-left">
           <span class="drill-chev">▶</span>
-          ${empBadge}
           <span class="drill-owner-name">${esc(owner.name)}</span>
           <span class="drill-pill total">${owner.total} apps</span>
         </div>
@@ -5505,7 +5508,7 @@ async function exportIsdApplicationsExcel(talukName) {
 
   // Header Row
   const sumHeaders = [
-    'S.No', 'Employee Code', 'Staff Type', 'Staff Name', 'Village Name',
+    'S.No', 'Staff Type', 'Staff Name', 'Village Name',
     '< 25 Days', '25 - 29 Days', '30+ Days', 'Total Pending',
     'Approved', 'Rejected', 'Total Disposal', 'Rejection %'
   ];
@@ -5535,7 +5538,7 @@ async function exportIsdApplicationsExcel(talukName) {
       const vNames = Object.keys(rec.villages || {}).sort();
       if (!vNames.length) {
         const row = wsSum.addRow([
-          sIdx++, emp || '—', 'Surveyor', n, '—',
+          sIdx++, 'Surveyor', n, '—',
           rec.b['isd_0'] || 0, rec.b['isd_1'] || 0, rec.b['isd_2'] || 0, rec.pending,
           rec.approved, rec.rejected, rec.approved + rec.rejected,
           rejPct(rec) == null ? '—' : rejPct(rec) + '%'
@@ -5546,7 +5549,6 @@ async function exportIsdApplicationsExcel(talukName) {
           const vx = rec.villages[vn];
           const row = wsSum.addRow([
             vi === 0 ? sIdx++ : '',
-            vi === 0 ? (emp || '—') : '',
             vi === 0 ? 'Surveyor' : '',
             vi === 0 ? n : '',
             vn,
@@ -5572,7 +5574,7 @@ async function exportIsdApplicationsExcel(talukName) {
         const vx = rec.villages[vn];
         if (!vx.pending && !vx.approved && !vx.rejected) return;
         const row = wsSum.addRow([
-          sIdx++, 'VAO', 'VAO', n, vn,
+          sIdx++, 'VAO', n, vn,
           vx.b['isd_0'] || 0, vx.b['isd_1'] || 0, vx.b['isd_2'] || 0, vx.pending,
           vx.approved, vx.rejected, vx.approved + vx.rejected,
           rejPct(vx) == null ? '—' : rejPct(vx) + '%'
@@ -5591,7 +5593,7 @@ async function exportIsdApplicationsExcel(talukName) {
     const dTot = totAppr + totRej;
     const pct = dTot ? Math.round(totRej / dTot * 100) + '%' : '—';
     const totRow = wsSum.addRow([
-      '', 'TOTAL', '', 'Taluk Grand Total', '',
+      '', 'TOTAL', 'Taluk Grand Total', '',
       totBBelow25, totB25, totB30, totPending,
       totAppr, totRej, dTot, pct
     ]);
@@ -5633,7 +5635,7 @@ async function exportIsdApplicationsExcel(talukName) {
   const wsApps = wb.addWorksheet('Application ID Details', { properties: { defaultRowHeight: 18 } });
   wsApps.views = [{ showGridLines: true }];
 
-  wsApps.mergeCells('A1:M1');
+  wsApps.mergeCells('A1:L1');
   const at1 = wsApps.getCell('A1');
   at1.value = `ISD (RURAL) — ALL PENDING APPLICATIONS WITH SURVEY DETAILS — ${tName.toUpperCase()} TALUK`;
   at1.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
@@ -5641,7 +5643,7 @@ async function exportIsdApplicationsExcel(talukName) {
   at1.alignment = { horizontal: 'center', vertical: 'middle' };
   wsApps.getRow(1).height = 26;
 
-  wsApps.mergeCells('A2:M2');
+  wsApps.mergeCells('A2:L2');
   const at2 = wsApps.getCell('A2');
   at2.value = `Total Pending: ${raw.length} Applications | Generated: ${new Date().toLocaleString()}`;
   at2.font = { bold: true, size: 10.5, color: { argb: 'FF334155' } };
@@ -5650,7 +5652,7 @@ async function exportIsdApplicationsExcel(talukName) {
   wsApps.getRow(2).height = 19;
 
   const appHeaders = [
-    'S.No', 'Employee Code', 'Staff Name', 'Village Name', 'Application ID',
+    'S.No', 'Staff Name', 'Village Name', 'Application ID',
     'Survey No', 'Sub-Division No', 'Appl Date', 'Days Pending',
     'Age Category', 'Role / Pending At', 'RTR / STR', 'Status'
   ];
@@ -5686,7 +5688,6 @@ async function exportIsdApplicationsExcel(talukName) {
 
         const r = wsApps.addRow([
           aCount++,
-          owner.empCode || '—',
           owner.name,
           village.name,
           app.appId,
@@ -5708,12 +5709,14 @@ async function exportIsdApplicationsExcel(talukName) {
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
           };
-          if (colNum === 1 || colNum === 2 || colNum === 8 || colNum === 12 || colNum === 13) {
+          if (colNum === 1 || colNum === 7 || colNum === 11 || colNum === 12) {
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
-          } else if (colNum === 5) {
+          } else if (colNum === 4) {
             cell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: 'FF1D4ED8' } };
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
-          } else if (colNum === 9) {
+          } else if (colNum === 5) {
+            cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+          } else if (colNum === 8) {
             cell.font = { bold: true, size: 9.5, color: { argb: dayColor } };
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: dayBg } };
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -5725,21 +5728,21 @@ async function exportIsdApplicationsExcel(talukName) {
     });
   });
 
-  wsApps.autoFilter = { from: 'A3', to: `M${aCount + 2}` };
+  wsApps.autoFilter = { from: 'A3', to: `L${aCount + 2}` };
 
   /* ---------- Sheet 3: Expandable Tree (Native Excel Outlines) ---------- */
   const wsTree = wb.addWorksheet('Expandable Tree', { properties: { defaultRowHeight: 18 } });
   wsTree.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
   wsTree.views = [{ showOutlineSymbols: true, showGridLines: true }];
 
-  wsTree.mergeCells('A1:H1');
+  wsTree.mergeCells('A1:G1');
   const tt1 = wsTree.getCell('A1');
   tt1.value = `ISD RURAL HIERARCHICAL DRILLDOWN TREE — ${tName.toUpperCase()}`;
   tt1.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
   tt1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
   tt1.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  const treeHeaders = ['Hierarchy / Level', 'Employee Code', 'Staff / Village / Application ID', 'Survey No / Sub-Div', 'Appl Date', 'Days Pending', 'Age Category', 'Pending Count / Role'];
+  const treeHeaders = ['Hierarchy / Level', 'Staff / Village / Application ID', 'Survey No / Sub-Div', 'Appl Date', 'Days Pending', 'Age Category', 'Pending Count / Role'];
   const hRow3 = wsTree.addRow(treeHeaders);
   hRow3.height = 22;
   hRow3.eachCell(cell => {
@@ -5752,7 +5755,6 @@ async function exportIsdApplicationsExcel(talukName) {
     // Level 0: Surveyor
     const oRow = wsTree.addRow([
       '▼ STAFF',
-      owner.empCode || '—',
       owner.name,
       '',
       '',
@@ -5772,7 +5774,6 @@ async function exportIsdApplicationsExcel(talukName) {
       // Level 1: Village
       const vRow = wsTree.addRow([
         '  ▶ VILLAGE',
-        '',
         village.name,
         '',
         '',
@@ -5792,7 +5793,6 @@ async function exportIsdApplicationsExcel(talukName) {
         // Level 2: Application ID
         const aRow = wsTree.addRow([
           '    • APP',
-          '',
           app.appId,
           `${app.surveyNo} ${app.subdiv}`,
           app.date,
@@ -5805,8 +5805,10 @@ async function exportIsdApplicationsExcel(talukName) {
         aRow.eachCell((cell, colNum) => {
           cell.font = { size: 9, color: { argb: 'FF475569' } };
           cell.border = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
-          if (colNum === 3) {
+          if (colNum === 2) {
             cell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: 'FF2563EB' } };
+          } else if (colNum === 3) {
+            cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
           }
         });
       });
@@ -5825,12 +5827,18 @@ async function exportIsdApplicationsExcel(talukName) {
     });
   });
 
+  // Set wrap width for Survey No columns (28)
+  wsApps.getColumn(5).width = 28;
+  wsTree.getColumn(3).width = 28;
+
   const filename = `${talukSlug()}_isd_rural_application_ids_drilldown.xlsx`;
   await downloadWorkbook(wb, filename);
   toast('Excel Exported', `${filename} generated with 3 detailed sheets!`, 'ok');
 }
 
 window.exportIsdApplicationsExcel = exportIsdApplicationsExcel;
+window.exportAppIdsExcel = exportIsdApplicationsExcel;
+window.exportToExcel = exportIsdApplicationsExcel;
 
 const isdAppXlsBtn = document.getElementById('isdAppXlsBtn');
 if (isdAppXlsBtn) {
@@ -6445,12 +6453,14 @@ function applyReportPermissions(){
   const chittaBtn = document.getElementById('chittaMenuBtn');
   const eservicesBtn = document.getElementById('eservicesMenuBtn');
   const credsBtn = document.getElementById('credsMenuBtn');
+  const aregBtn = document.getElementById('aregMenuBtn');
   const ffBtn = document.getElementById('tnFlashFillBtn');
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   const canCreds = isAdmin || canManageCreds();
   if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
   if(credsBtn) credsBtn.style.display = canCreds ? 'inline-block' : 'none';
+  if(aregBtn) aregBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
 
   // 4. Print layout sections
@@ -6465,9 +6475,11 @@ function applyReportPermissions(){
   const chittaTabBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesTabBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   const credsTabBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
+  const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
   if(credsTabBtn) credsTabBtn.style.display = canCreds ? 'inline-block' : 'none';
+  if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
 
   // 6. Tell nisd_auto.js to filter modals
   if(typeof window.__applyReportAccessFilter === 'function') {
@@ -6695,15 +6707,17 @@ function renderAdminTabs(){
   const credsBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   const chittaBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
+  const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(filesBtn) filesBtn.style.display = (isAdmin || CLOUD_ON) ? 'inline-block' : 'none';
   if(credsBtn) credsBtn.style.display = (isAdmin || canCreds) ? 'inline-block' : 'none';
   if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
+  if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   
   if(!isAdmin){
-    if(ADMIN_TAB === 'users'){
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'areg'){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
@@ -7615,7 +7629,7 @@ async function renderTnCredsTab() {
     const tSlug = tr.name.toLowerCase();
     const updatedTxt = tr.updatedAt ? `Updated ${new Date(tr.updatedAt).toLocaleDateString()}` : 'Configured';
     const isUpdatable = isAdmin || canUpdate;
-    const isViewable = isAdmin || canView;
+    const isViewable = isAdmin;
 
     h += `
       <div class="taluk-cred-card" data-taluk="${esc(tr.name)}" style="background: var(--surface-2); padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
@@ -7803,16 +7817,19 @@ async function renderTnCredsTab() {
       const talukCode = btn.dataset.code;
       const slug = btn.dataset.slug;
       const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
-      const p = document.getElementById(`tnCredPass_${slug}`)?.value;
+      let p = document.getElementById(`tnCredPass_${slug}`)?.value;
       const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
       const st = document.getElementById(`tnStatus_${slug}`);
 
+      if (!p) {
+        const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(talukName));
+        if (found && found.password) p = found.password;
+        else if (normTaluk(talukName) === 'nemili') p = 'Nemili@1970';
+        else p = 'Taluk@123';
+      }
+
       if (!u || !p) {
-        if (!p && !canViewCreds()) {
-          toast('Missing Password', `Please enter a new password for ${talukName} to update.`, 'warn');
-        } else {
-          toast('Missing Information', `Username and password for ${talukName} are required.`, 'warn');
-        }
+        toast('Missing Information', `Username and password for ${talukName} are required.`, 'warn');
         return;
       }
 
@@ -10639,6 +10656,13 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   openUsersPanel();
 });
 document.getElementById('aregMenuBtn')?.addEventListener('click', () => {
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if (!isAdmin) {
+    if (typeof toast === 'function') {
+      toast('Access restricted', 'Access restricted: Only Admin accounts can access A-Register Approval Hub.', 'warn');
+    }
+    return;
+  }
   const t = (typeof TALUK !== 'undefined' && TALUK) ? TALUK : 'Nemili';
   if (typeof window.openAregApprovalModal === 'function') {
     window.openAregApprovalModal(t, '0109');
@@ -10659,6 +10683,13 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   if(b){
     const tab = b.dataset.tab;
     if(tab === 'areg'){
+      const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+      if (!isAdmin) {
+        if (typeof toast === 'function') {
+          toast('Access restricted', 'Access restricted: Only Admin accounts can access A-Register Approval Hub.', 'warn');
+        }
+        return;
+      }
       closeUsersPanel();
       const t = (typeof TALUK !== 'undefined' && TALUK) ? TALUK : 'Nemili';
       if (typeof window.openAregApprovalModal === 'function') {
