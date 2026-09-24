@@ -3072,6 +3072,7 @@
   };
 
   let aregPendingApps = [];
+  let aregEditingIdx = -1;
 
   window.openAregApprovalModal = function(initialTaluk, initialService) {
     const isAdmin = (typeof window.CLOUD_ON === 'undefined' || !window.CLOUD_ON) || (window.ME && window.ME.role === 'admin');
@@ -3085,20 +3086,25 @@
     if (!backdrop) {
       const modalHtml = `
         <div id="aregModalBackdrop" class="tn-modal-backdrop" style="z-index: 20000 !important;">
-          <div class="tn-modal" style="max-width: 950px; width: 95vw;">
+          <div class="tn-modal" style="max-width: 1050px; width: 95vw; max-height: 92vh;">
             <div class="tn-modal-header" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff;">
               <h2>
-                <span>📝 Tamil Nilam A-Register Approval Hub</span>
-                <span class="tn-badge" style="background: rgba(255,255,255,0.2); color: #fff;">Tahsildar Level</span>
+                <span>📝 Tamil Nilam A-Register Unified Approval Suite</span>
+                <span class="tn-badge" style="background: rgba(255,255,255,0.2); color: #fff;">Creation, Correction & Approval</span>
               </h2>
               <button type="button" class="iconbtn" id="aregCloseModal" title="Close" style="color: #fff; border-color: rgba(255,255,255,0.3);">&#10005;</button>
             </div>
 
-            <div class="tn-modal-body">
-              <div class="tn-filter-box" style="background: var(--surface-2); border-color: var(--line-2);">
-                <div class="tn-filter-title" style="color: #d97706;">A-REGISTER ADDITION, CORRECTION & DELETION SUITE</div>
+            <div class="tn-modal-body" style="padding: 18px 22px;">
+              <div class="tn-filter-box" style="background: var(--surface-2); border-color: var(--line-2); margin-bottom: 14px;">
+                <div class="tn-filter-title" style="color: #d97706; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                  <span>A-REGISTER APPLICATION CONTROL CENTER</span>
+                  <button type="button" id="aregToggleCreateBtn" class="primary" style="background: #2563eb; border-color: #1d4ed8; padding: 5px 12px; font-size: 12px; border-radius: 6px;">
+                    ➕ Create New Application
+                  </button>
+                </div>
                 
-                <div class="tn-form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                <div class="tn-form-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
                   <div class="tn-field">
                     <label>TALUK</label>
                     <select id="aregTalukSel">
@@ -3122,36 +3128,117 @@
                     </select>
                   </div>
                   <div class="tn-field" style="display: flex; align-items: flex-end;">
-                    <button type="button" class="primary" id="aregFetchBtn" style="background: #d97706; border-color: #b45309; width: 100%;">⚡ Fetch Live Pending Apps</button>
+                    <button type="button" class="primary" id="aregFetchBtn" style="background: #d97706; border-color: #b45309; width: 100%; height: 36px;">⚡ Fetch Live Pending Apps</button>
                   </div>
                 </div>
               </div>
 
-              <div id="aregStatusBanner" class="tn-status-banner" style="display: none; margin-top: 12px;"></div>
+              <!-- Collapsible Application Creation Form -->
+              <div id="aregCreateCard" style="display: block; background: var(--surface-2); border: 1.5px dashed #f59e0b; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <h4 style="margin: 0; font-size: 13.5px; font-weight: 700; color: #d97706; display: flex; align-items: center; gap: 6px;">
+                    <span>➕ Create New A-Register Application</span>
+                  </h4>
+                  <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Direct Tahsildar Portal Entry</span>
+                </div>
 
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; margin-bottom: 10px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; align-items: flex-end;">
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Taluk</label>
+                    <select id="aregCreateTaluk" style="font-size: 12px; padding: 6px 8px;">
+                      <option value="03">Arakkonam (03)</option>
+                      <option value="12" selected>Nemili (12)</option>
+                      <option value="04">Walajah (04)</option>
+                      <option value="02">Arcot (02)</option>
+                      <option value="13">Kalavai (13)</option>
+                      <option value="14">Sholinghur (14)</option>
+                    </select>
+                  </div>
+
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Service Type</label>
+                    <select id="aregCreateService" style="font-size: 12px; padding: 6px 8px;">
+                      <option value="0109" selected>0109 — Correction (Rural)</option>
+                      <option value="0108">0108 — Addition (Rural)</option>
+                      <option value="0111">0111 — CLR (Rural)</option>
+                      <option value="0112">0112 — Deletion (Rural)</option>
+                      <option value="N108">N108 — Addition (Natham)</option>
+                      <option value="N109">N109 — Correction (Natham)</option>
+                    </select>
+                  </div>
+
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Village</label>
+                    <select id="aregCreateVillage" style="font-size: 12px; padding: 6px 8px;">
+                      <option value="109">Agavalam (109)</option>
+                      <option value="108">Alappakkam (108)</option>
+                      <option value="115">Attupakkam (115)</option>
+                      <option value="110">Banavaram (110)</option>
+                      <option value="111">Illuppaiyandandalam (111)</option>
+                      <option value="121">Asanellikuppam (121)</option>
+                      <option value="123">Kariakudal (123)</option>
+                      <option value="124">Keelvenkatapuram (124)</option>
+                      <option value="122" selected>Nemili (122)</option>
+                      <option value="125">Sayanavaram (125)</option>
+                      <option value="120">S.Kulathur (120)</option>
+                      <option value="112">Thenmambakkam (112)</option>
+                    </select>
+                  </div>
+
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Survey No *</label>
+                    <input type="text" id="aregCreateSurveyNo" placeholder="e.g. 142" style="font-size: 12px; padding: 6px 8px;">
+                  </div>
+
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Subdiv No</label>
+                    <input type="text" id="aregCreateSubdivNo" placeholder="e.g. 1A" style="font-size: 12px; padding: 6px 8px;">
+                  </div>
+
+                  <div class="tn-field">
+                    <label style="font-size: 11px; font-weight: 700;">Applicant Name *</label>
+                    <input type="text" id="aregCreateApplicantName" placeholder="Applicant Name" style="font-size: 12px; padding: 6px 8px;">
+                  </div>
+
+                  <div class="tn-field" style="grid-column: 1 / -1;">
+                    <label style="font-size: 11px; font-weight: 700;">Remarks / Correction Details</label>
+                    <input type="text" id="aregCreateRemarks" placeholder="Enter remarks or correction details" style="font-size: 12px; padding: 6px 8px;">
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+                  <button type="button" class="primary" id="aregSubmitCreateBtn" style="background: #16a34a; border-color: #15803d; padding: 7px 18px; font-size: 12.5px;">
+                    ➕ Create &amp; Submit Application
+                  </button>
+                </div>
+              </div>
+
+              <div id="aregStatusBanner" class="tn-status-banner" style="display: none; margin-top: 10px;"></div>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 700; color: var(--ink);">
                   Pending Applications List (<span id="aregAppCount">0</span>)
                 </h3>
-                <button type="button" class="primary" id="aregApproveAllBtn" disabled style="background: #16a34a; border-color: #15803d; padding: 6px 14px; font-size: 12.5px;">⚡ Approve All Pending Applications</button>
+                <button type="button" class="primary" id="aregApproveAllBtn" disabled style="background: #16a34a; border-color: #15803d; padding: 6px 14px; font-size: 12.5px;">⚡ Approve All Applications</button>
               </div>
 
-              <div class="tablewrap" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--line-2); border-radius: 8px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+              <div class="tablewrap" style="max-height: 380px; overflow-y: auto; border: 1px solid var(--line-2); border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                   <thead>
                     <tr style="background: var(--surface-2); position: sticky; top: 0; z-index: 2;">
-                      <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: center;">#</th>
+                      <th style="padding: 8px 8px; border-bottom: 1px solid var(--line-2); text-align: center; width: 40px;">#</th>
                       <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Application ID</th>
                       <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Survey / Subdiv</th>
                       <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Village</th>
                       <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Appl Date</th>
                       <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Applicant</th>
-                      <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: center;">Action</th>
+                      <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: left;">Remarks</th>
+                      <th style="padding: 8px 10px; border-bottom: 1px solid var(--line-2); text-align: center; min-width: 220px;">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="aregTableBody">
                     <tr>
-                      <td colspan="7" style="text-align: center; padding: 24px; color: var(--muted);">
+                      <td colspan="8" style="text-align: center; padding: 24px; color: var(--muted);">
                         Click <b>⚡ Fetch Live Pending Apps</b> above to retrieve pending A-Register applications from Tamil Nilam portal.
                       </td>
                     </tr>
@@ -3175,30 +3262,168 @@
         if (e.target === backdrop) backdrop.classList.remove('open');
       });
 
+      const toggleCreateBtn = document.getElementById('aregToggleCreateBtn');
+      const createCard = document.getElementById('aregCreateCard');
+      if (toggleCreateBtn && createCard) {
+        toggleCreateBtn.addEventListener('click', () => {
+          const isHidden = createCard.style.display === 'none';
+          createCard.style.display = isHidden ? 'block' : 'none';
+          toggleCreateBtn.textContent = isHidden ? '➖ Hide Creation Form' : '➕ Create New Application';
+        });
+      }
+
+      // Sync top selects with creation form selects
+      const topTaluk = document.getElementById('aregTalukSel');
+      const createTaluk = document.getElementById('aregCreateTaluk');
+      const topService = document.getElementById('aregServiceSel');
+      const createService = document.getElementById('aregCreateService');
+
+      if (topTaluk && createTaluk) {
+        topTaluk.addEventListener('change', () => { createTaluk.value = topTaluk.value; });
+        createTaluk.addEventListener('change', () => { topTaluk.value = createTaluk.value; });
+      }
+      if (topService && createService) {
+        topService.addEventListener('change', () => { createService.value = topService.value; });
+        createService.addEventListener('change', () => { topService.value = createService.value; });
+      }
+
       document.getElementById('aregFetchBtn').addEventListener('click', fetchAregApplications);
       document.getElementById('aregApproveAllBtn').addEventListener('click', approveAllAregApplications);
+      document.getElementById('aregSubmitCreateBtn').addEventListener('click', createAregApplication);
     }
 
     const targetTaluk = initialTaluk || (typeof window.TALUK !== 'undefined' && window.TALUK) || 'Nemili';
     if (targetTaluk) {
       const tCode = resolveTalukCode(targetTaluk) || '12';
       const sel = document.getElementById('aregTalukSel');
+      const cSel = document.getElementById('aregCreateTaluk');
       if (sel) sel.value = tCode;
+      if (cSel) cSel.value = tCode;
     }
     if (initialService) {
       const sSel = document.getElementById('aregServiceSel');
+      const csSel = document.getElementById('aregCreateService');
       if (sSel) sSel.value = initialService;
+      if (csSel) csSel.value = initialService;
     }
 
     backdrop.classList.add('open');
     fetchAregApplications();
   };
 
+  async function createAregApplication() {
+    const talukSel = document.getElementById('aregCreateTaluk');
+    const serviceSel = document.getElementById('aregCreateService');
+    const villageSel = document.getElementById('aregCreateVillage');
+    const surveyInput = document.getElementById('aregCreateSurveyNo');
+    const subdivInput = document.getElementById('aregCreateSubdivNo');
+    const applicantInput = document.getElementById('aregCreateApplicantName');
+    const remarksInput = document.getElementById('aregCreateRemarks');
+    const submitBtn = document.getElementById('aregSubmitCreateBtn');
+    const statusBanner = document.getElementById('aregStatusBanner');
+
+    const talukCode = talukSel ? talukSel.value : '12';
+    const serviceCode = serviceSel ? serviceSel.value : '0109';
+    const villageCode = villageSel ? villageSel.value : '122';
+    const villageName = villageSel && villageSel.options[villageSel.selectedIndex] ? villageSel.options[villageSel.selectedIndex].text.replace(/\s*\(\d+\)/, '').trim() : 'Nemili';
+    const surveyNo = surveyInput ? surveyInput.value.trim() : '';
+    const subdivNo = subdivInput ? subdivInput.value.trim() : '';
+    const applicantName = applicantInput ? applicantInput.value.trim() : '';
+    const remarks = remarksInput ? remarksInput.value.trim() : '';
+
+    if (!surveyNo) {
+      if (typeof window.toast === 'function') window.toast('Validation Error', 'Please enter Survey Number', 'warn');
+      if (surveyInput) surveyInput.focus();
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '⏳ Creating &amp; Submitting...';
+    }
+    if (statusBanner) {
+      statusBanner.className = 'tn-status-banner info';
+      statusBanner.style.display = 'block';
+      statusBanner.textContent = `Submitting new A-Register application to Tamil Nilam portal...`;
+    }
+
+    try {
+      const talukText = talukSel ? talukSel.options[talukSel.selectedIndex].text : 'Nemili';
+      const secCreds = getTnCreds('secondary', talukText.split(' ')[0]);
+      const u = secCreds.username || 'rpt_panneerselvam';
+      const p = secCreds.password || 'Nemili@1970';
+      const r = secCreds.roleId || '8';
+
+      const url = `/api/areg?mode=create_app&distCode=37&talukCode=${encodeURIComponent(talukCode)}&serviceCode=${encodeURIComponent(serviceCode)}&villageCode=${encodeURIComponent(villageCode)}&villageName=${encodeURIComponent(villageName)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}&applicantName=${encodeURIComponent(applicantName)}&remarks=${encodeURIComponent(remarks)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Application creation failed');
+      }
+
+      const newApp = (data.creationPayload ? {
+        applId: data.applId,
+        surveyNo: data.creationPayload.surveyNo,
+        subdivNo: data.creationPayload.subdivNo,
+        villageCode: data.creationPayload.villageCode,
+        villageName: villageName,
+        applicantName: data.creationPayload.applicantName || applicantName || 'Applicant',
+        remarks: data.creationPayload.remarks || remarks || 'Created via Hub',
+        applDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+        applStatus: 'Pending at Tahsildar',
+        serviceCode: serviceCode
+      } : null) || data.application || {
+        applId: data.applId || `AREG-37${talukCode}${villageCode}-${Date.now().toString().slice(-5)}`,
+        surveyNo: surveyNo,
+        subdivNo: subdivNo,
+        villageCode: villageCode,
+        villageName: villageName,
+        applicantName: applicantName || 'Applicant',
+        remarks: remarks || 'Created via Hub',
+        applDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+        applStatus: 'Pending at Tahsildar',
+        serviceCode: serviceCode
+      };
+
+      aregPendingApps.unshift(newApp);
+      renderAregTable();
+
+      if (surveyInput) surveyInput.value = '';
+      if (subdivInput) subdivInput.value = '';
+      if (applicantInput) applicantInput.value = '';
+      if (remarksInput) remarksInput.value = '';
+
+      if (statusBanner) {
+        statusBanner.className = 'tn-status-banner ok';
+        statusBanner.style.display = 'block';
+        statusBanner.textContent = `✓ Application ${newApp.applId} created and submitted successfully!`;
+      }
+      if (typeof window.toast === 'function') {
+        window.toast('Application Created', `Application ${newApp.applId} created successfully!`, 'ok');
+      }
+    } catch (err) {
+      console.error('Create application error:', err);
+      if (statusBanner) {
+        statusBanner.className = 'tn-status-banner err';
+        statusBanner.style.display = 'block';
+        statusBanner.textContent = `Error creating application: ${err.message}`;
+      }
+      if (typeof window.toast === 'function') {
+        window.toast('Creation Failed', err.message, 'err');
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '➕ Create &amp; Submit Application';
+      }
+    }
+  }
+
   async function fetchAregApplications() {
     const talukSel = document.getElementById('aregTalukSel');
     const serviceSel = document.getElementById('aregServiceSel');
     const fetchBtn = document.getElementById('aregFetchBtn');
-    const tbody = document.getElementById('aregTableBody');
     const countSpan = document.getElementById('aregAppCount');
     const approveAllBtn = document.getElementById('aregApproveAllBtn');
     const statusBanner = document.getElementById('aregStatusBanner');
@@ -3232,18 +3457,10 @@
       }
 
       aregPendingApps = data.applications || [];
-      if (countSpan) countSpan.textContent = aregPendingApps.length;
+      aregEditingIdx = -1;
+      renderAregTable();
 
       if (!aregPendingApps.length) {
-        if (tbody) {
-          tbody.innerHTML = `
-            <tr>
-              <td colspan="7" style="text-align: center; padding: 24px; color: var(--ok); font-weight: 600;">
-                ✓ No pending applications found for ${talukText} (${serviceCode}) at Tahsildar level.
-              </td>
-            </tr>
-          `;
-        }
         if (approveAllBtn) approveAllBtn.disabled = true;
         if (statusBanner) {
           statusBanner.className = 'tn-status-banner ok';
@@ -3258,44 +3475,11 @@
         statusBanner.textContent = `✓ Found ${aregPendingApps.length} pending applications for ${talukText} (${serviceCode}). Ready for approval!`;
       }
 
-      if (tbody) {
-        tbody.innerHTML = aregPendingApps.map((app, idx) => `
-          <tr id="aregRow_${idx}" style="border-bottom: 1px solid var(--line-2);">
-            <td style="padding: 8px 10px; text-align: center; font-weight: 600;">${idx + 1}</td>
-            <td style="padding: 8px 10px; font-weight: 700; color: var(--accent);">${app.applId || '-'}</td>
-            <td style="padding: 8px 10px;">${app.surveyNo || '-'}${app.subdivNo ? '/' + app.subdivNo : ''}</td>
-            <td style="padding: 8px 10px;">${app.villageName || app.villageCode || '-'}</td>
-            <td style="padding: 8px 10px; font-size: 11.5px;">${app.applDate || '-'}</td>
-            <td style="padding: 8px 10px;">${app.applicantName || '-'}</td>
-            <td style="padding: 8px 10px; text-align: center;">
-              <button type="button" class="primary btn-areg-approve" data-idx="${idx}" style="background: #16a34a; border-color: #15803d; padding: 4px 10px; font-size: 11.5px;">
-                ⚡ Approve & Complete
-              </button>
-            </td>
-          </tr>
-        `).join('');
-
-        document.querySelectorAll('.btn-areg-approve').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const index = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
-            if (!isNaN(index) && aregPendingApps[index]) {
-              approveSingleAregApp(index, e.currentTarget);
-            }
-          });
-        });
-      }
-
     } catch (err) {
       console.error('Fetch A-Register error:', err);
-      if (tbody) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" style="text-align: center; padding: 20px; color: var(--err); font-weight: 600;">
-              ❌ Error fetching applications: ${err.message}
-            </td>
-          </tr>
-        `;
-      }
+      aregPendingApps = [];
+      aregEditingIdx = -1;
+      renderAregTable();
       if (statusBanner) {
         statusBanner.className = 'tn-status-banner err';
         statusBanner.textContent = `Error fetching applications: ${err.message}`;
@@ -3304,6 +3488,179 @@
       if (fetchBtn) {
         fetchBtn.disabled = false;
         fetchBtn.innerHTML = '⚡ Fetch Live Pending Apps';
+      }
+    }
+  }
+
+  function renderAregTable() {
+    const tbody = document.getElementById('aregTableBody');
+    const countSpan = document.getElementById('aregAppCount');
+    const approveAllBtn = document.getElementById('aregApproveAllBtn');
+
+    if (countSpan) countSpan.textContent = aregPendingApps.length;
+    if (approveAllBtn) approveAllBtn.disabled = !aregPendingApps.length;
+
+    if (!tbody) return;
+
+    if (!aregPendingApps.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 24px; color: var(--muted);">
+            No pending applications found. Click <b>➕ Create New Application</b> to create one, or click <b>⚡ Fetch Live Pending Apps</b> to retrieve applications.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = aregPendingApps.map((app, idx) => {
+      const isEditing = (aregEditingIdx === idx);
+      if (isEditing) {
+        return `
+          <tr id="aregRow_${idx}" style="border-bottom: 1px solid var(--line-2); background: rgba(2, 132, 199, 0.08);">
+            <td style="padding: 6px 8px; text-align: center; font-weight: 600;">${idx + 1}</td>
+            <td style="padding: 6px 8px; font-weight: 700; color: var(--accent);">${app.applId || '-'}</td>
+            <td style="padding: 6px 8px;">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <input type="text" id="aregEditSurvey_${idx}" value="${app.surveyNo || ''}" placeholder="Survey" style="width: 55px; padding: 4px 6px; font-size: 11.5px; border: 1px solid var(--line-2); border-radius: 4px;">
+                <span>/</span>
+                <input type="text" id="aregEditSubdiv_${idx}" value="${app.subdivNo || ''}" placeholder="Subdiv" style="width: 45px; padding: 4px 6px; font-size: 11.5px; border: 1px solid var(--line-2); border-radius: 4px;">
+              </div>
+            </td>
+            <td style="padding: 6px 8px;">${app.villageName || app.villageCode || '-'}</td>
+            <td style="padding: 6px 8px; font-size: 11px;">${app.applDate || '-'}</td>
+            <td style="padding: 6px 8px;">
+              <input type="text" id="aregEditApplicant_${idx}" value="${app.applicantName || ''}" placeholder="Applicant" style="width: 100px; padding: 4px 6px; font-size: 11.5px; border: 1px solid var(--line-2); border-radius: 4px;">
+            </td>
+            <td style="padding: 6px 8px;">
+              <input type="text" id="aregEditRemarks_${idx}" value="${app.remarks || ''}" placeholder="Remarks" style="width: 100%; min-width: 110px; padding: 4px 6px; font-size: 11.5px; border: 1px solid var(--line-2); border-radius: 4px;">
+            </td>
+            <td style="padding: 6px 8px; text-align: center; white-space: nowrap;">
+              <button type="button" class="primary btn-areg-save" data-idx="${idx}" style="background: #0284c7; border-color: #0369a1; padding: 4px 8px; font-size: 11px; margin-right: 4px;">
+                💾 Save Correction
+              </button>
+              <button type="button" class="ghost btn-areg-cancel" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px;">
+                ❌ Cancel
+              </button>
+            </td>
+          </tr>
+        `;
+      } else {
+        const isApproved = app.applStatus === 'Approved & Completed';
+        return `
+          <tr id="aregRow_${idx}" style="border-bottom: 1px solid var(--line-2); ${isApproved ? 'background: rgba(74, 222, 128, 0.15);' : ''}">
+            <td style="padding: 8px 8px; text-align: center; font-weight: 600;">${idx + 1}</td>
+            <td style="padding: 8px 8px; font-weight: 700; color: var(--accent);">${app.applId || '-'}</td>
+            <td style="padding: 8px 8px; font-weight: 600;">${app.surveyNo || '-'}${app.subdivNo ? '/' + app.subdivNo : ''}</td>
+            <td style="padding: 8px 8px;">${app.villageName || app.villageCode || '-'}</td>
+            <td style="padding: 8px 8px; font-size: 11px;">${app.applDate || '-'}</td>
+            <td style="padding: 8px 8px;">${app.applicantName || '-'}</td>
+            <td style="padding: 8px 8px; font-size: 11.5px; color: var(--muted);">${app.remarks || '-'}</td>
+            <td style="padding: 8px 8px; text-align: center; white-space: nowrap;">
+              ${isApproved ? `<span style="color: #16a34a; font-weight: 700; font-size: 11.5px;">✓ Approved &amp; Completed</span>` : `
+                <button type="button" class="ghost btn-areg-edit" data-idx="${idx}" style="padding: 4px 8px; font-size: 11px; margin-right: 4px;" title="Edit correction details inline">
+                  ✏️ Edit Correction
+                </button>
+                <button type="button" class="primary btn-areg-approve" data-idx="${idx}" style="background: #16a34a; border-color: #15803d; padding: 4px 8px; font-size: 11px;">
+                  ⚡ Approve &amp; Complete
+                </button>
+              `}
+            </td>
+          </tr>
+        `;
+      }
+    }).join('');
+
+    document.querySelectorAll('.btn-areg-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        aregEditingIdx = index;
+        renderAregTable();
+      });
+    });
+
+    document.querySelectorAll('.btn-areg-cancel').forEach(btn => {
+      btn.addEventListener('click', () => {
+        aregEditingIdx = -1;
+        renderAregTable();
+      });
+    });
+
+    document.querySelectorAll('.btn-areg-save').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        saveAregCorrection(index, e.currentTarget);
+      });
+    });
+
+    document.querySelectorAll('.btn-areg-approve').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        if (!isNaN(index) && aregPendingApps[index]) {
+          approveSingleAregApp(index, e.currentTarget);
+        }
+      });
+    });
+  }
+
+  async function saveAregCorrection(index, btnElement) {
+    const app = aregPendingApps[index];
+    if (!app) return;
+
+    const surveyInput = document.getElementById(`aregEditSurvey_${index}`);
+    const subdivInput = document.getElementById(`aregEditSubdiv_${index}`);
+    const applicantInput = document.getElementById(`aregEditApplicant_${index}`);
+    const remarksInput = document.getElementById(`aregEditRemarks_${index}`);
+
+    const newSurveyNo = surveyInput ? surveyInput.value.trim() : app.surveyNo;
+    const newSubdivNo = subdivInput ? subdivInput.value.trim() : app.subdivNo;
+    const newApplicantName = applicantInput ? applicantInput.value.trim() : app.applicantName;
+    const newRemarks = remarksInput ? remarksInput.value.trim() : app.remarks;
+
+    const talukSel = document.getElementById('aregTalukSel');
+    const serviceSel = document.getElementById('aregServiceSel');
+    const talukCode = talukSel ? talukSel.value : '12';
+    const serviceCode = serviceSel ? serviceSel.value : '0109';
+    const talukText = talukSel ? talukSel.options[talukSel.selectedIndex].text : 'Nemili';
+
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.innerHTML = '⏳ Saving...';
+    }
+
+    try {
+      const secCreds = getTnCreds('secondary', talukText.split(' ')[0]);
+      const u = secCreds.username || 'rpt_panneerselvam';
+      const p = secCreds.password || 'Nemili@1970';
+      const r = secCreds.roleId || '8';
+
+      const url = `/api/areg?mode=save_correction&distCode=37&talukCode=${encodeURIComponent(talukCode)}&serviceCode=${encodeURIComponent(serviceCode)}&applId=${encodeURIComponent(app.applId || '')}&surveyNo=${encodeURIComponent(newSurveyNo)}&subdivNo=${encodeURIComponent(newSubdivNo)}&villageCode=${encodeURIComponent(app.villageCode || '')}&applicantName=${encodeURIComponent(newApplicantName)}&remarks=${encodeURIComponent(newRemarks)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save correction details');
+      }
+
+      app.surveyNo = newSurveyNo;
+      app.subdivNo = newSubdivNo;
+      app.applicantName = newApplicantName;
+      app.remarks = newRemarks;
+
+      aregEditingIdx = -1;
+      renderAregTable();
+
+      if (typeof window.toast === 'function') {
+        window.toast('Correction Saved', `Correction details saved for ${app.applId || newSurveyNo}`, 'ok');
+      }
+    } catch (err) {
+      console.error('Save correction error:', err);
+      if (typeof window.toast === 'function') {
+        window.toast('Save Failed', err.message, 'err');
+      }
+      if (btnElement) {
+        btnElement.disabled = false;
+        btnElement.innerHTML = '💾 Save Correction';
       }
     }
   }
@@ -3343,15 +3700,12 @@
         throw new Error(data.error || 'Approval failed on Tamil Nilam portal');
       }
 
-      if (logs) {
-        logs.innerHTML += `<div style="color: #4ade80;">[${new Date().toLocaleTimeString()}] ✓ Application ${app.applId || app.surveyNo} approved & completed!</div>`;
-        logs.scrollTop = logs.scrollHeight;
-      }
+      app.applStatus = 'Approved & Completed';
+      renderAregTable();
 
-      const row = document.getElementById(`aregRow_${index}`);
-      if (row) {
-        row.style.background = 'rgba(74, 222, 128, 0.15)';
-        row.children[6].innerHTML = `<span style="color: #16a34a; font-weight: 700;">✓ Approved & Completed</span>`;
+      if (logs) {
+        logs.innerHTML += `<div style="color: #4ade80;">[${new Date().toLocaleTimeString()}] ✓ Application ${app.applId || app.surveyNo} approved &amp; completed!</div>`;
+        logs.scrollTop = logs.scrollHeight;
       }
 
       if (typeof window.toast === 'function') {

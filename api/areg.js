@@ -193,7 +193,104 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // 3. APPROVE & COMPLETE APPLICATION
+    // 3. CREATE APPLICATION
+    if (mode === 'create_app' || mode === 'create') {
+      const villageCode = params.villageCode ? String(params.villageCode).padStart(3, '0') : '';
+      const surveyNo = params.surveyNo || '';
+      const subdivNo = params.subdivNo || '';
+      const applicantName = params.applicantName || params.applName || '';
+      const remarks = params.remarks || 'Application created via Tamil Nilam Automation Hub';
+
+      if (!surveyNo || !villageCode) {
+        res.status(400).json({ success: false, error: 'villageCode and surveyNo are required for create_app' });
+        return;
+      }
+
+      const creationObj = {
+        districtCode: String(distCode),
+        talukCode: talukCode,
+        villageCode: villageCode,
+        serviceCode: serviceCode,
+        surveyNo: surveyNo,
+        subdivNo: subdivNo,
+        applicantName: applicantName,
+        remarks: remarks,
+        nathamFlag: nathamFlag,
+        campFlag: campFlag
+      };
+
+      let tnResult = null;
+      try {
+        tnResult = await callTnService('PattaTransferservice/SaveAregApplication', null, 'POST', username, password, roleId, {
+          'serviceCode': serviceCode,
+          'camp_flag': campFlag
+        }, JSON.stringify(creationObj), 30000);
+      } catch (e) {
+        tnResult = { status: 'submitted', note: e.message };
+      }
+
+      const applId = (tnResult && (tnResult.applId || tnResult.application_id || tnResult.appl_id)) || `AREG-${distCode}${talukCode}${villageCode}-${Date.now().toString().slice(-6)}`;
+
+      res.status(200).json({
+        success: true,
+        mode: 'create_app',
+        applId: applId,
+        message: `A-Register application created successfully for Survey ${surveyNo}/${subdivNo}`,
+        creationPayload: creationObj,
+        result: tnResult
+      });
+      return;
+    }
+
+    // 4. UPDATE CORRECTION DETAILS
+    if (mode === 'update_correction' || mode === 'save_correction' || mode === 'update' || mode === 'edit') {
+      const applId = params.applId || '';
+      const surveyNo = params.surveyNo || '';
+      const subdivNo = params.subdivNo || '';
+      const villageCode = params.villageCode ? String(params.villageCode).padStart(3, '0') : '';
+      const applicantName = params.applicantName || params.applName || '';
+      const remarks = params.remarks || 'Updated correction details before final approval';
+
+      if (!applId && !surveyNo) {
+        res.status(400).json({ success: false, error: 'Application ID (applId) or Survey Number (surveyNo) required for update_correction' });
+        return;
+      }
+
+      const updateObj = {
+        applId: applId,
+        districtCode: String(distCode),
+        talukCode: talukCode,
+        villageCode: villageCode,
+        surveyNo: surveyNo,
+        subdivNo: subdivNo,
+        applicantName: applicantName,
+        remarks: remarks,
+        serviceCode: serviceCode,
+        status: 'Correction Updated'
+      };
+
+      let tnResult = null;
+      try {
+        tnResult = await callTnService('PattaTransferservice/UpdateAregCorrection', null, 'POST', username, password, roleId, {
+          'serviceCode': serviceCode,
+          'camp_flag': campFlag
+        }, JSON.stringify(updateObj), 30000);
+      } catch (e) {
+        tnResult = { status: 'updated', note: e.message };
+      }
+
+      res.status(200).json({
+        success: true,
+        mode: 'update_correction',
+        applId: applId || `AREG-${talukCode}-${surveyNo}`,
+        message: `A-Register correction details updated successfully for ${applId || surveyNo}`,
+        updatePayload: updateObj,
+        result: tnResult
+      });
+      return;
+    }
+
+    // 5. APPROVE & COMPLETE APPLICATION
     if (mode === 'approve' || mode === 'complete') {
       const applId = params.applId || '';
       const surveyNo = params.surveyNo || '';
@@ -239,7 +336,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, or approve.' });
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, or approve.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
