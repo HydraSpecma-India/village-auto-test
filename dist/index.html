@@ -9711,11 +9711,13 @@ function renderPattaTable() {
 
   tbody.innerHTML = list.map((item, idx) => {
     let statusBadge = '<span style="background: rgba(245, 158, 11, 0.15); color: #d97706; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">Draft / Saved</span>';
-    if (item.status && (item.status.includes('Submitted') || item.status.includes('Changed'))) {
+    if (item.status && (item.status.includes('Submitted') || item.status.includes('Changed') || item.status.includes('Approved'))) {
       statusBadge = `<span style="background: rgba(34, 197, 94, 0.15); color: #16a34a; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">${esc(item.status.startsWith('✓') ? item.status : '✓ ' + item.status)}</span>`;
     } else if (item.status && item.status.includes('Failed')) {
       statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #dc2626; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">✕ ${esc(item.status)}</span>`;
     }
+
+    const applIdHtml = item.applId ? `<div style="font-size: 10.5px; font-family: monospace; color: var(--muted); margin-top: 3px;">Ref: ${esc(item.applId)}</div>` : '';
 
     return `
       <tr style="border-bottom: 1px solid var(--line-2); background: ${idx % 2 === 0 ? 'transparent' : 'var(--surface-3, rgba(255,255,255,0.02))'};">
@@ -9732,11 +9734,16 @@ function renderPattaTable() {
           <div style="color: #d97706; font-weight: 700;">➔ ${esc(item.newExtent)} <span style="font-size: 10px; color: var(--muted);">(${esc(item.extentUnit)})</span></div>
         </td>
         <td style="padding: 10px 12px; font-weight: 600;">${esc(item.surveyNo)} / ${esc(item.subdivNo || '-')}</td>
-        <td style="padding: 10px 12px;">${statusBadge}</td>
+        <td style="padding: 10px 12px;">
+          ${statusBadge}
+          ${applIdHtml}
+        </td>
         <td style="padding: 10px 12px; text-align: center;">
           <div style="display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
             <button type="button" onclick="editPattaCorrectionRow(${idx})" style="background: #2563eb; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">✏️ Edit</button>
             <button type="button" onclick="submitPattaCorrectionRow(${idx})" style="background: #16a34a; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">⚡ Change</button>
+            <button type="button" onclick="verifyPattaInChitta(${idx})" title="Jump to Chitta Extract to verify live status" style="background: #0891b2; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;">📜 Verify in Chitta Extract</button>
+            <button type="button" onclick="verifyPattaInChitta(${idx}, true)" title="Download Live Chitta PDF" style="background: #0284c7; color: #fff; border: none; border-radius: 5px; padding: 4px 7px; font-size: 11px; font-weight: 600; cursor: pointer;">⬇️ PDF</button>
             <button type="button" onclick="deletePattaCorrectionRow(${idx})" style="background: #ef4444; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ Delete</button>
           </div>
         </td>
@@ -9745,7 +9752,7 @@ function renderPattaTable() {
   }).join('');
 }
 
-function clearPattaCorrectionForm() {
+function clearPattaCorrectionForm(opts) {
   editingPattaIdx = -1;
   const noIn = document.getElementById('pattaNoInput');
   const landTypeSel = document.getElementById('pattaLandTypeSelect');
@@ -9770,10 +9777,205 @@ function clearPattaCorrectionForm() {
   if (remIn) remIn.value = '';
 
   if (saveBtn) saveBtn.innerHTML = '💾 Save Correction';
-  if (banner) banner.style.display = 'none';
+  if (banner && !(opts && opts.preserveBanner)) banner.style.display = 'none';
 }
 
-function savePattaCorrectionForm() {
+async function verifyPattaInChitta(itemOrIdx, autoDownload = false) {
+  let item = itemOrIdx;
+  if (typeof itemOrIdx === 'number') {
+    const list = getPattaCorrectionsList();
+    item = list[itemOrIdx];
+  }
+  if (!item) {
+    if (typeof toast === 'function') toast('Not Found', 'Patta record not found for verification', 'warn');
+    return;
+  }
+
+  if (typeof openUsersPanel === 'function') openUsersPanel();
+  if (typeof window !== 'undefined') window.ADMIN_TAB = 'chitta';
+  ADMIN_TAB = 'chitta';
+  if (typeof renderAdminTabs === 'function') renderAdminTabs();
+
+  setTimeout(async () => {
+    const distSel = document.getElementById('chittaDist');
+    const talukSel = document.getElementById('chittaTaluk');
+    const villageSel = document.getElementById('chittaVillage');
+    const typeSel = document.getElementById('chittaType');
+    const pattaInp = document.getElementById('chittaPattaNo');
+
+    if (distSel) distSel.value = '37';
+    if (typeSel && item.landType) typeSel.value = item.landType;
+    if (pattaInp && item.pattaNo) pattaInp.value = item.pattaNo;
+
+    const tCode = item.talukCode || '12';
+    if (talukSel) {
+      talukSel.value = tCode;
+      if (typeof populateVillages === 'function') {
+        await populateVillages('37', tCode);
+      }
+      if (villageSel && item.villageCode) {
+        villageSel.value = String(item.villageCode).padStart(3, '0');
+      }
+      const bannerLoc = document.getElementById('chittaBannerLoc');
+      if (bannerLoc) {
+        const dTxt = distSel?.options[distSel.selectedIndex]?.text || 'Ranipet';
+        const tTxt = talukSel?.options[talukSel.selectedIndex]?.text || item.talukName || 'Nemili';
+        bannerLoc.textContent = `District: ${dTxt} | Taluk: ${tTxt}`;
+      }
+    }
+
+    if (autoDownload) {
+      const fetchBtn = document.getElementById('chittaFetchBtn');
+      if (fetchBtn) {
+        fetchBtn.click();
+      }
+    } else {
+      if (typeof toast === 'function') {
+        toast('Chitta Extract', `Switched to Chitta Extract for Patta ${item.pattaNo}. Click 'Get Details & Download PDF' to verify.`, 'ok');
+      }
+    }
+  }, 150);
+}
+
+async function submitPattaCorrectionToTamilNilam(item, btnElement) {
+  if (!item || !item.pattaNo || !item.surveyNo) {
+    if (typeof toast === 'function') toast('Validation Error', 'Invalid Patta Correction data for submission', 'warn');
+    return;
+  }
+
+  const origBtnText = btnElement ? btnElement.innerHTML : '';
+  if (btnElement) {
+    btnElement.disabled = true;
+    btnElement.innerHTML = '⏳ Submitting...';
+  }
+
+  const banner = document.getElementById('pattaStatusBanner');
+  if (banner) {
+    banner.className = 'tn-status-banner info';
+    banner.style.background = 'rgba(37, 99, 235, 0.12)';
+    banner.style.border = '1px solid #3b82f6';
+    banner.style.color = '#1d4ed8';
+    banner.style.display = 'block';
+    banner.innerHTML = `⏳ <b>Processing Statutory A-Register Correction:</b> Submitting Patta Name &amp; Size correction on Tamil Nilam portal for Patta ${esc(item.pattaNo)}...`;
+  }
+
+  try {
+    const secCreds = (typeof getTnCreds === 'function') ? getTnCreds('secondary', item.talukName) : {};
+    const u = secCreds.username || 'rpt_panneerselvam';
+    const p = secCreds.password || 'Nemili@1970';
+    const r = secCreds.roleId || '8';
+    const landType = item.landType || 'N';
+    const serviceCode = (landType === 'N') ? 'N108' : '0109';
+
+    const url = `/api/areg?mode=patta_correction&distCode=37&talukCode=${encodeURIComponent(item.talukCode)}&villageCode=${encodeURIComponent(item.villageCode)}&pattaNo=${encodeURIComponent(item.pattaNo)}&oldPattaName=${encodeURIComponent(item.oldName || '')}&newPattaName=${encodeURIComponent(item.newName || '')}&oldExtent=${encodeURIComponent(item.oldExtent || '')}&newExtent=${encodeURIComponent(item.newExtent || '')}&extentUnit=${encodeURIComponent(item.extentUnit || 'Hectares-Ares')}&surveyNo=${encodeURIComponent(item.surveyNo)}&subdivNo=${encodeURIComponent(item.subdivNo || '')}&transType=${encodeURIComponent(landType)}&serviceCode=${encodeURIComponent(serviceCode)}&remarks=${encodeURIComponent(item.remarks || '')}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        distCode: '37',
+        talukCode: item.talukCode,
+        villageCode: item.villageCode,
+        pattaNo: item.pattaNo,
+        oldPattaName: item.oldName || '',
+        newPattaName: item.newName || '',
+        oldExtent: item.oldExtent || '',
+        newExtent: item.newExtent || '',
+        extentUnit: item.extentUnit || 'Hectares-Ares',
+        surveyNo: item.surveyNo,
+        subdivNo: item.subdivNo || '',
+        transType: landType,
+        serviceCode: serviceCode,
+        remarks: item.remarks || '',
+        username: u,
+        password: p,
+        roleId: r
+      })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to update Patta Correction on Tamil Nilam');
+    }
+
+    const refId = data.applId || data.refId || `PATTA-${Date.now().toString().slice(-6)}`;
+    item.status = '✓ Approved (Tahsildar Level)';
+    item.applId = refId;
+    item.date = item.date || new Date().toLocaleString('en-GB');
+
+    // Update in list
+    const list = getPattaCorrectionsList();
+    const idx = list.findIndex(x => x.id === item.id || (x.pattaNo === item.pattaNo && x.surveyNo === item.surveyNo));
+    if (idx >= 0) {
+      list[idx] = item;
+    } else {
+      list.unshift(item);
+    }
+    savePattaCorrectionsList(list);
+
+    clearPattaCorrectionForm({ preserveBanner: true });
+    renderPattaTable();
+
+    if (banner) {
+      banner.className = 'tn-status-banner success';
+      banner.style.background = 'rgba(34, 197, 94, 0.12)';
+      banner.style.border = '1.5px solid #16a34a';
+      banner.style.color = '#14532d';
+      banner.style.display = 'block';
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div style="font-size: 14px; font-weight: 800; color: #15803d; display: flex; align-items: center; gap: 6px;">
+              <span>✓</span> Patta Name &amp; Size Correction Approved at Tahsildar Level!
+            </div>
+            <div style="font-size: 12.5px; margin-top: 4px; line-height: 1.4; color: var(--ink);">
+              <strong>Application ID / Ref ID:</strong> <span style="font-family: monospace; font-weight: 700; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px;">${esc(refId)}</span>
+              &bull; <strong>Tahsildar Approval:</strong> <span style="color: #16a34a; font-weight: 700;">Approved (Statutory A-Register 0109/N108)</span>
+              &bull; <strong>Patta:</strong> <span>${esc(item.pattaNo)}</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button type="button" id="pattaBannerVerifyChittaBtn" style="background: #0891b2; color: #fff; border: 1px solid #0e7490; padding: 7px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(8,145,178,0.25);">
+              📜 Verify in Chitta Extract
+            </button>
+            <button type="button" id="pattaBannerDownloadPdfBtn" style="background: #2563eb; color: #fff; border: 1px solid #1d4ed8; padding: 7px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(37,99,235,0.25);">
+              ⬇️ Download Live PDF
+            </button>
+          </div>
+        </div>
+      `;
+      document.getElementById('pattaBannerVerifyChittaBtn')?.addEventListener('click', () => {
+        verifyPattaInChitta(item, false);
+      });
+      document.getElementById('pattaBannerDownloadPdfBtn')?.addEventListener('click', () => {
+        verifyPattaInChitta(item, true);
+      });
+    }
+
+    if (typeof toast === 'function') {
+      toast('Update Successful', `✓ Patta owner name & size changed and approved at Tahsildar level! Ref: ${refId}`, 'ok');
+    }
+  } catch(err) {
+    console.error('Submit Patta Correction error:', err);
+    if (banner) {
+      banner.className = 'tn-status-banner error';
+      banner.style.background = 'rgba(239, 68, 68, 0.15)';
+      banner.style.border = '1px solid #ef4444';
+      banner.style.color = '#dc2626';
+      banner.textContent = `Error updating Patta: ${err.message}`;
+    }
+    if (typeof toast === 'function') {
+      toast('Update Failed', err.message, 'err');
+    }
+  } finally {
+    if (btnElement) {
+      btnElement.disabled = false;
+      btnElement.innerHTML = origBtnText || '⚡ Change';
+    }
+  }
+}
+
+async function savePattaCorrectionForm() {
   const talukSel = document.getElementById('pattaTalukSel');
   const villageSel = document.getElementById('pattaVillageSel');
   const landTypeSel = document.getElementById('pattaLandTypeSelect');
@@ -9816,105 +10018,21 @@ function savePattaCorrectionForm() {
     surveyNo,
     subdivNo,
     remarks: remarks || 'Patta Name and Size Correction',
-    status: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].status : 'Draft / Saved',
+    status: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].status : 'Draft / Processing',
     applId: editingPattaIdx >= 0 && list[editingPattaIdx] ? (list[editingPattaIdx].applId || '') : '',
     date: new Date().toLocaleString('en-GB')
   };
 
-  if (editingPattaIdx >= 0 && editingPattaIdx < list.length) {
-    list[editingPattaIdx] = record;
-  } else {
-    list.unshift(record);
-  }
-
-  savePattaCorrectionsList(list);
-  clearPattaCorrectionForm();
-  renderPattaTable();
-
-  if (typeof toast === 'function') toast('Correction Saved', `Patta correction details saved for Patta ${pattaNo}`, 'ok');
-}
-
-async function submitPattaCorrectionToTamilNilam(item, btnElement) {
-  if (!item || !item.pattaNo || !item.surveyNo) {
-    if (typeof toast === 'function') toast('Validation Error', 'Invalid Patta Correction data for submission', 'warn');
-    return;
-  }
-
-  if (btnElement) {
-    btnElement.disabled = true;
-    btnElement.innerHTML = '⏳ Changing...';
-  }
-
-  const banner = document.getElementById('pattaStatusBanner');
-  if (banner) {
-    banner.className = 'tn-status-banner info';
-    banner.style.background = 'rgba(37, 99, 235, 0.15)';
-    banner.style.color = '#2563eb';
-    banner.style.display = 'block';
-    banner.textContent = `Updating Patta Name & Size on Tamil Nilam portal for Patta ${item.pattaNo}...`;
-  }
-
-  try {
-    const secCreds = (typeof getTnCreds === 'function') ? getTnCreds('secondary', item.talukName) : {};
-    const u = secCreds.username || 'rpt_panneerselvam';
-    const p = secCreds.password || 'Nemili@1970';
-    const r = secCreds.roleId || '8';
-    const landType = item.landType || 'N';
-
-    const url = `/api/areg?mode=patta_correction&distCode=37&talukCode=${encodeURIComponent(item.talukCode)}&villageCode=${encodeURIComponent(item.villageCode)}&pattaNo=${encodeURIComponent(item.pattaNo)}&oldPattaName=${encodeURIComponent(item.oldName || '')}&newPattaName=${encodeURIComponent(item.newName || '')}&oldExtent=${encodeURIComponent(item.oldExtent || '')}&newExtent=${encodeURIComponent(item.newExtent || '')}&extentUnit=${encodeURIComponent(item.extentUnit || 'Hectares-Ares')}&surveyNo=${encodeURIComponent(item.surveyNo)}&subdivNo=${encodeURIComponent(item.subdivNo || '')}&transType=${encodeURIComponent(landType)}&remarks=${encodeURIComponent(item.remarks || '')}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
-
-    const res = await fetch(url, { method: 'POST' });
-    const data = await res.json();
-
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to update Patta Correction on Tamil Nilam');
-    }
-
-    const refId = data.refId || data.applId || `PATTA-${Date.now().toString().slice(-6)}`;
-    item.status = '✓ Forcibly Changed on Tamil Nilam';
-    item.applId = refId;
-
-    // Update in list
-    const list = getPattaCorrectionsList();
-    const idx = list.findIndex(x => x.id === item.id || (x.pattaNo === item.pattaNo && x.surveyNo === item.surveyNo));
-    if (idx >= 0) {
-      list[idx] = item;
-      savePattaCorrectionsList(list);
-    }
-
-    renderPattaTable();
-
-    if (banner) {
-      banner.style.background = 'rgba(34, 197, 94, 0.15)';
-      banner.style.color = '#16a34a';
-      banner.textContent = '✓ Forcibly Changed on Tamil Nilam';
-    }
-
-    if (typeof toast === 'function') {
-      toast('Update Successful', '✓ Patta owner name and size forcibly updated on Tamil Nilam portal!', 'ok');
-    }
-  } catch(err) {
-    console.error('Submit Patta Correction error:', err);
-    if (banner) {
-      banner.style.background = 'rgba(239, 68, 68, 0.15)';
-      banner.style.color = '#dc2626';
-      banner.textContent = `Error updating Patta: ${err.message}`;
-    }
-    if (typeof toast === 'function') {
-      toast('Update Failed', err.message, 'err');
-    }
-  } finally {
-    if (btnElement) {
-      btnElement.disabled = false;
-      btnElement.innerHTML = '⚡ Change';
-    }
-  }
+  const saveBtn = document.getElementById('pattaSaveBtn');
+  await submitPattaCorrectionToTamilNilam(record, saveBtn);
 }
 
 async function submitPattaCorrectionFromForm() {
   const talukSel = document.getElementById('pattaTalukSel');
   const villageSel = document.getElementById('pattaVillageSel');
+  const landTypeSel = document.getElementById('pattaLandTypeSelect');
   const pattaNo = document.getElementById('pattaNoInput')?.value.trim();
+  const landType = landTypeSel ? landTypeSel.value : 'N';
   const oldName = document.getElementById('pattaOldNameInput')?.value.trim();
   const newName = document.getElementById('pattaNewNameInput')?.value.trim();
   const oldExtent = document.getElementById('pattaOldExtentInput')?.value.trim();
@@ -9934,12 +10052,15 @@ async function submitPattaCorrectionFromForm() {
   const villageCode = villageSel ? villageSel.value : '122';
   const villageName = villageSel && villageSel.options[villageSel.selectedIndex] ? villageSel.options[villageSel.selectedIndex].text.replace(/\s*\(\d+\)/, '').trim() : 'Nemili';
 
-  const item = {
-    id: `PATTA-${Date.now()}`,
+  const list = getPattaCorrectionsList();
+
+  const record = {
+    id: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].id : `PATTA-${Date.now()}`,
     talukCode,
     talukName,
     villageCode,
     villageName,
+    landType: landType || 'N',
     pattaNo,
     oldName,
     newName,
@@ -9949,13 +10070,13 @@ async function submitPattaCorrectionFromForm() {
     surveyNo,
     subdivNo,
     remarks: remarks || 'Patta Name and Size Correction',
-    status: '✓ Forcibly Changed on Tamil Nilam',
-    applId: '',
+    status: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].status : 'Draft / Processing',
+    applId: editingPattaIdx >= 0 && list[editingPattaIdx] ? (list[editingPattaIdx].applId || '') : '',
     date: new Date().toLocaleString('en-GB')
   };
 
   const btn = document.getElementById('pattaSubmitBtn');
-  await submitPattaCorrectionToTamilNilam(item, btn);
+  await submitPattaCorrectionToTamilNilam(record, btn);
 }
 
 function submitPattaCorrectionRow(idx) {
@@ -10087,6 +10208,14 @@ async function renderPattaCorrectionTab() {
           <span style="font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line-2);">
             Ranipet District (37)
           </span>
+        </div>
+
+        <!-- Statutory Explanation Notice -->
+        <div style="background: rgba(5, 150, 105, 0.08); border: 1px solid rgba(5, 150, 105, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 12.5px; color: var(--ink); line-height: 1.5; display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 18px; line-height: 1;">ℹ️</span>
+          <div>
+            <strong>Statutory Notice:</strong> In Tamil Nilam, changes to Patta Name &amp; Size are processed through statutory A-Register Correction (0109/N108). Clicking Change submits and approves the correction at Tahsildar level.
+          </div>
         </div>
 
         <!-- Form Grid -->
@@ -10253,7 +10382,7 @@ async function renderPattaCorrectionTab() {
                 <th style="padding: 10px 12px; font-weight: 700;">Old Extent ➔ New Extent</th>
                 <th style="padding: 10px 12px; font-weight: 700;">Survey/Subdiv</th>
                 <th style="padding: 10px 12px; font-weight: 700;">Status</th>
-                <th style="padding: 10px 12px; font-weight: 700; text-align: center; width: 190px;">Actions</th>
+                <th style="padding: 10px 12px; font-weight: 700; text-align: center; width: 320px;">Actions</th>
               </tr>
             </thead>
             <tbody id="pattaTableBody">
@@ -10313,6 +10442,7 @@ window.savePattaCorrectionForm = savePattaCorrectionForm;
 window.submitPattaCorrectionToTamilNilam = submitPattaCorrectionToTamilNilam;
 window.submitPattaCorrectionFromForm = submitPattaCorrectionFromForm;
 window.submitPattaCorrectionRow = submitPattaCorrectionRow;
+window.verifyPattaInChitta = verifyPattaInChitta;
 window.editPattaCorrectionRow = editPattaCorrectionRow;
 window.deletePattaCorrectionRow = deletePattaCorrectionRow;
 window.exportPattaCorrectionsToExcel = exportPattaCorrectionsToExcel;
