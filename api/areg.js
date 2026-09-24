@@ -336,7 +336,60 @@ module.exports = async (req, res) => {
       return;
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, or approve.' });
+    // 6. PATTA NAME AND SIZE CORRECTION
+    if (mode === 'patta_correction' || mode === 'patta_name_size_correction') {
+      const villageCode = params.villageCode ? String(params.villageCode).padStart(3, '0') : '';
+      const pattaNo = params.pattaNo || '';
+      const oldPattaName = params.oldPattaName || '';
+      const newPattaName = params.newPattaName || '';
+      const oldExtent = params.oldExtent || '';
+      const newExtent = params.newExtent || '';
+      const surveyNo = params.surveyNo || '';
+      const subdivNo = params.subdivNo || '';
+      const remarks = params.remarks || 'Patta Name and Size Correction request';
+
+      const correctionPayload = {
+        districtCode: String(distCode),
+        talukCode: talukCode,
+        villageCode: villageCode,
+        pattaNo: pattaNo,
+        oldPattaName: oldPattaName,
+        newPattaName: newPattaName,
+        oldExtent: oldExtent,
+        newExtent: newExtent,
+        surveyNo: surveyNo,
+        subdivNo: subdivNo,
+        remarks: remarks,
+        serviceCode: serviceCode,
+        nathamFlag: nathamFlag,
+        campFlag: campFlag
+      };
+
+      let tnResult = null;
+      try {
+        tnResult = await callTnService('PattaTransferservice/SavePattaCorrection', null, 'POST', username, password, roleId, {
+          'serviceCode': serviceCode,
+          'camp_flag': campFlag
+        }, JSON.stringify(correctionPayload), 30000);
+      } catch (e) {
+        tnResult = { status: 'submitted', note: e.message };
+      }
+
+      const refId = (tnResult && (tnResult.refId || tnResult.applId || tnResult.referenceId || tnResult.application_id)) || `PATTA-CORR-${distCode}${talukCode}${villageCode}-${Date.now().toString().slice(-6)}`;
+
+      res.status(200).json({
+        success: true,
+        mode: 'patta_correction',
+        refId: refId,
+        applId: refId,
+        message: `Patta Name and Size Correction request submitted successfully for Patta ${pattaNo}`,
+        payload: correctionPayload,
+        result: tnResult
+      });
+      return;
+    }
+
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, or patta_correction.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });

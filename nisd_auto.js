@@ -502,6 +502,33 @@
       }
     });
 
+    const pattaMenuBtn = document.getElementById('pattaMenuBtn');
+    if (pattaMenuBtn) {
+      const canPatta = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('patta'));
+      pattaMenuBtn.style.display = canPatta ? 'inline-block' : 'none';
+    }
+    document.querySelectorAll('[data-tab="patta"]').forEach(btn => {
+      const canPatta = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('patta'));
+      btn.style.display = canPatta ? 'inline-block' : 'none';
+    });
+
+    if (pattaMenuBtn && !pattaMenuBtn.__pattaBound) {
+      pattaMenuBtn.__pattaBound = true;
+      pattaMenuBtn.addEventListener('click', () => {
+        const canPatta = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('patta'));
+        if (!canPatta) {
+          if (typeof window.toast === 'function') {
+            window.toast('Access restricted', 'Access restricted: You do not have Patta Name & Size Correction access.', 'warn');
+          }
+          return;
+        }
+        window.ADMIN_TAB = 'patta';
+        if (typeof window.openUsersPanel === 'function') {
+          window.openUsersPanel();
+        }
+      });
+    }
+
     bindEvents();
   }
 

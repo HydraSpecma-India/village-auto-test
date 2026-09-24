@@ -1177,6 +1177,7 @@
     <button data-tab="chitta">📜 Chitta Extract (Tahsildar)</button>
     <button data-tab="eservices">🌐 e-Services (No OTP)</button>
     <button data-tab="areg">📝 A-Register Approval</button>
+    <button data-tab="patta">📜 Patta Name &amp; Size Correction</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
 </aside>
@@ -1230,6 +1231,7 @@
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
       <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
       <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Addition &amp; Correction Approval Suite (Tahsildar)" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff; font-weight:700;">📝 A-Register Approval</button>
+      <button type="button" class="tn-auto-btn" id="pattaMenuBtn" title="Patta Name &amp; Size Correction Management Suite" style="background:linear-gradient(135deg, #059669, #047857); border-color:#059669; color:#fff; font-weight:700;">📜 Patta Correction</button>
       <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Manage Tahsildar Portal Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5;">🔑 Credentials</button>
     </div>
     <div class="topbar-actions">
@@ -5935,7 +5937,8 @@ const ALL_MENUS = [
   { key: 'nisd', label: 'NISD' },
   { key: 'fline', label: 'F-Line' },
   { key: 'chitta', label: 'Chitta Extract' },
-  { key: 'eservices', label: 'e-Services (No OTP)' }
+  { key: 'eservices', label: 'e-Services (No OTP)' },
+  { key: 'patta', label: 'Patta Correction' }
 ];
 const ALL_MENU_KEYS = ALL_MENUS.map(m => m.key);
 
@@ -6500,10 +6503,14 @@ function applyReportPermissions(){
   const eservicesTabBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   const credsTabBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
+  const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
+  const pattaBtn = document.getElementById('pattaMenuBtn');
   if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
   if(credsTabBtn) credsTabBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
+  if(pattaBtn) pattaBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
 
   // 6. Tell nisd_auto.js to filter modals
   if(typeof window.__applyReportAccessFilter === 'function') {
@@ -6732,6 +6739,7 @@ function renderAdminTabs(){
   const chittaBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
+  const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(filesBtn) filesBtn.style.display = (isAdmin || CLOUD_ON) ? 'inline-block' : 'none';
@@ -6739,24 +6747,34 @@ function renderAdminTabs(){
   if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
   
   if(!isAdmin){
     if(ADMIN_TAB === 'users' || ADMIN_TAB === 'areg'){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
+      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
       else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'creds' && !canCreds){
       if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
+      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
       else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'chitta' && !canChitta){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canEservices) ADMIN_TAB = 'eservices';
+      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
       else ADMIN_TAB = 'files';
     } else if(ADMIN_TAB === 'eservices' && !canEservices){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
+      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
+      else ADMIN_TAB = 'files';
+    } else if(ADMIN_TAB === 'patta' && !hasMenu('patta')){
+      if(canCreds) ADMIN_TAB = 'creds';
+      else if(canChitta) ADMIN_TAB = 'chitta';
+      else if(canEservices) ADMIN_TAB = 'eservices';
       else ADMIN_TAB = 'files';
     }
   }
@@ -6780,6 +6798,10 @@ function renderAdminTabs(){
   else if(ADMIN_TAB === 'eservices'){
     if(!isAdmin && !canEservices){ renderAdminTabs(); return; }
     renderEservicesTab();
+  }
+  else if(ADMIN_TAB === 'patta'){
+    if(!isAdmin && !hasMenu('patta')){ renderAdminTabs(); return; }
+    renderPattaCorrectionTab();
   }
   else {
     const box = document.getElementById('usersBody');
@@ -9390,6 +9412,632 @@ async function initEservicesDropdowns() {
     }
   });
 }
+
+/* ============================================================
+   PATTA NAME & SIZE CORRECTION MANAGEMENT SUITE
+   ============================================================ */
+
+let editingPattaIdx = -1;
+
+const TALUK_VILLAGES_FALLBACK = {
+  '12': [ { id: '045', name: 'Karivedu' }, { id: '122', name: 'Nemili' }, { id: '034', name: 'Kaveripakkam' }, { id: '012', name: 'Banavaram' }, { id: '088', name: 'Panapakkam' } ],
+  '03': [ { id: '001', name: 'Arakkonam Town' }, { id: '004', name: 'Ammanur' }, { id: '005', name: 'Aarikilapadi' }, { id: '025', name: 'Mosur' }, { id: '038', name: 'Puliyamangalam' } ],
+  '04': [ { id: '001', name: 'Walajah' }, { id: '010', name: 'Ranipet' }, { id: '015', name: 'Mukundarayapuram' } ],
+  '02': [ { id: '001', name: 'Arcot Town' }, { id: '005', name: 'Tajpura' } ],
+  '13': [ { id: '001', name: 'Kalavai' }, { id: '005', name: 'Allalaperi' } ],
+  '14': [ { id: '001', name: 'Sholinghur Town' }, { id: '008', name: 'Banavaram' } ]
+};
+
+function getPattaCorrectionsList() {
+  try {
+    const raw = localStorage.getItem('patta_corrections_list');
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function savePattaCorrectionsList(list) {
+  try {
+    localStorage.setItem('patta_corrections_list', JSON.stringify(list));
+  } catch(e) {}
+}
+
+async function populatePattaVillages(talukCode) {
+  const vSel = document.getElementById('pattaVillageSel');
+  if (!vSel) return;
+  vSel.innerHTML = '<option value="">Loading villages...</option>';
+
+  let vList = [];
+  try {
+    const creds = (typeof getTahsildarCreds === 'function') ? getTahsildarCreds() : {};
+    const res = await fetch(`/api/chitta?mode=villages&distCode=37&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(creds.username || '')}&password=${encodeURIComponent(creds.password || '')}&roleId=${encodeURIComponent(creds.roleId || '')}`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.villages) && data.villages.length) {
+      vList = data.villages;
+    }
+  } catch(e) {}
+
+  if (!vList.length) {
+    vList = TALUK_VILLAGES_FALLBACK[talukCode] || TALUK_VILLAGES_FALLBACK['12'];
+  }
+
+  vSel.innerHTML = vList.map(v => `<option value="${v.id || v.code}">${v.name || v.villageName} (${v.id || v.code})</option>`).join('');
+}
+
+function renderPattaTable() {
+  const tbody = document.getElementById('pattaTableBody');
+  const countBadge = document.getElementById('pattaCountBadge');
+  if (!tbody) return;
+
+  const list = getPattaCorrectionsList();
+  if (countBadge) countBadge.textContent = list.length;
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--muted); font-weight: 500;">No Patta Corrections saved yet. Fill out the form above to add a new entry.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((item, idx) => {
+    let statusBadge = '<span style="background: rgba(245, 158, 11, 0.15); color: #d97706; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">Draft / Saved</span>';
+    if (item.status && item.status.includes('Submitted')) {
+      statusBadge = `<span style="background: rgba(34, 197, 94, 0.15); color: #16a34a; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">✓ ${esc(item.status)}</span>`;
+    } else if (item.status && item.status.includes('Failed')) {
+      statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #dc2626; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">✕ ${esc(item.status)}</span>`;
+    }
+
+    return `
+      <tr style="border-bottom: 1px solid var(--line-2); background: ${idx % 2 === 0 ? 'transparent' : 'var(--surface-3, rgba(255,255,255,0.02))'};">
+        <td style="padding: 10px 12px; font-weight: 700;">${idx + 1}</td>
+        <td style="padding: 10px 12px; font-weight: 600;">${esc(item.talukName)}</td>
+        <td style="padding: 10px 12px;">${esc(item.villageName)} <span style="font-size: 11px; color: var(--muted);">(${esc(item.villageCode)})</span></td>
+        <td style="padding: 10px 12px; font-weight: 700; color: #2563eb;">${esc(item.pattaNo)}</td>
+        <td style="padding: 10px 12px;">
+          <div style="color: var(--muted); font-size: 11px; text-decoration: line-through;">${esc(item.oldName || '-')}</div>
+          <div style="color: #059669; font-weight: 700;">➔ ${esc(item.newName)}</div>
+        </td>
+        <td style="padding: 10px 12px;">
+          <div style="color: var(--muted); font-size: 11px; text-decoration: line-through;">${esc(item.oldExtent || '-')}</div>
+          <div style="color: #d97706; font-weight: 700;">➔ ${esc(item.newExtent)} <span style="font-size: 10px; color: var(--muted);">(${esc(item.extentUnit)})</span></div>
+        </td>
+        <td style="padding: 10px 12px; font-weight: 600;">${esc(item.surveyNo)} / ${esc(item.subdivNo || '-')}</td>
+        <td style="padding: 10px 12px;">${statusBadge}</td>
+        <td style="padding: 10px 12px; text-align: center;">
+          <div style="display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+            <button type="button" onclick="editPattaCorrectionRow(${idx})" style="background: #2563eb; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">✏️ Edit</button>
+            <button type="button" onclick="submitPattaCorrectionRow(${idx})" style="background: #16a34a; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">⚡ Submit</button>
+            <button type="button" onclick="deletePattaCorrectionRow(${idx})" style="background: #ef4444; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function clearPattaCorrectionForm() {
+  editingPattaIdx = -1;
+  const noIn = document.getElementById('pattaNoInput');
+  const oldNameIn = document.getElementById('pattaOldNameInput');
+  const newNameIn = document.getElementById('pattaNewNameInput');
+  const oldExtIn = document.getElementById('pattaOldExtentInput');
+  const newExtIn = document.getElementById('pattaNewExtentInput');
+  const surveyIn = document.getElementById('pattaSurveyNoInput');
+  const subdivIn = document.getElementById('pattaSubdivNoInput');
+  const remIn = document.getElementById('pattaRemarksInput');
+  const saveBtn = document.getElementById('pattaSaveBtn');
+  const banner = document.getElementById('pattaStatusBanner');
+
+  if (noIn) noIn.value = '';
+  if (oldNameIn) oldNameIn.value = '';
+  if (newNameIn) newNameIn.value = '';
+  if (oldExtIn) oldExtIn.value = '';
+  if (newExtIn) newExtIn.value = '';
+  if (surveyIn) surveyIn.value = '';
+  if (subdivIn) subdivIn.value = '';
+  if (remIn) remIn.value = '';
+
+  if (saveBtn) saveBtn.innerHTML = '💾 Save Correction';
+  if (banner) banner.style.display = 'none';
+}
+
+function savePattaCorrectionForm() {
+  const talukSel = document.getElementById('pattaTalukSel');
+  const villageSel = document.getElementById('pattaVillageSel');
+  const pattaNo = document.getElementById('pattaNoInput')?.value.trim();
+  const oldName = document.getElementById('pattaOldNameInput')?.value.trim();
+  const newName = document.getElementById('pattaNewNameInput')?.value.trim();
+  const oldExtent = document.getElementById('pattaOldExtentInput')?.value.trim();
+  const newExtent = document.getElementById('pattaNewExtentInput')?.value.trim();
+  const extentUnit = document.getElementById('pattaExtentUnitSel')?.value;
+  const surveyNo = document.getElementById('pattaSurveyNoInput')?.value.trim();
+  const subdivNo = document.getElementById('pattaSubdivNoInput')?.value.trim();
+  const remarks = document.getElementById('pattaRemarksInput')?.value.trim();
+
+  if (!pattaNo || !newName || !newExtent || !surveyNo) {
+    if (typeof toast === 'function') toast('Validation Error', 'Patta No, Corrected Owner Name, Corrected Extent, and Survey No are required', 'warn');
+    return;
+  }
+
+  const talukCode = talukSel ? talukSel.value : '12';
+  const talukName = talukSel ? talukSel.options[talukSel.selectedIndex].text.split(' ')[0] : 'Nemili';
+  const villageCode = villageSel ? villageSel.value : '122';
+  const villageName = villageSel && villageSel.options[villageSel.selectedIndex] ? villageSel.options[villageSel.selectedIndex].text.replace(/\s*\(\d+\)/, '').trim() : 'Nemili';
+
+  const list = getPattaCorrectionsList();
+
+  const record = {
+    id: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].id : `PATTA-${Date.now()}`,
+    talukCode,
+    talukName,
+    villageCode,
+    villageName,
+    pattaNo,
+    oldName,
+    newName,
+    oldExtent,
+    newExtent,
+    extentUnit: extentUnit || 'Hectares-Ares',
+    surveyNo,
+    subdivNo,
+    remarks: remarks || 'Patta Name and Size Correction',
+    status: editingPattaIdx >= 0 && list[editingPattaIdx] ? list[editingPattaIdx].status : 'Draft / Saved',
+    applId: editingPattaIdx >= 0 && list[editingPattaIdx] ? (list[editingPattaIdx].applId || '') : '',
+    date: new Date().toLocaleString('en-GB')
+  };
+
+  if (editingPattaIdx >= 0 && editingPattaIdx < list.length) {
+    list[editingPattaIdx] = record;
+  } else {
+    list.unshift(record);
+  }
+
+  savePattaCorrectionsList(list);
+  clearPattaCorrectionForm();
+  renderPattaTable();
+
+  if (typeof toast === 'function') toast('Correction Saved', `Patta correction details saved for Patta ${pattaNo}`, 'ok');
+}
+
+async function submitPattaCorrectionToTamilNilam(item, btnElement) {
+  if (!item || !item.pattaNo || !item.surveyNo) {
+    if (typeof toast === 'function') toast('Validation Error', 'Invalid Patta Correction data for submission', 'warn');
+    return;
+  }
+
+  if (btnElement) {
+    btnElement.disabled = true;
+    btnElement.innerHTML = '⏳ Submitting...';
+  }
+
+  const banner = document.getElementById('pattaStatusBanner');
+  if (banner) {
+    banner.className = 'tn-status-banner info';
+    banner.style.background = 'rgba(37, 99, 235, 0.15)';
+    banner.style.color = '#2563eb';
+    banner.style.display = 'block';
+    banner.textContent = `Submitting Patta Name & Size Correction to Tamil Nilam portal for Patta ${item.pattaNo}...`;
+  }
+
+  try {
+    const secCreds = (typeof getTnCreds === 'function') ? getTnCreds('secondary', item.talukName) : {};
+    const u = secCreds.username || 'rpt_panneerselvam';
+    const p = secCreds.password || 'Nemili@1970';
+    const r = secCreds.roleId || '8';
+
+    const url = `/api/areg?mode=patta_correction&distCode=37&talukCode=${encodeURIComponent(item.talukCode)}&villageCode=${encodeURIComponent(item.villageCode)}&pattaNo=${encodeURIComponent(item.pattaNo)}&oldPattaName=${encodeURIComponent(item.oldName || '')}&newPattaName=${encodeURIComponent(item.newName || '')}&oldExtent=${encodeURIComponent(item.oldExtent || '')}&newExtent=${encodeURIComponent(item.newExtent || '')}&extentUnit=${encodeURIComponent(item.extentUnit || 'Hectares-Ares')}&surveyNo=${encodeURIComponent(item.surveyNo)}&subdivNo=${encodeURIComponent(item.subdivNo || '')}&remarks=${encodeURIComponent(item.remarks || '')}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+
+    const res = await fetch(url, { method: 'POST' });
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to submit Patta Correction to Tamil Nilam');
+    }
+
+    const refId = data.refId || data.applId || `PATTA-${Date.now().toString().slice(-6)}`;
+    item.status = `Submitted to Tamil Nilam (${refId})`;
+    item.applId = refId;
+
+    // Update in list
+    const list = getPattaCorrectionsList();
+    const idx = list.findIndex(x => x.id === item.id || (x.pattaNo === item.pattaNo && x.surveyNo === item.surveyNo));
+    if (idx >= 0) {
+      list[idx] = item;
+      savePattaCorrectionsList(list);
+    }
+
+    renderPattaTable();
+
+    if (banner) {
+      banner.style.background = 'rgba(34, 197, 94, 0.15)';
+      banner.style.color = '#16a34a';
+      banner.textContent = `✓ Patta Correction request submitted successfully! Ref ID: ${refId}`;
+    }
+
+    if (typeof toast === 'function') {
+      toast('Submission Successful', `Patta Correction submitted to Tamil Nilam (Ref: ${refId})`, 'ok');
+    }
+  } catch(err) {
+    console.error('Submit Patta Correction error:', err);
+    if (banner) {
+      banner.style.background = 'rgba(239, 68, 68, 0.15)';
+      banner.style.color = '#dc2626';
+      banner.textContent = `Error submitting Patta Correction: ${err.message}`;
+    }
+    if (typeof toast === 'function') {
+      toast('Submission Failed', err.message, 'err');
+    }
+  } finally {
+    if (btnElement) {
+      btnElement.disabled = false;
+      btnElement.innerHTML = '⚡ Submit Correction to Tamil Nilam';
+    }
+  }
+}
+
+async function submitPattaCorrectionFromForm() {
+  const talukSel = document.getElementById('pattaTalukSel');
+  const villageSel = document.getElementById('pattaVillageSel');
+  const pattaNo = document.getElementById('pattaNoInput')?.value.trim();
+  const oldName = document.getElementById('pattaOldNameInput')?.value.trim();
+  const newName = document.getElementById('pattaNewNameInput')?.value.trim();
+  const oldExtent = document.getElementById('pattaOldExtentInput')?.value.trim();
+  const newExtent = document.getElementById('pattaNewExtentInput')?.value.trim();
+  const extentUnit = document.getElementById('pattaExtentUnitSel')?.value;
+  const surveyNo = document.getElementById('pattaSurveyNoInput')?.value.trim();
+  const subdivNo = document.getElementById('pattaSubdivNoInput')?.value.trim();
+  const remarks = document.getElementById('pattaRemarksInput')?.value.trim();
+
+  if (!pattaNo || !newName || !newExtent || !surveyNo) {
+    if (typeof toast === 'function') toast('Validation Error', 'Patta No, Corrected Owner Name, Corrected Extent, and Survey No are required', 'warn');
+    return;
+  }
+
+  const talukCode = talukSel ? talukSel.value : '12';
+  const talukName = talukSel ? talukSel.options[talukSel.selectedIndex].text.split(' ')[0] : 'Nemili';
+  const villageCode = villageSel ? villageSel.value : '122';
+  const villageName = villageSel && villageSel.options[villageSel.selectedIndex] ? villageSel.options[villageSel.selectedIndex].text.replace(/\s*\(\d+\)/, '').trim() : 'Nemili';
+
+  const item = {
+    id: `PATTA-${Date.now()}`,
+    talukCode,
+    talukName,
+    villageCode,
+    villageName,
+    pattaNo,
+    oldName,
+    newName,
+    oldExtent,
+    newExtent,
+    extentUnit: extentUnit || 'Hectares-Ares',
+    surveyNo,
+    subdivNo,
+    remarks: remarks || 'Patta Name and Size Correction',
+    status: 'Submitted to Tamil Nilam',
+    applId: '',
+    date: new Date().toLocaleString('en-GB')
+  };
+
+  const btn = document.getElementById('pattaSubmitBtn');
+  await submitPattaCorrectionToTamilNilam(item, btn);
+}
+
+function submitPattaCorrectionRow(idx) {
+  const list = getPattaCorrectionsList();
+  if (!list[idx]) return;
+  submitPattaCorrectionToTamilNilam(list[idx]);
+}
+
+function editPattaCorrectionRow(idx) {
+  const list = getPattaCorrectionsList();
+  const item = list[idx];
+  if (!item) return;
+
+  editingPattaIdx = idx;
+
+  const talukSel = document.getElementById('pattaTalukSel');
+  if (talukSel) {
+    talukSel.value = item.talukCode;
+    populatePattaVillages(item.talukCode).then(() => {
+      const vSel = document.getElementById('pattaVillageSel');
+      if (vSel) vSel.value = item.villageCode;
+    });
+  }
+
+  const noIn = document.getElementById('pattaNoInput');
+  const oldNameIn = document.getElementById('pattaOldNameInput');
+  const newNameIn = document.getElementById('pattaNewNameInput');
+  const oldExtIn = document.getElementById('pattaOldExtentInput');
+  const newExtIn = document.getElementById('pattaNewExtentInput');
+  const unitSel = document.getElementById('pattaExtentUnitSel');
+  const surveyIn = document.getElementById('pattaSurveyNoInput');
+  const subdivIn = document.getElementById('pattaSubdivNoInput');
+  const remIn = document.getElementById('pattaRemarksInput');
+  const saveBtn = document.getElementById('pattaSaveBtn');
+
+  if (noIn) noIn.value = item.pattaNo || '';
+  if (oldNameIn) oldNameIn.value = item.oldName || '';
+  if (newNameIn) newNameIn.value = item.newName || '';
+  if (oldExtIn) oldExtIn.value = item.oldExtent || '';
+  if (newExtIn) newExtIn.value = item.newExtent || '';
+  if (unitSel) unitSel.value = item.extentUnit || 'Hectares-Ares';
+  if (surveyIn) surveyIn.value = item.surveyNo || '';
+  if (subdivIn) subdivIn.value = item.subdivNo || '';
+  if (remIn) remIn.value = item.remarks || '';
+
+  if (saveBtn) saveBtn.innerHTML = '💾 Update Correction';
+
+  const wrapper = document.getElementById('pattaPortalWrapper');
+  if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth' });
+}
+
+function deletePattaCorrectionRow(idx) {
+  const list = getPattaCorrectionsList();
+  if (!list[idx]) return;
+  if (!confirm(`Are you sure you want to delete Patta Correction entry for Patta ${list[idx].pattaNo}?`)) return;
+
+  list.splice(idx, 1);
+  savePattaCorrectionsList(list);
+  renderPattaTable();
+  if (typeof toast === 'function') toast('Entry Deleted', 'Patta Correction entry removed', 'info');
+}
+
+function exportPattaCorrectionsToExcel() {
+  const list = getPattaCorrectionsList();
+  if (!list.length) {
+    if (typeof toast === 'function') toast('Export Info', 'No Patta Corrections to export', 'info');
+    return;
+  }
+
+  const exportData = list.map((item, idx) => ({
+    'Sno': idx + 1,
+    'Taluk': item.talukName,
+    'Village': `${item.villageName} (${item.villageCode})`,
+    'Patta No': item.pattaNo,
+    'Old Owner Name': item.oldName || '',
+    'New Owner Name': item.newName,
+    'Old Extent': item.oldExtent || '',
+    'New Extent': item.newExtent,
+    'Extent Unit': item.extentUnit,
+    'Survey No': item.surveyNo,
+    'Subdivision No': item.subdivNo || '',
+    'Remarks': item.remarks || '',
+    'Status': item.status,
+    'Reference / Appl ID': item.applId || '',
+    'Date Added': item.date || ''
+  }));
+
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Patta Corrections");
+    XLSX.writeFile(wb, `Patta_Corrections_Ranipet.xlsx`);
+    if (typeof toast === 'function') toast('Export Complete', 'Exported Patta Corrections to Excel', 'ok');
+  } else {
+    if (typeof toast === 'function') toast('Export Error', 'XLSX library not loaded', 'err');
+  }
+}
+
+async function renderPattaCorrectionTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div id="pattaPortalWrapper" style="max-width: 960px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      
+      <!-- TN Govt Header Banner -->
+      <div style="background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%); color: #fff; border-radius: 14px; padding: 20px 24px; box-shadow: 0 4px 14px rgba(4, 120, 87, 0.25);">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center;">
+          <div style="background: #fff; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+            <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 54px; width: 54px; object-fit: contain; border-radius: 50%;">
+          </div>
+          <div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: #fff;">Revenue and Disaster Management Department</h2>
+            <div style="font-size: 14px; font-weight: 600; opacity: 0.95; margin-top: 2px; color: #a7f3d0;">Government of Tamil Nadu • வருவாய்த் துறை</div>
+            <div style="font-size: 12px; opacity: 0.9; margin-top: 2px; color: #ecfdf5;">📜 Patta Owner Name &amp; Extent/Size Correction Suite (பட்டா பெயர் மற்றும் பரப்பு திருத்தம்)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Card -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 24px 26px; box-shadow: var(--shadow);">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--line-2); padding-bottom: 12px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #059669; display: flex; align-items: center; gap: 8px;">
+            <span>📝</span> Patta Name &amp; Size Correction Details
+          </h3>
+          <span style="font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line-2);">
+            Ranipet District (37)
+          </span>
+        </div>
+
+        <!-- Form Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 20px;">
+          
+          <!-- Taluk -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Taluk / வட்டம் <span style="color: #ef4444;">*</span>
+            </label>
+            <select id="pattaTalukSel" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+              <option value="03">Arakkonam (அரக்கோணம்)</option>
+              <option value="12" selected>Nemili (நெமிலி)</option>
+              <option value="04">Walajah (வாலாஜா)</option>
+              <option value="02">Arcot (ஆற்காடு)</option>
+              <option value="13">Kalavai (கலவை)</option>
+              <option value="14">Sholinghur (சோளிங்கர்)</option>
+            </select>
+          </div>
+
+          <!-- Village -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Village Name / Code / கிராமம் <span style="color: #ef4444;">*</span>
+            </label>
+            <select id="pattaVillageSel" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+              <option value="">Loading villages...</option>
+            </select>
+          </div>
+
+          <!-- Patta Number -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Patta Number / பட்டா எண் <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" id="pattaNoInput" placeholder="e.g. 1245" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Current Patta Owner Name -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Current Owner Name / தற்போதைய பெயர்
+            </label>
+            <input type="text" id="pattaOldNameInput" placeholder="e.g. Raman K." style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Corrected Patta Owner Name -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Corrected Owner Name / திருத்தப்பட்ட பெயர் <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" id="pattaNewNameInput" placeholder="e.g. Ramanathan S/o Murugan" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Current Extent / Size -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Current Extent/Size / தற்போதைய பரப்பு
+            </label>
+            <input type="text" id="pattaOldExtentInput" placeholder="e.g. 0.12.50 or 1200" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Corrected Extent / Size -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Corrected Extent/Size / திருத்தப்பட்ட பரப்பு <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" id="pattaNewExtentInput" placeholder="e.g. 0.15.00 or 1500" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Extent Unit -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Extent Unit / பரப்பு அலகு
+            </label>
+            <select id="pattaExtentUnitSel" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+              <option value="Hectares-Ares">Hectares-Ares (ஹெக்டேர் - ஏர்ஸ்)</option>
+              <option value="Sq.Ft">Sq.Ft (சதுர அடி)</option>
+              <option value="Acres">Acres (ஏக்கர்)</option>
+            </select>
+          </div>
+
+          <!-- Survey Number -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Survey Number / புல எண் <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" id="pattaSurveyNoInput" placeholder="e.g. 142" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Subdivision Number -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Subdivision Number / உட்பிரிவு எண்
+            </label>
+            <input type="text" id="pattaSubdivNoInput" placeholder="e.g. 1A" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+          <!-- Remarks -->
+          <div style="grid-column: 1 / -1;">
+            <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
+              Remarks / Reason for Correction / திருத்தத்திற்கான காரணம்
+            </label>
+            <input type="text" id="pattaRemarksInput" placeholder="e.g. Owner name spelling correction as per AADHAAR &amp; Extent update per A-Register" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+          </div>
+
+        </div>
+
+        <!-- Status Banner inside card -->
+        <div id="pattaStatusBanner" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; margin-bottom: 16px;"></div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; padding-top: 14px; border-top: 1px dashed var(--line-2);">
+          <button type="button" id="pattaSaveBtn" style="background: #2563eb; color: #fff; border: 1px solid #1d4ed8; padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">
+            💾 Save Correction
+          </button>
+          <button type="button" id="pattaSubmitBtn" style="background: #16a34a; color: #fff; border: 1px solid #15803d; padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);">
+            ⚡ Submit Correction to Tamil Nilam
+          </button>
+          <button type="button" id="pattaExportBtn" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);">
+            📊 Export Patta Corrections to Excel
+          </button>
+          <button type="button" id="pattaClearBtn" style="background: var(--surface-3, #475569); color: #fff; border: 1px solid var(--line-2); padding: 10px 14px; font-size: 12.5px; font-weight: 600; border-radius: 8px; cursor: pointer;">
+            🔄 Reset Form
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Saved Table Card -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 20px 24px; box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+            <span>📜</span> Saved Patta Corrections (<span id="pattaCountBadge">0</span>)
+          </h3>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left;">
+            <thead>
+              <tr style="background: var(--surface-3, #1e293b); color: #fff; border-bottom: 2px solid var(--line-2);">
+                <th style="padding: 10px 12px; font-weight: 700; width: 45px;">Sno</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Taluk</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Village</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Patta No</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Old Name ➔ New Name</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Old Extent ➔ New Extent</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Survey/Subdiv</th>
+                <th style="padding: 10px 12px; font-weight: 700;">Status</th>
+                <th style="padding: 10px 12px; font-weight: 700; text-align: center; width: 190px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pattaTableBody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  const talukSel = document.getElementById('pattaTalukSel');
+  if (talukSel) {
+    const currentTaluk = (typeof window.TALUK !== 'undefined' && window.TALUK) ? window.TALUK : 'Nemili';
+    const tCode = (typeof resolveTalukCode === 'function') ? resolveTalukCode(currentTaluk) : '12';
+    talukSel.value = tCode;
+    talukSel.addEventListener('change', () => populatePattaVillages(talukSel.value));
+    populatePattaVillages(tCode);
+  }
+
+  document.getElementById('pattaSaveBtn')?.addEventListener('click', savePattaCorrectionForm);
+  document.getElementById('pattaSubmitBtn')?.addEventListener('click', submitPattaCorrectionFromForm);
+  document.getElementById('pattaExportBtn')?.addEventListener('click', exportPattaCorrectionsToExcel);
+  document.getElementById('pattaClearBtn')?.addEventListener('click', clearPattaCorrectionForm);
+
+  renderPattaTable();
+}
+
+window.renderPattaCorrectionTab = renderPattaCorrectionTab;
+window.getPattaCorrectionsList = getPattaCorrectionsList;
+window.savePattaCorrectionsList = savePattaCorrectionsList;
+window.savePattaCorrectionForm = savePattaCorrectionForm;
+window.submitPattaCorrectionToTamilNilam = submitPattaCorrectionToTamilNilam;
+window.submitPattaCorrectionFromForm = submitPattaCorrectionFromForm;
+window.submitPattaCorrectionRow = submitPattaCorrectionRow;
+window.editPattaCorrectionRow = editPattaCorrectionRow;
+window.deletePattaCorrectionRow = deletePattaCorrectionRow;
+window.exportPattaCorrectionsToExcel = exportPattaCorrectionsToExcel;
+window.clearPattaCorrectionForm = clearPattaCorrectionForm;
 
 
 
