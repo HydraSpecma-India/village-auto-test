@@ -613,13 +613,14 @@
           subdivInp.value = data.subdivNo;
         }
 
+        const bannerMsg = '✓ Live Patta details fetched: ' + (data.ownerName || '') + ' | Extent: ' + (data.totalExtent || '');
         if (banner) {
           banner.style.background = 'rgba(34, 197, 94, 0.15)';
           banner.style.color = '#16a34a';
-          banner.textContent = '✓ Live Patta details fetched from Tamil Nilam portal!';
+          banner.textContent = bannerMsg;
         }
         if (typeof window.toast === 'function') {
-          window.toast('Live Patta Fetched', '✓ Live Patta details fetched from Tamil Nilam portal!', 'ok');
+          window.toast('Live Patta Fetched', bannerMsg, 'ok');
         }
       } else {
         if (banner) {
