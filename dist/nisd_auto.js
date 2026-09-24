@@ -547,6 +547,11 @@
       subdivNoInp.addEventListener('blur', fetchLivePattaInfo);
       subdivNoInp.addEventListener('change', fetchLivePattaInfo);
     }
+    const landTypeSel = document.getElementById('pattaLandTypeSelect');
+    if (landTypeSel && !landTypeSel.__landBound) {
+      landTypeSel.__landBound = true;
+      landTypeSel.addEventListener('change', fetchLivePattaInfo);
+    }
     const fetchLiveBtn = document.getElementById('pattaFetchLiveBtn');
     if (fetchLiveBtn && !fetchLiveBtn.__pattaBound) {
       fetchLiveBtn.__pattaBound = true;
@@ -561,21 +566,166 @@
     bindEvents();
   }
 
+  function findPattaInStore(surveyNo, subdivNo, villageCode) {
+    if (!surveyNo) return null;
+    const s = (typeof window !== 'undefined' && window.store) ? window.store : (typeof store !== 'undefined' ? store : null);
+    if (!s) return null;
+
+    let targetBase = String(surveyNo).trim().toLowerCase();
+    let targetSub = String(subdivNo || '').trim().toLowerCase();
+    if (targetBase.includes('/')) {
+      const parts = targetBase.split('/');
+      targetBase = parts[0].trim();
+      if (!targetSub && parts[1]) targetSub = parts[1].trim();
+    }
+    const targetVCode = String(villageCode || '').replace(/^0+/, '');
+
+    const appLists = [];
+
+    // 1. store.isd_raw_apps
+    if (Array.isArray(s.isd_raw_apps)) {
+      appLists.push(s.isd_raw_apps);
+    }
+
+    // 2. store.isdRuralPdf
+    if (s.isdRuralPdf && typeof s.isdRuralPdf === 'object') {
+      if (Array.isArray(s.isdRuralPdf.applications)) appLists.push(s.isdRuralPdf.applications);
+      if (Array.isArray(s.isdRuralPdf.apps)) appLists.push(s.isdRuralPdf.apps);
+      if (Array.isArray(s.isdRuralPdf.rows)) appLists.push(s.isdRuralPdf.rows);
+      if (Array.isArray(s.isdRuralPdf.objs)) appLists.push(s.isdRuralPdf.objs);
+
+      if (s.isdRuralPdf.villages) {
+        const vList = s.isdRuralPdf.villages instanceof Map
+          ? Array.from(s.isdRuralPdf.villages.values())
+          : (Array.isArray(s.isdRuralPdf.villages) ? s.isdRuralPdf.villages : Object.values(s.isdRuralPdf.villages));
+        vList.forEach(v => {
+          if (v && typeof v === 'object') {
+            if (Array.isArray(v.applications)) appLists.push(v.applications);
+            if (Array.isArray(v.apps)) appLists.push(v.apps);
+            if (Array.isArray(v.rows)) appLists.push(v.rows);
+            if (Array.isArray(v.objs)) appLists.push(v.objs);
+          }
+        });
+      }
+    }
+
+    // 3. opt applications
+    const optKeys = new Set();
+    if (typeof OPT_KEYS !== 'undefined' && Array.isArray(OPT_KEYS)) {
+      OPT_KEYS.forEach(k => optKeys.add(k));
+    }
+    if (typeof window !== 'undefined' && Array.isArray(window.OPT_KEYS)) {
+      window.OPT_KEYS.forEach(k => optKeys.add(k));
+    }
+    Object.keys(s).forEach(k => {
+      if (/^opt/i.test(k)) optKeys.add(k);
+    });
+
+    optKeys.forEach(k => {
+      const val = s[k];
+      if (!val) return;
+      if (Array.isArray(val)) {
+        appLists.push(val);
+      } else if (typeof val === 'object') {
+        if (Array.isArray(val.objs)) appLists.push(val.objs);
+        if (Array.isArray(val.rows)) appLists.push(val.rows);
+        if (Array.isArray(val.applications)) appLists.push(val.applications);
+        if (Array.isArray(val.apps)) appLists.push(val.apps);
+      }
+    });
+
+    // 4. Other raw app lists
+    if (Array.isArray(s.nisd_raw_apps)) appLists.push(s.nisd_raw_apps);
+    if (Array.isArray(s.opt_raw_apps)) appLists.push(s.opt_raw_apps);
+    if (Array.isArray(s.applications)) appLists.push(s.applications);
+
+    let bestMatch = null;
+    let partialMatch = null;
+
+    for (const list of appLists) {
+      for (const item of list) {
+        if (!item || typeof item !== 'object') continue;
+
+        const curSurvey = String(
+          item.survey_no || item.surveyNo || item.surveyno || item.survey_no_dis || item.survey_number ||
+          item['Survey No'] || item['Survey Number'] || item['Survey'] || item.sur_sub || ''
+        ).trim();
+        if (!curSurvey) continue;
+
+        const curSubdiv = String(
+          item.subdiv_no || item.subdivNo || item.subdiv || item.subdivno || item.survey_subdivno || item.sub_div_no ||
+          item['Subdivision'] || item['Subdivision No'] || item['Sub Division'] || ''
+        ).trim();
+
+        const curPatta = String(
+          item.patta_no || item.pattaNo || item.pattano || item.patta_number || item.patta ||
+          item['Patta No'] || item['Patta Number'] || item['Patta'] || ''
+        ).trim();
+
+        if (!curPatta || curPatta === '0' || curPatta === '-') continue;
+
+        let curBase = curSurvey.toLowerCase();
+        let curSub = curSubdiv.toLowerCase();
+        if (curBase.includes('/')) {
+          const parts = curBase.split('/');
+          curBase = parts[0].trim();
+          if (!curSub && parts[1]) curSub = parts[1].trim();
+        }
+
+        if (curBase !== targetBase) continue;
+
+        const itemVCode = String(item.village_code || item.villageCode || item.vcode || item.vCode || '').replace(/^0+/, '');
+        const villageMatches = !targetVCode || !itemVCode || targetVCode === itemVCode;
+
+        if (targetSub) {
+          if (curSub === targetSub) {
+            if (villageMatches) return { pattaNo: curPatta, subdivNo: curSubdiv || subdivNo };
+            if (!bestMatch) bestMatch = { pattaNo: curPatta, subdivNo: curSubdiv || subdivNo };
+          }
+        } else {
+          if (villageMatches) return { pattaNo: curPatta, subdivNo: curSubdiv || subdivNo };
+          if (!bestMatch) bestMatch = { pattaNo: curPatta, subdivNo: curSubdiv || subdivNo };
+        }
+
+        if (!partialMatch) {
+          partialMatch = { pattaNo: curPatta, subdivNo: curSubdiv || subdivNo };
+        }
+      }
+    }
+
+    return bestMatch || partialMatch || null;
+  }
+
   let _isFetchingPatta = false;
   async function fetchLivePattaInfo() {
     const pattaInp = document.getElementById('pattaNoInput');
-    const pattaNo = pattaInp ? pattaInp.value.trim() : '';
+    let pattaNo = pattaInp ? pattaInp.value.trim() : '';
     const surveyInp = document.getElementById('pattaSurveyNoInput');
-    const surveyNo = surveyInp ? surveyInp.value.trim() : '';
+    let surveyNo = surveyInp ? surveyInp.value.trim() : '';
     const subdivInp = document.getElementById('pattaSubdivNoInput');
-    const subdivNo = subdivInp ? subdivInp.value.trim() : '';
-
-    if ((!pattaNo && !surveyNo) || _isFetchingPatta) return;
+    let subdivNo = subdivInp ? subdivInp.value.trim() : '';
 
     const talukSel = document.getElementById('pattaTalukSel');
     const villageSel = document.getElementById('pattaVillageSel');
+    const landTypeSel = document.getElementById('pattaLandTypeSelect');
+
     const talukCode = talukSel ? talukSel.value : '12';
     const villageCode = villageSel ? villageSel.value : '122';
+    const landType = landTypeSel ? landTypeSel.value : 'N';
+
+    if ((!pattaNo && !surveyNo) || _isFetchingPatta) return;
+
+    if (!pattaNo && surveyNo) {
+      const matched = findPattaInStore(surveyNo, subdivNo, villageCode);
+      if (matched && matched.pattaNo) {
+        pattaNo = matched.pattaNo;
+        if (pattaInp) pattaInp.value = pattaNo;
+        if (!subdivNo && matched.subdivNo) {
+          subdivNo = matched.subdivNo;
+          if (subdivInp) subdivInp.value = subdivNo;
+        }
+      }
+    }
 
     _isFetchingPatta = true;
 
@@ -590,50 +740,55 @@
     }
 
     try {
-      const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}`;
+      const url = '/api/areg?mode=fetch_patta&distCode=37&talukCode=' + talukCode + '&villageCode=' + villageCode + '&pattaNo=' + pattaNo + '&surveyNo=' + surveyNo + '&subdivNo=' + subdivNo + '&transType=' + landType;
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.success) {
-        if (data.pattaNo && pattaInp) {
-          pattaInp.value = data.pattaNo;
-        }
-        if (data.ownerName) {
-          const oldNameInp = document.getElementById('pattaOldNameInput');
-          if (oldNameInp) oldNameInp.value = data.ownerName;
-        }
-        if (data.totalExtent) {
-          const oldExtentInp = document.getElementById('pattaOldExtentInput');
-          if (oldExtentInp) oldExtentInp.value = data.totalExtent;
-        }
-        if (data.surveyNo && surveyInp) {
-          surveyInp.value = data.surveyNo;
-        }
-        if (data.subdivNo && subdivInp) {
-          subdivInp.value = data.subdivNo;
-        }
+        const oldNameInp = document.getElementById('pattaOldNameInput');
+        if (oldNameInp) oldNameInp.value = data.ownerName;
 
-        const bannerMsg = '✓ Live Patta details fetched: ' + (data.ownerName || '') + ' | Extent: ' + (data.totalExtent || '');
+        const oldExtentInp = document.getElementById('pattaOldExtentInput');
+        if (oldExtentInp) oldExtentInp.value = data.totalExtent;
+
+        const surveyNoInp = document.getElementById('pattaSurveyNoInput');
+        if (surveyNoInp) surveyNoInp.value = data.surveyNo;
+
+        const subdivNoInp = document.getElementById('pattaSubdivNoInput');
+        if (subdivNoInp) subdivNoInp.value = data.subdivNo;
+
+        const pattaNoInp = document.getElementById('pattaNoInput');
+        if (pattaNoInp) pattaNoInp.value = data.pattaNo;
+
+        const bannerMsg = '✓ Live Patta details fetched: ' + data.ownerName + ' | Extent: ' + data.totalExtent + ' (Survey: ' + data.surveyNo + '/' + data.subdivNo + ')';
         if (banner) {
+          banner.className = 'tn-status-banner success';
           banner.style.background = 'rgba(34, 197, 94, 0.15)';
           banner.style.color = '#16a34a';
+          banner.style.display = 'block';
           banner.textContent = bannerMsg;
         }
         if (typeof window.toast === 'function') {
           window.toast('Live Patta Fetched', bannerMsg, 'ok');
+        } else if (typeof toast === 'function') {
+          toast('Live Patta Fetched', bannerMsg, 'ok');
         }
       } else {
         if (banner) {
+          banner.className = 'tn-status-banner error';
           banner.style.background = 'rgba(239, 68, 68, 0.15)';
           banner.style.color = '#dc2626';
+          banner.style.display = 'block';
           banner.textContent = `Could not fetch Patta details: ${data.error || 'Unknown error'}`;
         }
       }
     } catch (err) {
       console.error('Fetch live patta error:', err);
       if (banner) {
+        banner.className = 'tn-status-banner error';
         banner.style.background = 'rgba(239, 68, 68, 0.15)';
         banner.style.color = '#dc2626';
+        banner.style.display = 'block';
         banner.textContent = `Fetch error: ${err.message}`;
       }
     } finally {
@@ -641,6 +796,7 @@
     }
   }
   window.fetchLivePattaInfo = fetchLivePattaInfo;
+  window.findPattaInStore = findPattaInStore;
 
   let _openFFModal = null; // module-scoped reference for handleFlashFillAll
 
