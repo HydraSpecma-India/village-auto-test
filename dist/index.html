@@ -2017,7 +2017,8 @@ function buildVillageMap(){
 
   for(const pr of pairs){
     const vRaw = pr[0];
-    const u = String(pr[1]==null?'':pr[1]).trim();
+    const rawU = String(pr[1]==null?'':pr[1]).trim();
+    const u = canonicalSurveyorName(rawU);
     const keys = villageKeys(vRaw);
     if(!keys.length) continue;
     info.rows++;
@@ -2192,7 +2193,7 @@ function aggregate(){
   /* users who only appear through disposal still deserve a row */
   CATS.forEach(c=> Object.keys(disposal[c.key]).forEach(u=>users.add(u)));
 
-  const userList = Array.from(users).sort((a,b)=>a.localeCompare(b));
+  const userList = sortSurveyorNames(Array.from(users), TALUK, currentIsdSortMode);
   return {counts, villages, disposal, villDisposal, users:userList, unmatched, unreadable,
           totalRows, matchedRows, statusSkipped, statusDrop, noStatusCol, talukSkipped,
           vmapInfo:vmap.info};
@@ -3619,6 +3620,18 @@ function naturalCompare(a, b){
   return String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+function canonicalSurveyorName(name){
+  if(!name) return '';
+  let s = String(name).replace(/\s*\([^)]*\)/g, '').trim();
+  const normS = norm(s);
+  if(normS.includes('yuvaraj')){
+    if(normS.includes('c') || normS.startsWith('c')) return 'C.Yuvaraj';
+    if(normS.includes('m') || normS.startsWith('m')) return 'M.Yuvaraj';
+  }
+  return s;
+}
+window.canonicalSurveyorName = canonicalSurveyorName;
+
 const ARAKKONAM_SURVEYOR_ORDER = [
   'arun',
   'lakshmanadas',
@@ -3689,7 +3702,11 @@ function getSurveyorDesignation(name){
     const dKey = findKey(store.village.header, ['Designation', 'Desig', 'Role', 'Post', 'Cadre']);
     const uKey = findKeyStrict(store.village.header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor']);
     if(dKey && uKey){
-      const row = store.village.objs.find(o => norm(String(o[uKey]||'')) === n);
+      const row = store.village.objs.find(o => {
+        const uStr = norm(String(o[uKey]||''));
+        const uCanon = norm(canonicalSurveyorName(String(o[uKey]||'')));
+        return uStr === n || uCanon === norm(canonicalSurveyorName(name));
+      });
       if(row && row[dKey]) return String(row[dKey]).trim();
     }
   }
@@ -3717,7 +3734,9 @@ const ARAKKONAM_VILLAGE_COUNTS = {
 };
 
 function getSurveyorVillageCount(name, rRec){
+  const canonN = canonicalSurveyorName(name);
   const n = norm(name);
+  const normCanon = norm(canonN);
   if(n === 'vao' || n === "vao's" || n.startsWith('vao')) {
     if(R && R.vaoNames && R.vaoNames.length){
       const vaoSet = new Set();
@@ -3738,7 +3757,8 @@ function getSurveyorVillageCount(name, rRec){
     const set = new Set();
     store.village.objs.filter(o => !tK || inTaluk(o[tK])).forEach(o => {
       const uStr = norm(String(o[uK]||''));
-      if(uStr === n || uStr.includes(n) || n.includes(uStr)){
+      const uCanon = norm(canonicalSurveyorName(String(o[uK]||'')));
+      if(uStr === n || uCanon === normCanon || uStr.includes(n) || n.includes(uStr)){
         if(o[vK]) set.add(String(o[vK]).trim());
       }
     });
@@ -3770,44 +3790,46 @@ function getCountsForSurveyor(sName, aggA){
   };
   if(!aggA || !aggA.counts) return res;
 
+  const canonS = norm(canonicalSurveyorName(sName));
   const normS = norm(sName);
-  let matchedUser = null;
-  if(aggA.users){
-    for(const u of aggA.users){
-      if(norm(u) === normS){ matchedUser = u; break; }
-    }
-    if(!matchedUser){
-      const isYuvaraj = normS.includes('yuvaraj');
-      const isC = isYuvaraj && (normS.includes('c') || normS.startsWith('c'));
-      const isM = isYuvaraj && (normS.includes('m') || normS.startsWith('m'));
+  const matchedUsers = new Set();
 
-      for(const u of aggA.users){
-        const nu = norm(u);
-        if(isYuvaraj){
-          if(nu.includes('yuvaraj')){
-            const uIsC = nu.includes('c') || nu.startsWith('c');
-            const uIsM = nu.includes('m') || nu.startsWith('m');
-            if((isC && uIsC) || (isM && uIsM)){ matchedUser = u; break; }
-          }
-        } else {
-          if(nu.includes(normS) || normS.includes(nu)){ matchedUser = u; break; }
-        }
+  if(aggA.users){
+    const isYuvaraj = normS.includes('yuvaraj');
+    const isC = isYuvaraj && (normS.includes('c') || normS.startsWith('c'));
+    const isM = isYuvaraj && (normS.includes('m') || normS.startsWith('m'));
+
+    for(const u of aggA.users){
+      const nu = norm(u);
+      const canonU = norm(canonicalSurveyorName(u));
+      if(canonU === canonS || canonU === normS || nu === normS){
+        matchedUsers.add(u);
+      } else if(isYuvaraj && (nu.includes('yuvaraj') || canonU.includes('yuvaraj'))){
+        const uIsC = nu.includes('c') || nu.startsWith('c') || canonU.includes('c') || canonU.startsWith('c');
+        const uIsM = nu.includes('m') || nu.startsWith('m') || canonU.includes('m') || canonU.startsWith('m');
+        if((isC && uIsC) || (isM && uIsM)){ matchedUsers.add(u); }
+      } else if(!isYuvaraj && (nu.includes(normS) || normS.includes(nu) || canonU.includes(canonS) || canonS.includes(canonU))){
+        matchedUsers.add(u);
       }
     }
   }
 
-  if(matchedUser){
+  matchedUsers.forEach(matchedUser => {
     ['isdNatham', 'flineRural', 'flineNatham'].forEach(ck => {
       const cObj = aggA.counts[ck] && aggA.counts[ck][matchedUser];
       if(cObj){
-        res[ck].b0 = cObj['b0'] || 0;
-        res[ck].b1 = cObj['b1'] || 0;
-        res[ck].b2 = cObj['b2'] || 0;
-        res[ck].b3 = cObj['b3'] || 0;
-        res[ck].total = res[ck].b0 + res[ck].b1 + res[ck].b2 + res[ck].b3;
+        res[ck].b0 += cObj['b0'] || 0;
+        res[ck].b1 += cObj['b1'] || 0;
+        res[ck].b2 += cObj['b2'] || 0;
+        res[ck].b3 += cObj['b3'] || 0;
       }
     });
-  }
+  });
+
+  ['isdNatham', 'flineRural', 'flineNatham'].forEach(ck => {
+    res[ck].total = res[ck].b0 + res[ck].b1 + res[ck].b2 + res[ck].b3;
+  });
+
   return res;
 }
 
@@ -4303,11 +4325,11 @@ function renderSingleReport(){
 
   const isArakkonam = normTaluk(TALUK || '').includes('arakkon');
 
-  let surveyorNames = [];
+  let rawSurveyorNames = [];
   if(hasR && R.surveyorNames && R.surveyorNames.length){
-    surveyorNames = R.surveyorNames.slice();
+    rawSurveyorNames = R.surveyorNames.slice();
   } else if(hasA){
-    surveyorNames = A.users.slice();
+    rawSurveyorNames = A.users.slice();
   } else if(hasVillage){
     const uKey = findKeyStrict(store.village.header, ['Name', 'User name', 'User Name', 'Username', 'Surveyor Name', 'Surveyor']);
     const tKey = talukKeyOf(store.village.header);
@@ -4316,8 +4338,15 @@ function renderSingleReport(){
       const u = String(o[uKey]||'').trim();
       if(u) uSet.add(u);
     });
-    surveyorNames = Array.from(uSet);
+    rawSurveyorNames = Array.from(uSet);
   }
+
+  const surveyorSet = new Set();
+  rawSurveyorNames.forEach(n => {
+    const cName = canonicalSurveyorName(n);
+    if(cName) surveyorSet.add(cName);
+  });
+  let surveyorNames = Array.from(surveyorSet);
 
   if(isArakkonam){
     const arakkonamStaff = [
@@ -4334,12 +4363,10 @@ function renderSingleReport(){
     ];
     const merged = arakkonamStaff.slice();
     surveyorNames.forEach(n => {
-      const normN = norm(n);
-      if(!merged.some(m => {
-        const normM = norm(m);
-        return normM === normN || (normN.includes(normM) && !normN.includes('yuvaraj'));
-      })){
-        merged.push(n);
+      const canonN = canonicalSurveyorName(n);
+      const normN = norm(canonN);
+      if(!merged.some(m => norm(m) === normN)){
+        merged.push(canonN);
       }
     });
     surveyorNames = sortSurveyorNames(merged, 'Arakkonam', 'arakkonam_order', R ? R.surveyors : null);
@@ -4359,17 +4386,21 @@ function renderSingleReport(){
     let rRec = (R && R.surveyors) ? R.surveyors[name] : null;
     if(!rRec && R && R.surveyors){
       const normN = norm(name);
+      const canonN = norm(canonicalSurveyorName(name));
       const isYuvaraj = normN.includes('yuvaraj');
       const isC = isYuvaraj && (normN.includes('c') || normN.startsWith('c'));
       const isM = isYuvaraj && (normN.includes('m') || normN.startsWith('m'));
 
       for(const [sn, sv] of Object.entries(R.surveyors)){
         const normSn = norm(sn);
-        if(isYuvaraj && normSn.includes('yuvaraj')){
+        const canonSn = norm(canonicalSurveyorName(sn));
+        if(canonSn === canonN || canonSn === normN || normSn === normN){
+          rRec = sv; break;
+        } else if(isYuvaraj && normSn.includes('yuvaraj')){
           const snIsC = normSn.includes('c') || normSn.startsWith('c');
           const snIsM = normSn.includes('m') || normSn.startsWith('m');
           if((isC && snIsC) || (isM && snIsM)){ rRec = sv; break; }
-        } else if(normSn === normN || normSn.includes(normN) || normN.includes(normSn)){
+        } else if(normSn.includes(normN) || normN.includes(normSn)){
           rRec = sv; break;
         }
       }

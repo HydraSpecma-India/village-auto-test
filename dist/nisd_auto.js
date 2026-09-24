@@ -563,6 +563,18 @@
   window.resolveTalukCode = resolveTalukCode;
   window.cleanTalukTitle = cleanTalukTitle;
 
+  function canonicalSurveyorName(name) {
+    if (!name) return '';
+    let s = String(name).replace(/\s*\([^)]*\)/g, '').trim();
+    const normS = s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normS.includes('yuvaraj')) {
+      if (normS.includes('c') || normS.startsWith('c')) return 'C.Yuvaraj';
+      if (normS.includes('m') || normS.startsWith('m')) return 'M.Yuvaraj';
+    }
+    return s;
+  }
+  window.canonicalSurveyorName = canonicalSurveyorName;
+
   function setSelectByTaluk(sel, targetVal) {
     if (!sel || !sel.options || !targetVal) return false;
     const targetRaw = String(targetVal).trim();
