@@ -5635,7 +5635,7 @@ async function exportIsdApplicationsExcel(talukName) {
   const wsApps = wb.addWorksheet('Application ID Details', { properties: { defaultRowHeight: 18 } });
   wsApps.views = [{ showGridLines: true }];
 
-  wsApps.mergeCells('A1:L1');
+  wsApps.mergeCells('A1:K1');
   const at1 = wsApps.getCell('A1');
   at1.value = `ISD (RURAL) — ALL PENDING APPLICATIONS WITH SURVEY DETAILS — ${tName.toUpperCase()} TALUK`;
   at1.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
@@ -5643,7 +5643,7 @@ async function exportIsdApplicationsExcel(talukName) {
   at1.alignment = { horizontal: 'center', vertical: 'middle' };
   wsApps.getRow(1).height = 26;
 
-  wsApps.mergeCells('A2:L2');
+  wsApps.mergeCells('A2:K2');
   const at2 = wsApps.getCell('A2');
   at2.value = `Total Pending: ${raw.length} Applications | Generated: ${new Date().toLocaleString()}`;
   at2.font = { bold: true, size: 10.5, color: { argb: 'FF334155' } };
@@ -5654,7 +5654,7 @@ async function exportIsdApplicationsExcel(talukName) {
   const appHeaders = [
     'S.No', 'Staff Name', 'Village Name', 'Application ID',
     'Survey No', 'Sub-Division No', 'Appl Date', 'Days Pending',
-    'Age Category', 'Role / Pending At', 'RTR / STR', 'Status'
+    'Role / Pending At', 'RTR / STR', 'Status'
   ];
   const hRow2 = wsApps.addRow(appHeaders);
   hRow2.height = 22;
@@ -5673,15 +5673,12 @@ async function exportIsdApplicationsExcel(talukName) {
   data.owners.forEach(owner => {
     owner.villages.forEach(village => {
       village.apps.forEach(app => {
-        let ageCat = '< 25 Days';
         let dayColor = 'FF166534';
         let dayBg = 'FFDCFCE7';
         if (app.days >= 30) {
-          ageCat = '30+ Days';
           dayColor = 'FF991B1B';
           dayBg = 'FFFEE2E2';
         } else if (app.days >= 25) {
-          ageCat = '25 - 29 Days';
           dayColor = 'FF92400E';
           dayBg = 'FFFEF3C7';
         }
@@ -5695,7 +5692,6 @@ async function exportIsdApplicationsExcel(talukName) {
           app.subdiv,
           app.date,
           app.days,
-          ageCat,
           app.role,
           app.rtrStr || '—',
           'Pending'
@@ -5709,7 +5705,7 @@ async function exportIsdApplicationsExcel(talukName) {
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
           };
-          if (colNum === 1 || colNum === 7 || colNum === 11 || colNum === 12) {
+          if (colNum === 1 || colNum === 7 || colNum === 10 || colNum === 11) {
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNum === 4) {
             cell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: 'FF1D4ED8' } };
@@ -5728,21 +5724,21 @@ async function exportIsdApplicationsExcel(talukName) {
     });
   });
 
-  wsApps.autoFilter = { from: 'A3', to: `L${aCount + 2}` };
+  wsApps.autoFilter = { from: 'A3', to: `K${aCount + 2}` };
 
   /* ---------- Sheet 3: Expandable Tree (Native Excel Outlines) ---------- */
   const wsTree = wb.addWorksheet('Expandable Tree', { properties: { defaultRowHeight: 18 } });
   wsTree.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
   wsTree.views = [{ showOutlineSymbols: true, showGridLines: true }];
 
-  wsTree.mergeCells('A1:G1');
+  wsTree.mergeCells('A1:F1');
   const tt1 = wsTree.getCell('A1');
   tt1.value = `ISD RURAL HIERARCHICAL DRILLDOWN TREE — ${tName.toUpperCase()}`;
   tt1.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
   tt1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
   tt1.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  const treeHeaders = ['Hierarchy / Level', 'Staff / Village / Application ID', 'Survey No / Sub-Div', 'Appl Date', 'Days Pending', 'Age Category', 'Pending Count / Role'];
+  const treeHeaders = ['Hierarchy / Level', 'Staff / Village / Application ID', 'Survey No / Sub-Div', 'Appl Date', 'Days Pending', 'Pending Count / Role'];
   const hRow3 = wsTree.addRow(treeHeaders);
   hRow3.height = 22;
   hRow3.eachCell(cell => {
@@ -5756,7 +5752,6 @@ async function exportIsdApplicationsExcel(talukName) {
     const oRow = wsTree.addRow([
       '▼ STAFF',
       owner.name,
-      '',
       '',
       '',
       '',
@@ -5778,7 +5773,6 @@ async function exportIsdApplicationsExcel(talukName) {
         '',
         '',
         '',
-        '',
         `${village.total} apps`
       ]);
       vRow.outlineLevel = 1;
@@ -5797,7 +5791,6 @@ async function exportIsdApplicationsExcel(talukName) {
           `${app.surveyNo} ${app.subdiv}`,
           app.date,
           app.days,
-          app.days >= 30 ? '30+ Days' : (app.days >= 25 ? '25 - 29 Days' : '< 25 Days'),
           `${app.role} (${app.rtrStr || '—'})`
         ]);
         aRow.outlineLevel = 2;
@@ -7510,13 +7503,21 @@ async function renderTnCredsTab() {
     visibleTaluks = RANIPET_TALUKS.filter(t => mine.some(m => normTaluk(m) === normTaluk(t.name)));
   }
 
+  const isNemiliUser = !!(ME && ME.taluk && normTaluk(ME.taluk) === 'nemili');
+  const canSeeNemiliUser = isAdmin || isNemiliUser;
+
   // Map credentials for visible taluks
   const talukRows = visibleTaluks.map(t => {
     const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(t.name));
+    const rawUser = found ? found.username : (t.name.toLowerCase() === 'nemili' ? 'rpt_panneerselvam' : `thl${t.name.toLowerCase()}`);
+    let displayUser = rawUser;
+    if (rawUser === 'rpt_panneerselvam' && !canSeeNemiliUser) {
+      displayUser = 'rpt_******';
+    }
     return {
       name: t.name,
       code: t.code,
-      username: found ? found.username : (t.name.toLowerCase() === 'nemili' ? 'rpt_panneerselvam' : `thl${t.name.toLowerCase()}`),
+      username: displayUser,
       password: found ? found.password : 'Taluk@123',
       roleId: (found && found.role_id) ? found.role_id : '8',
       updatedAt: found ? found.updated_at : null
@@ -7816,7 +7817,12 @@ async function renderTnCredsTab() {
       const talukName = btn.dataset.taluk;
       const talukCode = btn.dataset.code;
       const slug = btn.dataset.slug;
-      const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      const rawUserVal = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      let u = rawUserVal;
+      if (u === 'rpt_******') {
+        const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(talukName));
+        u = (found && found.username) ? found.username : 'rpt_panneerselvam';
+      }
       let p = document.getElementById(`tnCredPass_${slug}`)?.value;
       const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
       const st = document.getElementById(`tnStatus_${slug}`);
@@ -7884,7 +7890,12 @@ async function renderTnCredsTab() {
     btn.addEventListener('click', async () => {
       const talukName = btn.dataset.taluk;
       const slug = btn.dataset.slug;
-      const u = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      const rawUserVal = document.getElementById(`tnCredUser_${slug}`)?.value.trim();
+      let u = rawUserVal;
+      if (u === 'rpt_******') {
+        const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(talukName));
+        u = (found && found.username) ? found.username : 'rpt_panneerselvam';
+      }
       let p = document.getElementById(`tnCredPass_${slug}`)?.value;
       const r = document.getElementById(`tnCredRole_${slug}`)?.value.trim() || '8';
       const st = document.getElementById(`tnStatus_${slug}`);
@@ -7906,7 +7917,7 @@ async function renderTnCredsTab() {
         const data = await res.json();
         if (data.success && Array.isArray(data.taluks)) {
           if (st) { st.style.color = '#10b981'; st.textContent = `✓ Connected! (${data.taluks.length} taluks found)`; }
-          toast('Connected', `Connected as "${u}" for ${talukName}`, 'ok');
+          toast('Connected', `Connected as "${rawUserVal}" for ${talukName}`, 'ok');
         } else {
           throw new Error(data.error || 'Authentication failed');
         }
