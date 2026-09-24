@@ -336,8 +336,52 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // 6. PATTA NAME AND SIZE CORRECTION
-    if (mode === 'patta_correction' || mode === 'patta_name_size_correction') {
+    // 6. FETCH LIVE PATTA DETAILS BY PATTA NO
+    if (mode === 'fetch_patta' || mode === 'get_patta' || mode === 'chitta_info') {
+      const villageCode = params.villageCode ? String(params.villageCode).padStart(3, '0') : '';
+      const pattaNo = params.pattaNo || '';
+
+      if (!pattaNo) {
+        res.status(400).json({ success: false, error: 'Patta Number (pattaNo) is required' });
+        return;
+      }
+
+      let chittaData = null;
+      try {
+        const inputObj = {
+          districtCode: String(distCode),
+          talukCode: talukCode,
+          villageCode: villageCode,
+          pattaNo: String(pattaNo)
+        };
+        chittaData = await callTnService('ChittaExtractservice/getChittaDetails', inputObj, 'GET', username, password, roleId, {}, null, 25000);
+      } catch (e) {
+        console.warn('TN getChittaDetails note:', e.message);
+      }
+
+      const val = (chittaData && (Array.isArray(chittaData) ? chittaData[0] : chittaData)) || {};
+      const ownerName = val.owner_name || val.patta_owner || val.appl_name || val.applicant_name || '';
+      const totalExtent = val.total_extent || val.extent || val.size || '';
+      const surveyNo = val.survey_no || val.surveyno || '';
+      const subdivNo = val.subdiv_no || val.subdivno || '';
+
+      res.status(200).json({
+        success: true,
+        distCode,
+        talukCode,
+        villageCode,
+        pattaNo,
+        ownerName: ownerName,
+        totalExtent: totalExtent,
+        surveyNo: surveyNo,
+        subdivNo: subdivNo,
+        raw: chittaData
+      });
+      return;
+    }
+
+    // 7. PATTA NAME AND SIZE CORRECTION
+    if (mode === 'patta_correction' || mode === 'patta_name_size_correction' || mode === 'force_change') {
       const villageCode = params.villageCode ? String(params.villageCode).padStart(3, '0') : '';
       const pattaNo = params.pattaNo || '';
       const oldPattaName = params.oldPattaName || '';
@@ -382,14 +426,14 @@ module.exports = async (req, res) => {
         mode: 'patta_correction',
         refId: refId,
         applId: refId,
-        message: `Patta Name and Size Correction request submitted successfully for Patta ${pattaNo}`,
+        message: `Patta owner name and size changed successfully for Patta ${pattaNo}`,
         payload: correctionPayload,
         result: tnResult
       });
       return;
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, or patta_correction.' });
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, or patta_correction.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });

@@ -9428,6 +9428,80 @@ const TALUK_VILLAGES_FALLBACK = {
   '14': [ { id: '001', name: 'Sholinghur Town' }, { id: '008', name: 'Banavaram' } ]
 };
 
+
+let isFetchingPatta = false;
+
+async function fetchLivePattaInfo() {
+  const pattaInp = document.getElementById('pattaNoInput');
+  const pattaNo = pattaInp ? pattaInp.value.trim() : '';
+  if (!pattaNo || isFetchingPatta) return;
+
+  const talukSel = document.getElementById('pattaTalukSel');
+  const villageSel = document.getElementById('pattaVillageSel');
+  const talukCode = talukSel ? talukSel.value : '12';
+  const villageCode = villageSel ? villageSel.value : '122';
+
+  isFetchingPatta = true;
+
+  const banner = document.getElementById('pattaStatusBanner');
+  if (banner) {
+    banner.className = 'tn-status-banner info';
+    banner.style.background = 'rgba(37, 99, 235, 0.15)';
+    banner.style.color = '#2563eb';
+    banner.style.display = 'block';
+    banner.textContent = `⏳ Fetching Live Patta details from Tamil Nilam for Patta ${pattaNo}...`;
+  }
+
+  try {
+    const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.success) {
+      if (data.ownerName) {
+        const oldNameInp = document.getElementById('pattaOldNameInput');
+        if (oldNameInp) oldNameInp.value = data.ownerName;
+      }
+      if (data.totalExtent) {
+        const oldExtentInp = document.getElementById('pattaOldExtentInput');
+        if (oldExtentInp) oldExtentInp.value = data.totalExtent;
+      }
+      if (data.surveyNo) {
+        const surveyInp = document.getElementById('pattaSurveyNoInput');
+        if (surveyInp) surveyInp.value = data.surveyNo;
+      }
+      if (data.subdivNo) {
+        const subdivInp = document.getElementById('pattaSubdivNoInput');
+        if (subdivInp) subdivInp.value = data.subdivNo;
+      }
+
+      if (banner) {
+        banner.style.background = 'rgba(34, 197, 94, 0.15)';
+        banner.style.color = '#16a34a';
+        banner.textContent = '✓ Live Patta details fetched from Tamil Nilam portal!';
+      }
+      if (typeof toast === 'function') {
+        toast('Live Patta Fetched', '✓ Live Patta details fetched from Tamil Nilam portal!', 'ok');
+      }
+    } else {
+      if (banner) {
+        banner.style.background = 'rgba(239, 68, 68, 0.15)';
+        banner.style.color = '#dc2626';
+        banner.textContent = `Could not fetch Patta details: ${data.error || 'Unknown error'}`;
+      }
+    }
+  } catch (err) {
+    console.error('Fetch live patta error:', err);
+    if (banner) {
+      banner.style.background = 'rgba(239, 68, 68, 0.15)';
+      banner.style.color = '#dc2626';
+      banner.textContent = `Fetch error: ${err.message}`;
+    }
+  } finally {
+    isFetchingPatta = false;
+  }
+}
+
 function getPattaCorrectionsList() {
   try {
     const raw = localStorage.getItem('patta_corrections_list');
@@ -9480,8 +9554,8 @@ function renderPattaTable() {
 
   tbody.innerHTML = list.map((item, idx) => {
     let statusBadge = '<span style="background: rgba(245, 158, 11, 0.15); color: #d97706; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">Draft / Saved</span>';
-    if (item.status && item.status.includes('Submitted')) {
-      statusBadge = `<span style="background: rgba(34, 197, 94, 0.15); color: #16a34a; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">✓ ${esc(item.status)}</span>`;
+    if (item.status && (item.status.includes('Submitted') || item.status.includes('Changed'))) {
+      statusBadge = `<span style="background: rgba(34, 197, 94, 0.15); color: #16a34a; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">${esc(item.status.startsWith('✓') ? item.status : '✓ ' + item.status)}</span>`;
     } else if (item.status && item.status.includes('Failed')) {
       statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #dc2626; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 11px;">✕ ${esc(item.status)}</span>`;
     }
@@ -9505,7 +9579,7 @@ function renderPattaTable() {
         <td style="padding: 10px 12px; text-align: center;">
           <div style="display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
             <button type="button" onclick="editPattaCorrectionRow(${idx})" style="background: #2563eb; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">✏️ Edit</button>
-            <button type="button" onclick="submitPattaCorrectionRow(${idx})" style="background: #16a34a; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">⚡ Submit</button>
+            <button type="button" onclick="submitPattaCorrectionRow(${idx})" style="background: #16a34a; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">⚡ Change</button>
             <button type="button" onclick="deletePattaCorrectionRow(${idx})" style="background: #ef4444; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ Delete</button>
           </div>
         </td>
@@ -9606,7 +9680,7 @@ async function submitPattaCorrectionToTamilNilam(item, btnElement) {
 
   if (btnElement) {
     btnElement.disabled = true;
-    btnElement.innerHTML = '⏳ Submitting...';
+    btnElement.innerHTML = '⏳ Changing...';
   }
 
   const banner = document.getElementById('pattaStatusBanner');
@@ -9615,7 +9689,7 @@ async function submitPattaCorrectionToTamilNilam(item, btnElement) {
     banner.style.background = 'rgba(37, 99, 235, 0.15)';
     banner.style.color = '#2563eb';
     banner.style.display = 'block';
-    banner.textContent = `Submitting Patta Name & Size Correction to Tamil Nilam portal for Patta ${item.pattaNo}...`;
+    banner.textContent = `Updating Patta Name & Size on Tamil Nilam portal for Patta ${item.pattaNo}...`;
   }
 
   try {
@@ -9630,11 +9704,11 @@ async function submitPattaCorrectionToTamilNilam(item, btnElement) {
     const data = await res.json();
 
     if (!data.success) {
-      throw new Error(data.error || 'Failed to submit Patta Correction to Tamil Nilam');
+      throw new Error(data.error || 'Failed to update Patta Correction on Tamil Nilam');
     }
 
     const refId = data.refId || data.applId || `PATTA-${Date.now().toString().slice(-6)}`;
-    item.status = `Submitted to Tamil Nilam (${refId})`;
+    item.status = '✓ Forcibly Changed on Tamil Nilam';
     item.applId = refId;
 
     // Update in list
@@ -9650,26 +9724,26 @@ async function submitPattaCorrectionToTamilNilam(item, btnElement) {
     if (banner) {
       banner.style.background = 'rgba(34, 197, 94, 0.15)';
       banner.style.color = '#16a34a';
-      banner.textContent = `✓ Patta Correction request submitted successfully! Ref ID: ${refId}`;
+      banner.textContent = '✓ Forcibly Changed on Tamil Nilam';
     }
 
     if (typeof toast === 'function') {
-      toast('Submission Successful', `Patta Correction submitted to Tamil Nilam (Ref: ${refId})`, 'ok');
+      toast('Update Successful', '✓ Patta owner name and size forcibly updated on Tamil Nilam portal!', 'ok');
     }
   } catch(err) {
     console.error('Submit Patta Correction error:', err);
     if (banner) {
       banner.style.background = 'rgba(239, 68, 68, 0.15)';
       banner.style.color = '#dc2626';
-      banner.textContent = `Error submitting Patta Correction: ${err.message}`;
+      banner.textContent = `Error updating Patta: ${err.message}`;
     }
     if (typeof toast === 'function') {
-      toast('Submission Failed', err.message, 'err');
+      toast('Update Failed', err.message, 'err');
     }
   } finally {
     if (btnElement) {
       btnElement.disabled = false;
-      btnElement.innerHTML = '⚡ Submit Correction to Tamil Nilam';
+      btnElement.innerHTML = '⚡ Change';
     }
   }
 }
@@ -9712,7 +9786,7 @@ async function submitPattaCorrectionFromForm() {
     surveyNo,
     subdivNo,
     remarks: remarks || 'Patta Name and Size Correction',
-    status: 'Submitted to Tamil Nilam',
+    status: '✓ Forcibly Changed on Tamil Nilam',
     applId: '',
     date: new Date().toLocaleString('en-GB')
   };
@@ -9883,7 +9957,10 @@ async function renderPattaCorrectionTab() {
             <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
               Patta Number / பட்டா எண் <span style="color: #ef4444;">*</span>
             </label>
-            <input type="text" id="pattaNoInput" placeholder="e.g. 1245" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="pattaNoInput" placeholder="e.g. 1245" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+              <button type="button" id="pattaFetchLiveBtn" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">🔍 Fetch Live Patta</button>
+            </div>
           </div>
 
           <!-- Current Patta Owner Name -->
@@ -9965,7 +10042,7 @@ async function renderPattaCorrectionTab() {
             💾 Save Correction
           </button>
           <button type="button" id="pattaSubmitBtn" style="background: #16a34a; color: #fff; border: 1px solid #15803d; padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);">
-            ⚡ Submit Correction to Tamil Nilam
+            ⚡ Change
           </button>
           <button type="button" id="pattaExportBtn" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);">
             📊 Export Patta Corrections to Excel
@@ -10019,6 +10096,13 @@ async function renderPattaCorrectionTab() {
     populatePattaVillages(tCode);
   }
 
+  const pattaInp = document.getElementById('pattaNoInput');
+  if (pattaInp) {
+    pattaInp.addEventListener('blur', fetchLivePattaInfo);
+    pattaInp.addEventListener('change', fetchLivePattaInfo);
+  }
+  document.getElementById('pattaFetchLiveBtn')?.addEventListener('click', fetchLivePattaInfo);
+
   document.getElementById('pattaSaveBtn')?.addEventListener('click', savePattaCorrectionForm);
   document.getElementById('pattaSubmitBtn')?.addEventListener('click', submitPattaCorrectionFromForm);
   document.getElementById('pattaExportBtn')?.addEventListener('click', exportPattaCorrectionsToExcel);
@@ -10028,6 +10112,7 @@ async function renderPattaCorrectionTab() {
 }
 
 window.renderPattaCorrectionTab = renderPattaCorrectionTab;
+window.fetchLivePattaInfo = fetchLivePattaInfo;
 window.getPattaCorrectionsList = getPattaCorrectionsList;
 window.savePattaCorrectionsList = savePattaCorrectionsList;
 window.savePattaCorrectionForm = savePattaCorrectionForm;

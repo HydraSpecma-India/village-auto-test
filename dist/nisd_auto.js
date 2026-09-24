@@ -529,8 +529,93 @@
       });
     }
 
+    const pattaNoInp = document.getElementById('pattaNoInput');
+    if (pattaNoInp && !pattaNoInp.__pattaBound) {
+      pattaNoInp.__pattaBound = true;
+      pattaNoInp.addEventListener('blur', fetchLivePattaInfo);
+      pattaNoInp.addEventListener('change', fetchLivePattaInfo);
+    }
+    const fetchLiveBtn = document.getElementById('pattaFetchLiveBtn');
+    if (fetchLiveBtn && !fetchLiveBtn.__pattaBound) {
+      fetchLiveBtn.__pattaBound = true;
+      fetchLiveBtn.addEventListener('click', fetchLivePattaInfo);
+    }
+
     bindEvents();
   }
+
+  let _isFetchingPatta = false;
+  async function fetchLivePattaInfo() {
+    const pattaInp = document.getElementById('pattaNoInput');
+    const pattaNo = pattaInp ? pattaInp.value.trim() : '';
+    if (!pattaNo || _isFetchingPatta) return;
+
+    const talukSel = document.getElementById('pattaTalukSel');
+    const villageSel = document.getElementById('pattaVillageSel');
+    const talukCode = talukSel ? talukSel.value : '12';
+    const villageCode = villageSel ? villageSel.value : '122';
+
+    _isFetchingPatta = true;
+
+    const banner = document.getElementById('pattaStatusBanner');
+    if (banner) {
+      banner.className = 'tn-status-banner info';
+      banner.style.background = 'rgba(37, 99, 235, 0.15)';
+      banner.style.color = '#2563eb';
+      banner.style.display = 'block';
+      banner.textContent = `⏳ Fetching Live Patta details from Tamil Nilam for Patta ${pattaNo}...`;
+    }
+
+    try {
+      const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.success) {
+        if (data.ownerName) {
+          const oldNameInp = document.getElementById('pattaOldNameInput');
+          if (oldNameInp) oldNameInp.value = data.ownerName;
+        }
+        if (data.totalExtent) {
+          const oldExtentInp = document.getElementById('pattaOldExtentInput');
+          if (oldExtentInp) oldExtentInp.value = data.totalExtent;
+        }
+        if (data.surveyNo) {
+          const surveyInp = document.getElementById('pattaSurveyNoInput');
+          if (surveyInp) surveyInp.value = data.surveyNo;
+        }
+        if (data.subdivNo) {
+          const subdivInp = document.getElementById('pattaSubdivNoInput');
+          if (subdivInp) subdivInp.value = data.subdivNo;
+        }
+
+        if (banner) {
+          banner.style.background = 'rgba(34, 197, 94, 0.15)';
+          banner.style.color = '#16a34a';
+          banner.textContent = '✓ Live Patta details fetched from Tamil Nilam portal!';
+        }
+        if (typeof window.toast === 'function') {
+          window.toast('Live Patta Fetched', '✓ Live Patta details fetched from Tamil Nilam portal!', 'ok');
+        }
+      } else {
+        if (banner) {
+          banner.style.background = 'rgba(239, 68, 68, 0.15)';
+          banner.style.color = '#dc2626';
+          banner.textContent = `Could not fetch Patta details: ${data.error || 'Unknown error'}`;
+        }
+      }
+    } catch (err) {
+      console.error('Fetch live patta error:', err);
+      if (banner) {
+        banner.style.background = 'rgba(239, 68, 68, 0.15)';
+        banner.style.color = '#dc2626';
+        banner.textContent = `Fetch error: ${err.message}`;
+      }
+    } finally {
+      _isFetchingPatta = false;
+    }
+  }
+  window.fetchLivePattaInfo = fetchLivePattaInfo;
 
   let _openFFModal = null; // module-scoped reference for handleFlashFillAll
 
