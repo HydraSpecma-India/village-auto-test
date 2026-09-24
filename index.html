@@ -1173,6 +1173,7 @@
     <button data-tab="creds">🔑 Tamil Nilam Credentials</button>
     <button data-tab="chitta">📜 Chitta Extract (Tahsildar)</button>
     <button data-tab="eservices">🌐 e-Services (No OTP)</button>
+    <button data-tab="areg">📝 A-Register Approval</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
 </aside>
@@ -1225,6 +1226,7 @@
       <button type="button" class="tn-auto-btn" id="singleReportBtn" title="View Rural Overall Pending Single Report (Consolidated)" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff; font-weight:700;">📊 Single Report</button>
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
       <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
+      <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Addition &amp; Correction Approval Suite (Tahsildar)" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff; font-weight:700;">📝 A-Register Approval</button>
       <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Manage Tahsildar Portal Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5;">🔑 Credentials</button>
     </div>
     <div class="topbar-actions">
@@ -10633,6 +10635,11 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   ADMIN_TAB = 'eservices';
   openUsersPanel();
 });
+document.getElementById('aregMenuBtn')?.addEventListener('click', () => {
+  if (typeof window.openAregApprovalModal === 'function') {
+    window.openAregApprovalModal(TALUK || 'Nemili', '0109');
+  }
+});
 document.getElementById('credsMenuBtn')?.addEventListener('click', () => {
   if(!canManageCreds() && (!ME || ME.role !== 'admin')){
     toast('Access restricted', 'You do not have credentials management access.', 'warn');
@@ -10647,6 +10654,13 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
   const b = e.target.closest('button[data-tab]');
   if(b){
     const tab = b.dataset.tab;
+    if(tab === 'areg'){
+      closeUsersPanel();
+      if (typeof window.openAregApprovalModal === 'function') {
+        window.openAregApprovalModal(TALUK || 'Nemili', '0109');
+      }
+      return;
+    }
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
     if(!isAdmin && tab === 'users'){
       return;
