@@ -530,4 +530,52 @@ html[data-theme="dark"] .tn-bucket-tag {
   color: var(--muted, #9ca3af);
 }
 
+/* ============================================================
+   Mobile Responsive Styles for Tamil Nilam Automation
+   ============================================================ */
+@media (max-width: 768px) {
+  .tn-modal-backdrop {
+    padding: 8px;
+  }
+  .tn-modal {
+    max-height: 98vh;
+    border-radius: 12px;
+  }
+  .tn-modal-header {
+    padding: 12px 14px;
+  }
+  .tn-modal-header h2 {
+    font-size: 14px;
+  }
+  .tn-modal-body {
+    padding: 12px 14px;
+  }
+  .tn-filter-box {
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .tn-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+  .tn-radio-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tn-btn-bar {
+    flex-direction: column;
+    width: 100%;
+  }
+  .tn-btn-bar button {
+    width: 100%;
+  }
+  .tn-ff-footer {
+    padding: 10px 14px;
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+}
+
 
