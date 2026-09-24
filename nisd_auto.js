@@ -512,6 +512,55 @@
       btn.style.display = canPatta ? 'inline-block' : 'none';
     });
 
+    const dbinfoMenuBtn = document.getElementById('dbinfoMenuBtn');
+    if (dbinfoMenuBtn) {
+      dbinfoMenuBtn.style.display = isAdmin ? 'inline-block' : 'none';
+    }
+    document.querySelectorAll('[data-tab="dbinfo"]').forEach(btn => {
+      btn.style.display = isAdmin ? 'inline-block' : 'none';
+      if (!btn.__dbinfoBound) {
+        btn.__dbinfoBound = true;
+        btn.addEventListener('click', () => {
+          if (!isAdmin) {
+            if (typeof window.toast === 'function') {
+              window.toast('Access restricted', 'Access restricted: Only Admin accounts can access Database Info & Query Suite.', 'warn');
+            }
+            return;
+          }
+          window.ADMIN_TAB = 'dbinfo';
+          if (typeof window.openUsersPanel === 'function') {
+            window.openUsersPanel();
+          }
+          if (typeof window.renderAdminTabs === 'function') {
+            window.renderAdminTabs();
+          } else if (typeof window.renderDbInfoTab === 'function') {
+            window.renderDbInfoTab();
+          }
+        });
+      }
+    });
+
+    if (dbinfoMenuBtn && !dbinfoMenuBtn.__dbinfoBound) {
+      dbinfoMenuBtn.__dbinfoBound = true;
+      dbinfoMenuBtn.addEventListener('click', () => {
+        if (!isAdmin) {
+          if (typeof window.toast === 'function') {
+            window.toast('Access restricted', 'Access restricted: Only Admin accounts can access Database Info & Query Suite.', 'warn');
+          }
+          return;
+        }
+        window.ADMIN_TAB = 'dbinfo';
+        if (typeof window.openUsersPanel === 'function') {
+          window.openUsersPanel();
+        }
+        if (typeof window.renderAdminTabs === 'function') {
+          window.renderAdminTabs();
+        } else if (typeof window.renderDbInfoTab === 'function') {
+          window.renderDbInfoTab();
+        }
+      });
+    }
+
     if (pattaMenuBtn && !pattaMenuBtn.__pattaBound) {
       pattaMenuBtn.__pattaBound = true;
       pattaMenuBtn.addEventListener('click', () => {

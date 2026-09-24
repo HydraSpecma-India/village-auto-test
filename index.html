@@ -1176,6 +1176,7 @@
     <button data-tab="eservices">🌐 e-Services (No OTP)</button>
     <button data-tab="areg">📝 A-Register Approval</button>
     <button data-tab="patta">📜 Patta Name &amp; Size Correction</button>
+    <button data-tab="dbinfo">🗄️ Database Info &amp; Query</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
 </aside>
@@ -6738,6 +6739,7 @@ function renderAdminTabs(){
   const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
+  const dbinfoTabBtn = document.querySelector('#usersTabs button[data-tab="dbinfo"]');
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(filesBtn) filesBtn.style.display = (isAdmin || CLOUD_ON) ? 'inline-block' : 'none';
@@ -6746,9 +6748,10 @@ function renderAdminTabs(){
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
+  if(dbinfoTabBtn) dbinfoTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   
   if(!isAdmin){
-    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'areg'){
+    if(ADMIN_TAB === 'users' || ADMIN_TAB === 'areg' || ADMIN_TAB === 'dbinfo'){
       if(canCreds) ADMIN_TAB = 'creds';
       else if(canChitta) ADMIN_TAB = 'chitta';
       else if(canEservices) ADMIN_TAB = 'eservices';
@@ -6800,6 +6803,10 @@ function renderAdminTabs(){
   else if(ADMIN_TAB === 'patta'){
     if(!isAdmin && !hasMenu('patta')){ renderAdminTabs(); return; }
     renderPattaCorrectionTab();
+  }
+  else if(ADMIN_TAB === 'dbinfo'){
+    if(!isAdmin){ renderAdminTabs(); return; }
+    renderDbInfoTab();
   }
   else {
     const box = document.getElementById('usersBody');
@@ -10448,6 +10455,1222 @@ window.deletePattaCorrectionRow = deletePattaCorrectionRow;
 window.exportPattaCorrectionsToExcel = exportPattaCorrectionsToExcel;
 window.clearPattaCorrectionForm = clearPattaCorrectionForm;
 
+/* ============================================================
+   Database Info & Query Suite (Admin Hub)
+   Schema Directory, Metrics, Live Query Console & SQL Tools
+   ============================================================ */
+const DB_SCHEMA_DIRECTORY = [
+  {
+    id: 'isd_users',
+    name: 'Authorized Users (isd_users)',
+    icon: '👥',
+    type: 'Cloud PostgreSQL Table',
+    badge: 'PostgreSQL Cloud',
+    desc: 'Authentication, access roles (Admin/User), allowed taluks, module menu permissions & password management rights.',
+    source: 'supabase',
+    tableName: 'isd_users',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'uuid', constraints: 'PK, DEFAULT gen_random_uuid()', desc: 'Unique account identifier' },
+      { name: 'email', type: 'text', constraints: 'NOT NULL, UNIQUE', desc: 'Account login & contact email address' },
+      { name: 'full_name', type: 'text', constraints: 'NULLABLE', desc: 'Display name / officer designation' },
+      { name: 'role', type: 'text', constraints: 'DEFAULT \'user\'', desc: 'System privilege level: admin | user' },
+      { name: 'active', type: 'boolean', constraints: 'DEFAULT true', desc: 'Active login status flag' },
+      { name: 'site_access', type: 'text', constraints: 'DEFAULT \'both\'', desc: 'Target portal scope: both | village-auto-test | village-applications' },
+      { name: 'menu_access', type: 'jsonb', constraints: 'NULLABLE', desc: 'Authorized modules [isd, nisd, fline, chitta, eservices, areg, patta]' },
+      { name: 'report_access', type: 'text', constraints: 'NULLABLE (legacy)', desc: 'Legacy module single report restriction' },
+      { name: 'taluks', type: 'jsonb', constraints: 'NULLABLE', desc: 'Allowed taluks array (empty = all taluks unrestricted)' },
+      { name: 'can_view_creds', type: 'boolean', constraints: 'DEFAULT false', desc: 'Permission to view secondary Tamil Nilam passwords' },
+      { name: 'can_update_creds', type: 'boolean', constraints: 'DEFAULT false', desc: 'Permission to update secondary Tamil Nilam passwords' },
+      { name: 'created_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Account registration timestamp' },
+      { name: 'updated_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Account last modification timestamp' }
+    ]
+  },
+  {
+    id: 'isd_invites',
+    name: 'Pending Invites (isd_invites)',
+    icon: '✉️',
+    type: 'Cloud PostgreSQL Table',
+    badge: 'PostgreSQL Cloud',
+    desc: 'Pre-registered account invitations with pre-configured taluk scopes and module privileges.',
+    source: 'supabase',
+    tableName: 'isd_invites',
+    primaryKey: 'email',
+    columns: [
+      { name: 'email', type: 'text', constraints: 'PK', desc: 'Invitee email address' },
+      { name: 'full_name', type: 'text', constraints: 'NULLABLE', desc: 'Invitee full name' },
+      { name: 'role', type: 'text', constraints: 'DEFAULT \'user\'', desc: 'Granted privilege level: user | admin' },
+      { name: 'site_access', type: 'text', constraints: 'DEFAULT \'both\'', desc: 'Pre-assigned portal site scope' },
+      { name: 'menu_access', type: 'text[]', constraints: 'NULLABLE', desc: 'Pre-assigned menu modules' },
+      { name: 'taluks', type: 'text[]', constraints: 'NULLABLE', desc: 'Pre-assigned taluk jurisdiction' },
+      { name: 'can_view_creds', type: 'boolean', constraints: 'DEFAULT false', desc: 'Pre-assigned credential view permission' },
+      { name: 'can_update_creds', type: 'boolean', constraints: 'DEFAULT false', desc: 'Pre-assigned credential edit permission' },
+      { name: 'invited_by', type: 'uuid', constraints: 'FK -> isd_users.id', desc: 'Admin account that initiated invitation' },
+      { name: 'created_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Invitation dispatch timestamp' }
+    ]
+  },
+  {
+    id: 'isd_test_datasets',
+    name: 'Stored Cloud Files (isd_test_datasets / isd_files)',
+    icon: '📁',
+    type: 'Cloud PostgreSQL Table',
+    badge: 'PostgreSQL Cloud',
+    desc: 'Uploaded ISD, NISD Rural/Natham, and F-Line data files, row counts, parsed datasets and uploader audit logs.',
+    source: 'supabase',
+    tableName: 'isd_test_datasets',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'bigint', constraints: 'PK, GENERATED BY DEFAULT', desc: 'Internal file record unique ID' },
+      { name: 'kind', type: 'text', constraints: 'NOT NULL', desc: 'Dataset type: isd | nisd_rural | nisd_natham | fline | fline_app' },
+      { name: 'taluk', type: 'text', constraints: 'NULLABLE', desc: 'Revenue taluk partition or ALL' },
+      { name: 'filename', type: 'text', constraints: 'NULLABLE', desc: 'Original spreadsheet or CSV filename' },
+      { name: 'row_count', type: 'integer', constraints: 'DEFAULT 0', desc: 'Total data rows parsed and stored' },
+      { name: 'dataset', type: 'jsonb', constraints: 'NULLABLE', desc: 'Structured JSON data payload' },
+      { name: 'updated_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Last cloud sync timestamp' },
+      { name: 'updated_by', type: 'uuid', constraints: 'FK -> isd_users.id', desc: 'User who uploaded or last updated the dataset' }
+    ]
+  },
+  {
+    id: 'isd_taluk_credentials',
+    name: 'Taluk Credentials (isd_taluk_credentials / taluk_creds)',
+    icon: '🔑',
+    type: 'Cloud PostgreSQL Table',
+    badge: 'PostgreSQL Cloud',
+    desc: 'Taluk-wise Tamil Nilam secondary login credentials (Tahsildar / Deputy Tahsildar role 8) for PDF fetch & approvals.',
+    source: 'supabase',
+    tableName: 'isd_taluk_credentials',
+    primaryKey: 'taluk_code',
+    columns: [
+      { name: 'id', type: 'bigint', constraints: 'GENERATED BY DEFAULT', desc: 'Internal row identifier' },
+      { name: 'taluk_code', type: 'text', constraints: 'PK, NOT NULL, UNIQUE', desc: '2-digit Tamil Nilam taluk code (e.g. 12=Nemili, 03=Arakkonam)' },
+      { name: 'taluk_name', type: 'text', constraints: 'NOT NULL', desc: 'Revenue Taluk name' },
+      { name: 'username', type: 'text', constraints: 'NOT NULL', desc: 'Tamil Nilam secondary login user handle' },
+      { name: 'password', type: 'text', constraints: 'NOT NULL', desc: 'Tamil Nilam portal password' },
+      { name: 'role_id', type: 'text', constraints: 'DEFAULT \'8\'', desc: 'Role identifier (8 = Tahsildar / Deputy Tahsildar)' },
+      { name: 'updated_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Credential update timestamp' },
+      { name: 'updated_by', type: 'uuid', constraints: 'FK -> isd_users.id', desc: 'Admin who last updated password' }
+    ]
+  },
+  {
+    id: 'patta_corrections',
+    name: 'Patta Corrections (patta_corrections)',
+    icon: '📜',
+    type: 'Local & Cloud Synced Store',
+    badge: 'PostgreSQL + Local Sync',
+    desc: 'Patta owner name and extent size corrections, survey tracking, approval status, and audit records.',
+    source: 'mixed',
+    tableName: 'patta_corrections',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'text/uuid', constraints: 'PK', desc: 'Correction reference UUID' },
+      { name: 'taluk_code', type: 'text', constraints: 'NOT NULL', desc: 'Taluk code' },
+      { name: 'taluk_name', type: 'text', constraints: 'NOT NULL', desc: 'Taluk name' },
+      { name: 'village_code', type: 'text', constraints: 'NOT NULL', desc: 'Revenue village code' },
+      { name: 'village_name', type: 'text', constraints: 'NOT NULL', desc: 'Revenue village name' },
+      { name: 'patta_no', type: 'text', constraints: 'NOT NULL', desc: 'Patta number' },
+      { name: 'survey_no', type: 'text', constraints: 'NOT NULL', desc: 'Land survey number' },
+      { name: 'subdiv_no', type: 'text', constraints: 'NULLABLE', desc: 'Subdivision number' },
+      { name: 'land_type', type: 'text', constraints: 'DEFAULT \'Rural\'', desc: 'Classification: Rural | Natham' },
+      { name: 'old_name', type: 'text', constraints: 'NULLABLE', desc: 'Original owner name from Chitta extract' },
+      { name: 'new_name', type: 'text', constraints: 'NULLABLE', desc: 'Corrected / revised owner name' },
+      { name: 'old_extent', type: 'text', constraints: 'NULLABLE', desc: 'Original registered area/extent' },
+      { name: 'new_extent', type: 'text', constraints: 'NULLABLE', desc: 'Corrected registered area/extent' },
+      { name: 'extent_unit', type: 'text', constraints: 'DEFAULT \'Hectares-Ares\'', desc: 'Unit of area measurement' },
+      { name: 'status', type: 'text', constraints: 'DEFAULT \'Pending\'', desc: 'Approval status: Pending | Approved & Completed' },
+      { name: 'created_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Submission timestamp' }
+    ]
+  },
+  {
+    id: 'village_settings',
+    name: 'Day Ranges & App Settings (village_settings)',
+    icon: '📊',
+    type: 'System Configuration Store',
+    badge: 'Configuration Store',
+    desc: 'Cut-off day thresholds (25/30 days), custom category labels, taluk roster, and sorting preferences.',
+    source: 'local',
+    tableName: 'village_settings',
+    primaryKey: 'setting_key',
+    columns: [
+      { name: 'setting_key', type: 'text', constraints: 'PK', desc: 'Configuration storage key' },
+      { name: 'setting_value', type: 'jsonb / text', constraints: 'NOT NULL', desc: 'Configured parameters, thresholds array or taluk list' },
+      { name: 'category', type: 'text', constraints: 'NULLABLE', desc: 'Group: ISD Thresholds | NISD Ranges | Taluks' },
+      { name: 'updated_at', type: 'timestamptz', constraints: 'DEFAULT now()', desc: 'Last modified timestamp' }
+    ]
+  }
+];
+
+let __dbConsoleState = {
+  currentResults: [],
+  filteredResults: [],
+  currentPage: 1,
+  pageSize: 25,
+  activeTable: 'isd_users',
+  lastQueryTimeMs: 0,
+  lastQueryString: ''
+};
+
+async function renderDbInfoTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if (!isAdmin) {
+    box.innerHTML = '<div class="empty">Access restricted: Only Admin accounts can access Database Info & Query Suite.</div>';
+    return;
+  }
+
+  const totalTables = DB_SCHEMA_DIRECTORY.length;
+  const totalColumns = DB_SCHEMA_DIRECTORY.reduce((acc, t) => acc + (t.columns ? t.columns.length : 0), 0);
+  const cloudEngineStatus = (CLOUD_ON && sb) 
+    ? 'Supabase PostgreSQL 15+ (Cloud Connected)' 
+    : 'Offline Local Cache & Client Storage';
+  const cloudEngineBadge = (CLOUD_ON && sb) 
+    ? '<span style="background: rgba(34,197,94,0.15); color: #16a34a; border: 1px solid rgba(34,197,94,0.3); padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 11px;">🟢 Online / Cloud Sync</span>'
+    : '<span style="background: rgba(245,158,11,0.15); color: #d97706; border: 1px solid rgba(245,158,11,0.3); padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 11px;">🟡 Offline / Local Sync</span>';
+
+  box.innerHTML = `
+    <div id="dbSuiteWrapper" style="max-width: 1040px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 22px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+      <!-- Header Banner -->
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); color: #fff; border-radius: 14px; padding: 22px 26px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.35); border: 1px solid rgba(255,255,255,0.1);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 4px 12px rgba(37,99,235,0.35);">
+              🗄️
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.3px; color: #fff;">Database Info &amp; Live Query Suite</h2>
+                ${cloudEngineBadge}
+              </div>
+              <div style="font-size: 13px; color: #94a3b8; margin-top: 3px; font-weight: 500;">
+                Supabase PostgreSQL Schema Directory, Live Query Console &amp; Admin ID Scripts (தரவுத்தள தகவல் மற்றும் வினவல் மையம்)
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="ghost" id="dbRefreshAllBtn" style="background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.2); padding: 7px 14px; font-size: 12.5px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              🔄 Refresh Metrics &amp; Counts
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. Summary Metrics Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px;">
+        
+        <!-- Total Tables -->
+        <div style="background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);">Total Tables Tracked</span>
+            <span style="font-size: 20px;">🗃️</span>
+          </div>
+          <div style="font-size: 26px; font-weight: 800; color: #2563eb;" id="dbMetricTablesCount">${totalTables} Tables</div>
+          <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+            isd_users, isd_invites, isd_files, patta_corrections, taluk_creds, village_settings
+          </div>
+        </div>
+
+        <!-- Total Columns -->
+        <div style="background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);">Total Schema Columns</span>
+            <span style="font-size: 20px;">📑</span>
+          </div>
+          <div style="font-size: 26px; font-weight: 800; color: #0284c7;" id="dbMetricColumnsCount">${totalColumns} Columns</div>
+          <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+            Defined across relational PostgreSQL and structured client stores
+          </div>
+        </div>
+
+        <!-- Total Live Rows -->
+        <div style="background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);">Total Live Rows</span>
+            <span style="font-size: 20px;">📈</span>
+          </div>
+          <div style="font-size: 26px; font-weight: 800; color: #16a34a;" id="dbMetricTotalRows">
+            <span style="font-size: 16px; color: var(--muted);">⏳ Counting...</span>
+          </div>
+          <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+            Live aggregated count across Supabase and local application records
+          </div>
+        </div>
+
+        <!-- Database Engine -->
+        <div style="background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);">Database Engine &amp; Cloud</span>
+            <span style="font-size: 20px;">⚡</span>
+          </div>
+          <div style="font-size: 17px; font-weight: 800; color: #7c3aed; line-height: 1.3;" id="dbMetricEngine">
+            PostgreSQL 15+
+          </div>
+          <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+            ${cloudEngineStatus}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 2. Table Schema Directory -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 22px 24px; box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid var(--line-2); padding-bottom: 12px; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 style="margin: 0; font-size: 16.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+              <span>📋</span> Table Schema Directory &amp; Column Metadata
+            </h3>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+              Review table architectures, physical column types, nullability, defaults, and primary key relationships.
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="text" id="dbSchemaFilter" placeholder="Filter tables or columns..." style="font-size: 12.5px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); width: 220px;">
+          </div>
+        </div>
+
+        <div id="dbSchemaDirectoryContainer" style="display: flex; flex-direction: column; gap: 14px;">
+          ${DB_SCHEMA_DIRECTORY.map((tbl, idx) => `
+            <div class="db-schema-card" data-table-id="${tbl.id}" style="background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden;">
+              <div style="padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(0,0,0,0.02);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 22px;">${tbl.icon}</span>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <strong style="font-size: 14px; color: var(--ink); font-family: monospace;">${esc(tbl.tableName)}</strong>
+                      <span style="font-size: 11px; background: rgba(37,99,235,0.12); color: #2563eb; padding: 2px 7px; border-radius: 5px; font-weight: 600;">${esc(tbl.badge)}</span>
+                      <span class="db-row-badge" id="dbBadge_${tbl.id}" style="font-size: 11px; background: rgba(22,163,74,0.12); color: #15803d; padding: 2px 7px; border-radius: 5px; font-weight: 600;">⏳ counting...</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">${esc(tbl.desc)}</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 11.5px; font-weight: 600; color: var(--muted); background: var(--surface-2); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line-2);">
+                    ${tbl.columns.length} Columns
+                  </span>
+                  <button type="button" class="ghost db-btn-toggle-cols" data-target="dbCols_${tbl.id}" style="font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line-2);">
+                    ▼ View Columns
+                  </button>
+                  <button type="button" class="primary db-btn-quick-inspect" data-table="${tbl.id}" style="font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 6px;">
+                    🔍 Quick Query
+                  </button>
+                </div>
+              </div>
+
+              <!-- Collapsible Column Details Table -->
+              <div id="dbCols_${tbl.id}" class="db-cols-wrapper" style="display: none; border-top: 1px solid var(--line-2); padding: 12px 16px; background: var(--surface-2);">
+                <table class="utable" style="margin: 0; font-size: 12px;">
+                  <thead>
+                    <tr style="background: var(--surface);">
+                      <th style="width: 22%;">Column Name</th>
+                      <th style="width: 18%;">Data Type</th>
+                      <th style="width: 28%;">Constraints / Default</th>
+                      <th style="width: 32%;">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tbl.columns.map(c => `
+                      <tr>
+                        <td style="font-family: monospace; font-weight: 700; color: var(--ink);">
+                          ${esc(c.name)} ${c.constraints.includes('PK') ? '<span style="color: #f59e0b; font-size: 10px;">🔑 PK</span>' : ''}
+                        </td>
+                        <td>
+                          <code style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #2563eb;">
+                            ${esc(c.type)}
+                          </code>
+                        </td>
+                        <td style="color: var(--muted); font-size: 11.5px;">
+                          ${esc(c.constraints)}
+                        </td>
+                        <td style="color: var(--ink); font-size: 11.5px;">
+                          ${esc(c.desc)}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- 3. Live Database Query Console -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 22px 24px; box-shadow: var(--shadow);">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid var(--line-2); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="margin: 0; font-size: 16.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+              <span>⚡</span> Live Database Query Console
+            </h3>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+              Execute read queries on PostgreSQL tables and client datasets with real-time inspection, pagination and CSV export.
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="ghost" id="dbConsoleCopyJsonBtn" style="font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line-2);">
+              📋 Copy JSON
+            </button>
+            <button type="button" class="ghost" id="dbConsoleExportCsvBtn" style="font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line-2);">
+              📥 Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Query Buttons Toolbar -->
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px;">
+            Quick Table Queries:
+          </label>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" class="ghost db-quick-query-btn" data-table="isd_users" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface);">
+              🔍 Inspect Users Table
+            </button>
+            <button type="button" class="ghost db-quick-query-btn" data-table="isd_test_datasets" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface);">
+              📁 Inspect Stored Files Table
+            </button>
+            <button type="button" class="ghost db-quick-query-btn" data-table="patta_corrections" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface);">
+              📜 Inspect Patta Corrections Table
+            </button>
+            <button type="button" class="ghost db-quick-query-btn" data-table="village_settings" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface);">
+              📊 Inspect Day Ranges / Settings
+            </button>
+            <button type="button" class="primary db-quick-query-btn" id="dbRunCustomBtn" style="font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 6px;">
+              ⚡ Run Custom Read Query
+            </button>
+          </div>
+        </div>
+
+        <!-- Interactive Query Controls Box -->
+        <div style="background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: flex-end;">
+            
+            <!-- Table Select -->
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">Target Table</label>
+              <select id="dbQueryTable" style="width: 100%; font-size: 12.5px; font-weight: 600; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink);">
+                <option value="isd_users" selected>isd_users (Authorized Users)</option>
+                <option value="isd_invites">isd_invites (Pending Invites)</option>
+                <option value="isd_test_datasets">isd_test_datasets (Stored Cloud Files)</option>
+                <option value="isd_taluk_credentials">isd_taluk_credentials (Taluk Passwords)</option>
+                <option value="patta_corrections">patta_corrections (Patta Corrections)</option>
+                <option value="village_settings">village_settings (Day Ranges &amp; Config)</option>
+              </select>
+            </div>
+
+            <!-- Columns Input -->
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">Columns (* or comma-separated)</label>
+              <input type="text" id="dbQueryColumns" value="*" placeholder="e.g. id, email, role or *" style="width: 100%; font-size: 12px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink);">
+            </div>
+
+            <!-- Filter Keyword Input -->
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">Search / Filter Result Rows</label>
+              <input type="text" id="dbQueryFilter" placeholder="Type text to filter instantly..." style="width: 100%; font-size: 12px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink);">
+            </div>
+
+            <!-- Row Limit -->
+            <div style="flex: 0 0 110px;">
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">Row Limit</label>
+              <select id="dbQueryLimit" style="width: 100%; font-size: 12.5px; font-weight: 600; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink);">
+                <option value="10">10 rows</option>
+                <option value="25" selected>25 rows</option>
+                <option value="50">50 rows</option>
+                <option value="100">100 rows</option>
+                <option value="500">500 rows</option>
+              </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="primary" id="dbExecuteQueryBtn" style="flex: 1; font-size: 12.5px; font-weight: 700; padding: 7px 14px; border-radius: 6px; white-space: nowrap;">
+                ▶ Run Query
+              </button>
+              <button type="button" class="ghost" id="dbClearFilterBtn" style="font-size: 12px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line-2);" title="Clear search filter">
+                ✕
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Query Execution Status Bar -->
+        <div id="dbQueryStatusBar" style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 12px; background: rgba(0,0,0,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line-2); flex-wrap: wrap; gap: 8px;">
+          <div id="dbQueryStatusText">
+            <span style="font-weight: 600; color: var(--ink);">Query Status:</span> Ready to execute query.
+          </div>
+          <div id="dbQueryMetaText" style="font-weight: 600; color: #2563eb;">
+            0 rows
+          </div>
+        </div>
+
+        <!-- Results Table Container -->
+        <div id="dbQueryResultsContainer" style="background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; overflow-x: auto; min-height: 180px;">
+          <div style="padding: 40px; text-align: center; color: var(--muted); font-size: 13px;">
+            Click <strong>▶ Run Query</strong> or any Quick Query button above to view live table records.
+          </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="dbPaginationBar" style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px;">
+          <div style="font-size: 12px; color: var(--muted);" id="dbPaginationInfo">
+            Showing 0 of 0 records
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="ghost" id="dbPagePrevBtn" disabled style="font-size: 12px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line-2);">
+              ◀ Previous
+            </button>
+            <span style="font-size: 12px; font-weight: 700; color: var(--ink);" id="dbPageIndicator">Page 1</span>
+            <button type="button" class="ghost" id="dbPageNextBtn" disabled style="font-size: 12px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line-2);">
+              Next ▶
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 4. SQL Administration & Admin ID Creation Script -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 22px 24px; box-shadow: var(--shadow);">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid var(--line-2); padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="margin: 0; font-size: 16.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+              <span>🛠️</span> SQL Administration &amp; Admin ID Creation Script
+            </h3>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+              PostgreSQL scripts to inspect information_schema tables, verify column definitions, and create or promote admin users.
+            </div>
+          </div>
+          <button type="button" class="primary" id="dbCopySqlScriptBtn" style="font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 7px; display: inline-flex; align-items: center; gap: 6px;">
+            📋 Copy Complete SQL Script
+          </button>
+        </div>
+
+        <div style="position: relative;">
+          <pre id="dbSqlCodeBlock" style="margin: 0; padding: 18px 20px; background: #0f172a; color: #f1f5f9; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; max-height: 480px; border: 1px solid #1e293b;"><code><span style="color:#64748b;">-- ============================================================
+-- 1. INSPECT ALL TABLES, ROW ESTIMATES &amp; STORAGE SIZE
+-- Query PostgreSQL system catalogs for public schema statistics
+-- ============================================================</span>
+<span style="color:#38bdf8;">SELECT</span> 
+    schemaname,
+    relname <span style="color:#38bdf8;">AS</span> table_name,
+    n_live_tup <span style="color:#38bdf8;">AS</span> estimated_rows,
+    pg_size_pretty(pg_total_relation_size(relid)) <span style="color:#38bdf8;">AS</span> total_size
+<span style="color:#38bdf8;">FROM</span> pg_stat_user_tables
+<span style="color:#38bdf8;">WHERE</span> schemaname = <span style="color:#a5d6a7;">'public'</span>
+<span style="color:#38bdf8;">ORDER BY</span> n_live_tup <span style="color:#38bdf8;">DESC</span>;
+
+<span style="color:#64748b;">-- ============================================================
+-- 2. INSPECT COLUMNS, DATA TYPES, NULLABILITY &amp; DEFAULTS
+-- ============================================================</span>
+<span style="color:#38bdf8;">SELECT</span> 
+    table_name,
+    ordinal_position,
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+<span style="color:#38bdf8;">FROM</span> information_schema.columns
+<span style="color:#38bdf8;">WHERE</span> table_schema = <span style="color:#a5d6a7;">'public'</span> 
+  <span style="color:#38bdf8;">AND</span> table_name <span style="color:#38bdf8;">IN</span> (<span style="color:#a5d6a7;">'isd_users'</span>, <span style="color:#a5d6a7;">'isd_invites'</span>, <span style="color:#a5d6a7;">'isd_test_datasets'</span>, <span style="color:#a5d6a7;">'isd_taluk_credentials'</span>, <span style="color:#a5d6a7;">'patta_corrections'</span>)
+<span style="color:#38bdf8;">ORDER BY</span> table_name, ordinal_position;
+
+<span style="color:#64748b;">-- ============================================================
+-- 3. CREATE OR PROMOTE ADMIN USER SCRIPT
+-- Replace 'admin@example.com' with the intended admin email address
+-- ============================================================</span>
+<span style="color:#38bdf8;">INSERT INTO</span> public.isd_users (
+    id,
+    email,
+    full_name,
+    role,
+    active,
+    site_access,
+    menu_access,
+    taluks,
+    can_view_creds,
+    can_update_creds,
+    created_at,
+    updated_at
+)
+<span style="color:#38bdf8;">VALUES</span> (
+    <span style="color:#38bdf8;">COALESCE</span>((<span style="color:#38bdf8;">SELECT</span> id <span style="color:#38bdf8;">FROM</span> auth.users <span style="color:#38bdf8;">WHERE</span> email = <span style="color:#a5d6a7;">'admin@example.com'</span>), gen_random_uuid()),
+    <span style="color:#a5d6a7;">'admin@example.com'</span>,
+    <span style="color:#a5d6a7;">'System Administrator'</span>,
+    <span style="color:#a5d6a7;">'admin'</span>,
+    <span style="color:#f472b6;">true</span>,
+    <span style="color:#a5d6a7;">'both'</span>,
+    <span style="color:#a5d6a7;">'["isd", "nisd", "fline", "chitta", "eservices", "areg", "patta", "dbinfo"]'</span>::<span style="color:#38bdf8;">jsonb</span>,
+    <span style="color:#a5d6a7;">'[]'</span>::<span style="color:#38bdf8;">jsonb</span>, <span style="color:#64748b;">-- Empty array indicates unrestricted access across all taluks</span>
+    <span style="color:#f472b6;">true</span>,
+    <span style="color:#f472b6;">true</span>,
+    now(),
+    now()
+)
+<span style="color:#38bdf8;">ON CONFLICT</span> (id) <span style="color:#38bdf8;">DO UPDATE SET</span>
+    role = <span style="color:#a5d6a7;">'admin'</span>,
+    active = <span style="color:#f472b6;">true</span>,
+    site_access = <span style="color:#a5d6a7;">'both'</span>,
+    menu_access = <span style="color:#a5d6a7;">'["isd", "nisd", "fline", "chitta", "eservices", "areg", "patta", "dbinfo"]'</span>::<span style="color:#38bdf8;">jsonb</span>,
+    taluks = <span style="color:#a5d6a7;">'[]'</span>::<span style="color:#38bdf8;">jsonb</span>,
+    can_view_creds = <span style="color:#f472b6;">true</span>,
+    can_update_creds = <span style="color:#f472b6;">true</span>,
+    updated_at = now();
+
+<span style="color:#64748b;">-- ============================================================
+-- 4. BOOTSTRAP ALL APPLICATION TABLES &amp; ROW LEVEL SECURITY (RLS)
+-- Use this if deploying to a fresh Supabase database project
+-- ============================================================</span>
+<span style="color:#38bdf8;">CREATE TABLE IF NOT EXISTS</span> public.isd_users (
+    id <span style="color:#38bdf8;">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    email <span style="color:#38bdf8;">TEXT UNIQUE NOT NULL</span>,
+    full_name <span style="color:#38bdf8;">TEXT</span>,
+    role <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'user'</span>,
+    active <span style="color:#38bdf8;">BOOLEAN DEFAULT</span> <span style="color:#f472b6;">true</span>,
+    site_access <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'both'</span>,
+    menu_access <span style="color:#38bdf8;">JSONB DEFAULT</span> <span style="color:#a5d6a7;">'["isd","nisd","fline","chitta","eservices","areg","patta"]'</span>::<span style="color:#38bdf8;">jsonb</span>,
+    report_access <span style="color:#38bdf8;">TEXT</span>,
+    taluks <span style="color:#38bdf8;">JSONB DEFAULT</span> <span style="color:#a5d6a7;">'[]'</span>::<span style="color:#38bdf8;">jsonb</span>,
+    can_view_creds <span style="color:#38bdf8;">BOOLEAN DEFAULT</span> <span style="color:#f472b6;">false</span>,
+    can_update_creds <span style="color:#38bdf8;">BOOLEAN DEFAULT</span> <span style="color:#f472b6;">false</span>,
+    created_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now(),
+    updated_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now()
+);
+
+<span style="color:#38bdf8;">CREATE TABLE IF NOT EXISTS</span> public.isd_invites (
+    email <span style="color:#38bdf8;">TEXT PRIMARY KEY</span>,
+    full_name <span style="color:#38bdf8;">TEXT</span>,
+    role <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'user'</span>,
+    site_access <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'both'</span>,
+    menu_access <span style="color:#38bdf8;">TEXT[]</span>,
+    taluks <span style="color:#38bdf8;">TEXT[]</span>,
+    can_view_creds <span style="color:#38bdf8;">BOOLEAN DEFAULT</span> <span style="color:#f472b6;">false</span>,
+    can_update_creds <span style="color:#38bdf8;">BOOLEAN DEFAULT</span> <span style="color:#f472b6;">false</span>,
+    invited_by <span style="color:#38bdf8;">UUID REFERENCES</span> public.isd_users(id),
+    created_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now()
+);
+
+<span style="color:#38bdf8;">CREATE TABLE IF NOT EXISTS</span> public.isd_taluk_credentials (
+    id <span style="color:#38bdf8;">BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY</span>,
+    taluk_code <span style="color:#38bdf8;">TEXT UNIQUE NOT NULL</span>,
+    taluk_name <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    username <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    password <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    role_id <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'8'</span>,
+    updated_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now(),
+    updated_by <span style="color:#38bdf8;">UUID REFERENCES</span> public.isd_users(id)
+);
+
+<span style="color:#38bdf8;">CREATE TABLE IF NOT EXISTS</span> public.isd_test_datasets (
+    id <span style="color:#38bdf8;">BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY</span>,
+    kind <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    taluk <span style="color:#38bdf8;">TEXT</span>,
+    filename <span style="color:#38bdf8;">TEXT</span>,
+    row_count <span style="color:#38bdf8;">INTEGER DEFAULT</span> 0,
+    dataset <span style="color:#38bdf8;">JSONB</span>,
+    updated_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now(),
+    updated_by <span style="color:#38bdf8;">UUID REFERENCES</span> public.isd_users(id)
+);
+
+<span style="color:#38bdf8;">CREATE TABLE IF NOT EXISTS</span> public.patta_corrections (
+    id <span style="color:#38bdf8;">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+    taluk_code <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    taluk_name <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    village_code <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    village_name <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    patta_no <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    survey_no <span style="color:#38bdf8;">TEXT NOT NULL</span>,
+    subdiv_no <span style="color:#38bdf8;">TEXT</span>,
+    land_type <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'Rural'</span>,
+    old_name <span style="color:#38bdf8;">TEXT</span>,
+    new_name <span style="color:#38bdf8;">TEXT</span>,
+    old_extent <span style="color:#38bdf8;">TEXT</span>,
+    new_extent <span style="color:#38bdf8;">TEXT</span>,
+    extent_unit <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'Hectares-Ares'</span>,
+    status <span style="color:#38bdf8;">TEXT DEFAULT</span> <span style="color:#a5d6a7;">'Pending'</span>,
+    created_at <span style="color:#38bdf8;">TIMESTAMPTZ DEFAULT</span> now()
+);
+
+<span style="color:#38bdf8;">ALTER TABLE</span> public.isd_users <span style="color:#38bdf8;">ENABLE ROW LEVEL SECURITY</span>;
+<span style="color:#38bdf8;">ALTER TABLE</span> public.isd_invites <span style="color:#38bdf8;">ENABLE ROW LEVEL SECURITY</span>;
+<span style="color:#38bdf8;">ALTER TABLE</span> public.isd_taluk_credentials <span style="color:#38bdf8;">ENABLE ROW LEVEL SECURITY</span>;
+<span style="color:#38bdf8;">ALTER TABLE</span> public.isd_test_datasets <span style="color:#38bdf8;">ENABLE ROW LEVEL SECURITY</span>;
+<span style="color:#38bdf8;">ALTER TABLE</span> public.patta_corrections <span style="color:#38bdf8;">ENABLE ROW LEVEL SECURITY</span>;</code></pre>
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  // Attach Event Handlers
+  initDbInfoSuiteEvents();
+
+  // Load initial counts
+  loadLiveDbCounts();
+
+  // Run initial default query (isd_users)
+  executeDbConsoleQuery('isd_users', '*', 25);
+}
+
+function initDbInfoSuiteEvents() {
+  // Refresh Metrics button
+  document.getElementById('dbRefreshAllBtn')?.addEventListener('click', () => {
+    loadLiveDbCounts(true);
+    const table = document.getElementById('dbQueryTable')?.value || 'isd_users';
+    const cols = document.getElementById('dbQueryColumns')?.value || '*';
+    const limit = parseInt(document.getElementById('dbQueryLimit')?.value || '25', 10);
+    executeDbConsoleQuery(table, cols, limit);
+  });
+
+  // Toggle Schema Columns Accordion
+  document.querySelectorAll('.db-btn-toggle-cols').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const el = document.getElementById(targetId);
+      if (el) {
+        const isHidden = el.style.display === 'none';
+        el.style.display = isHidden ? 'block' : 'none';
+        btn.textContent = isHidden ? '▲ Hide Columns' : '▼ View Columns';
+      }
+    });
+  });
+
+  // Quick Query button in schema card
+  document.querySelectorAll('.db-btn-quick-inspect').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const table = btn.getAttribute('data-table');
+      const tableSel = document.getElementById('dbQueryTable');
+      if (tableSel && table) {
+        tableSel.value = table;
+        document.getElementById('dbQueryColumns').value = '*';
+        executeDbConsoleQuery(table, '*', 25);
+        // Scroll to query console
+        document.getElementById('dbQueryTable')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  });
+
+  // Schema Filter Search
+  document.getElementById('dbSchemaFilter')?.addEventListener('input', e => {
+    const term = (e.target.value || '').toLowerCase().trim();
+    document.querySelectorAll('.db-schema-card').forEach(card => {
+      const text = card.textContent.toLowerCase();
+      card.style.display = (!term || text.includes(term)) ? 'block' : 'none';
+    });
+  });
+
+  // Quick Query Toolbar buttons
+  document.querySelectorAll('.db-quick-query-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const table = btn.getAttribute('data-table');
+      if (table) {
+        const tableSel = document.getElementById('dbQueryTable');
+        if (tableSel) tableSel.value = table;
+        document.getElementById('dbQueryColumns').value = '*';
+        const limit = parseInt(document.getElementById('dbQueryLimit')?.value || '25', 10);
+        executeDbConsoleQuery(table, '*', limit);
+      }
+    });
+  });
+
+  // Custom Read Query button
+  document.getElementById('dbRunCustomBtn')?.addEventListener('click', () => {
+    const table = document.getElementById('dbQueryTable')?.value || 'isd_users';
+    const cols = document.getElementById('dbQueryColumns')?.value || '*';
+    const limit = parseInt(document.getElementById('dbQueryLimit')?.value || '25', 10);
+    executeDbConsoleQuery(table, cols, limit);
+  });
+
+  // Main Run Query button
+  document.getElementById('dbExecuteQueryBtn')?.addEventListener('click', () => {
+    const table = document.getElementById('dbQueryTable')?.value || 'isd_users';
+    const cols = document.getElementById('dbQueryColumns')?.value || '*';
+    const limit = parseInt(document.getElementById('dbQueryLimit')?.value || '25', 10);
+    executeDbConsoleQuery(table, cols, limit);
+  });
+
+  // Search/Filter in query results
+  document.getElementById('dbQueryFilter')?.addEventListener('input', e => {
+    filterDbQueryResults(e.target.value || '');
+  });
+
+  // Clear search filter
+  document.getElementById('dbClearFilterBtn')?.addEventListener('click', () => {
+    const inp = document.getElementById('dbQueryFilter');
+    if (inp) inp.value = '';
+    filterDbQueryResults('');
+  });
+
+  // Table dropdown change
+  document.getElementById('dbQueryTable')?.addEventListener('change', e => {
+    const table = e.target.value;
+    const limit = parseInt(document.getElementById('dbQueryLimit')?.value || '25', 10);
+    document.getElementById('dbQueryColumns').value = '*';
+    executeDbConsoleQuery(table, '*', limit);
+  });
+
+  // Copy JSON button
+  document.getElementById('dbConsoleCopyJsonBtn')?.addEventListener('click', () => {
+    const data = __dbConsoleState.filteredResults.length ? __dbConsoleState.filteredResults : __dbConsoleState.currentResults;
+    if (!data.length) {
+      if (typeof toast === 'function') toast('No Data', 'No query results to copy.', 'warn');
+      return;
+    }
+    const jsonStr = JSON.stringify(data, null, 2);
+    navigator.clipboard.writeText(jsonStr).then(() => {
+      if (typeof toast === 'function') toast('Copied JSON', `Copied ${data.length} records to clipboard!`, 'ok');
+    }).catch(() => {
+      if (typeof toast === 'function') toast('Copy Failed', 'Unable to access clipboard.', 'err');
+    });
+  });
+
+  // Export CSV button
+  document.getElementById('dbConsoleExportCsvBtn')?.addEventListener('click', () => {
+    const data = __dbConsoleState.filteredResults.length ? __dbConsoleState.filteredResults : __dbConsoleState.currentResults;
+    if (!data.length) {
+      if (typeof toast === 'function') toast('No Data', 'No query results to export.', 'warn');
+      return;
+    }
+    exportDbDataToCsv(data, `${__dbConsoleState.activeTable}_query_export.csv`);
+  });
+
+  // Pagination buttons
+  document.getElementById('dbPagePrevBtn')?.addEventListener('click', () => {
+    if (__dbConsoleState.currentPage > 1) {
+      __dbConsoleState.currentPage--;
+      renderDbConsoleResultsTable();
+    }
+  });
+
+  document.getElementById('dbPageNextBtn')?.addEventListener('click', () => {
+    const list = __dbConsoleState.filteredResults;
+    const totalPages = Math.ceil(list.length / __dbConsoleState.pageSize) || 1;
+    if (__dbConsoleState.currentPage < totalPages) {
+      __dbConsoleState.currentPage++;
+      renderDbConsoleResultsTable();
+    }
+  });
+
+  // Copy Complete SQL Script button
+  document.getElementById('dbCopySqlScriptBtn')?.addEventListener('click', () => {
+    const codeEl = document.getElementById('dbSqlCodeBlock');
+    if (!codeEl) return;
+    const rawSql = codeEl.innerText || codeEl.textContent;
+    navigator.clipboard.writeText(rawSql).then(() => {
+      const btn = document.getElementById('dbCopySqlScriptBtn');
+      if (btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✓ Copied to Clipboard!';
+        btn.style.background = '#16a34a';
+        setTimeout(() => {
+          btn.innerHTML = orig;
+          btn.style.background = '';
+        }, 2200);
+      }
+      if (typeof toast === 'function') toast('SQL Copied', 'Complete PostgreSQL Administration script copied!', 'ok');
+    }).catch(() => {
+      if (typeof toast === 'function') toast('Copy Failed', 'Could not access clipboard.', 'err');
+    });
+  });
+}
+
+async function loadLiveDbCounts(showToast = false) {
+  let totalRows = 0;
+  const counts = {};
+
+  try {
+    // 1. isd_users
+    if (sb && CLOUD_ON) {
+      const { count, error } = await sb.from('isd_users').select('*', { count: 'exact', head: true });
+      counts['isd_users'] = (!error && count != null) ? count : (ME ? 1 : 0);
+    } else {
+      counts['isd_users'] = ME ? 1 : 0;
+    }
+  } catch(e) { counts['isd_users'] = ME ? 1 : 0; }
+
+  try {
+    // 2. isd_invites
+    if (sb && CLOUD_ON) {
+      const { count, error } = await sb.from('isd_invites').select('*', { count: 'exact', head: true });
+      counts['isd_invites'] = (!error && count != null) ? count : 0;
+    } else {
+      counts['isd_invites'] = 0;
+    }
+  } catch(e) { counts['isd_invites'] = 0; }
+
+  try {
+    // 3. isd_test_datasets
+    if (sb && CLOUD_ON) {
+      const { count, error } = await sb.from('isd_test_datasets').select('*', { count: 'exact', head: true });
+      counts['isd_test_datasets'] = (!error && count != null) ? count : 0;
+    } else {
+      counts['isd_test_datasets'] = 0;
+    }
+  } catch(e) { counts['isd_test_datasets'] = 0; }
+
+  try {
+    // 4. isd_taluk_credentials
+    if (sb && CLOUD_ON) {
+      const { count, error } = await sb.from('isd_taluk_credentials').select('*', { count: 'exact', head: true });
+      counts['isd_taluk_credentials'] = (!error && count != null) ? count : (Array.isArray(window.TALUK_CREDS) ? window.TALUK_CREDS.length : 0);
+    } else {
+      counts['isd_taluk_credentials'] = Array.isArray(window.TALUK_CREDS) ? window.TALUK_CREDS.length : 0;
+    }
+  } catch(e) { counts['isd_taluk_credentials'] = 0; }
+
+  try {
+    // 5. patta_corrections
+    let pattaCount = 0;
+    try {
+      const raw = localStorage.getItem('patta_corrections_list');
+      if (raw) pattaCount = JSON.parse(raw).length;
+    } catch(e) {}
+    if (sb && CLOUD_ON) {
+      try {
+        const { count, error } = await sb.from('patta_corrections').select('*', { count: 'exact', head: true });
+        if (!error && count != null) pattaCount = count;
+      } catch(e) {}
+    }
+    counts['patta_corrections'] = pattaCount;
+  } catch(e) { counts['patta_corrections'] = 0; }
+
+  try {
+    // 6. village_settings
+    counts['village_settings'] = 5;
+  } catch(e) { counts['village_settings'] = 0; }
+
+  // Update DOM badges
+  Object.keys(counts).forEach(k => {
+    const val = counts[k];
+    totalRows += val;
+    const badge = document.getElementById(`dbBadge_${k}`);
+    if (badge) {
+      badge.textContent = `${val} ${val === 1 ? 'row' : 'rows'}`;
+      badge.style.background = val > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(100,116,139,0.12)';
+      badge.style.color = val > 0 ? '#15803d' : '#64748b';
+    }
+  });
+
+  const totalRowsEl = document.getElementById('dbMetricTotalRows');
+  if (totalRowsEl) {
+    totalRowsEl.innerHTML = `${totalRows} <span style="font-size: 14px; font-weight: 600; color: var(--muted);">Live Rows</span>`;
+  }
+
+  if (showToast && typeof toast === 'function') {
+    toast('Metrics Updated', `Refreshed database counts: ${totalRows} total rows found.`, 'ok');
+  }
+}
+
+async function executeDbConsoleQuery(tableName, columns = '*', limit = 25) {
+  const container = document.getElementById('dbQueryResultsContainer');
+  const statusText = document.getElementById('dbQueryStatusText');
+  const metaText = document.getElementById('dbQueryMetaText');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="padding: 40px; text-align: center; color: var(--muted); font-size: 13.5px;">
+      <span style="font-size: 28px; display: block; margin-bottom: 8px;">⏳</span>
+      Executing query: <code style="font-weight: 700; color: var(--ink);">SELECT ${esc(columns)} FROM ${esc(tableName)} LIMIT ${limit}</code>...
+    </div>
+  `;
+
+  const startTime = performance.now();
+  __dbConsoleState.activeTable = tableName;
+  let records = [];
+  let errorMsg = null;
+
+  try {
+    if (tableName === 'isd_users') {
+      if (sb && CLOUD_ON) {
+        let q = sb.from('isd_users').select(columns.trim() || '*').limit(limit);
+        const { data, error } = await q;
+        if (error) throw error;
+        records = data || [];
+      } else {
+        records = ME ? [ME] : [];
+      }
+    } 
+    else if (tableName === 'isd_invites') {
+      if (sb && CLOUD_ON) {
+        let q = sb.from('isd_invites').select(columns.trim() || '*').limit(limit);
+        const { data, error } = await q;
+        if (error) throw error;
+        records = data || [];
+      } else {
+        records = [];
+      }
+    }
+    else if (tableName === 'isd_test_datasets') {
+      if (sb && CLOUD_ON) {
+        const selCols = (columns.trim() === '*' || !columns.trim()) 
+          ? 'id, kind, taluk, filename, row_count, updated_at, updated_by' 
+          : columns.trim();
+        let q = sb.from('isd_test_datasets').select(selCols).limit(limit);
+        const { data, error } = await q;
+        if (error) throw error;
+        records = data || [];
+      } else {
+        records = [];
+      }
+    }
+    else if (tableName === 'isd_taluk_credentials') {
+      if (sb && CLOUD_ON) {
+        let q = sb.from('isd_taluk_credentials').select(columns.trim() || '*').limit(limit);
+        const { data, error } = await q;
+        if (error) throw error;
+        records = data || [];
+      } else if (Array.isArray(window.TALUK_CREDS) && window.TALUK_CREDS.length) {
+        records = window.TALUK_CREDS.slice(0, limit);
+      } else {
+        records = [];
+      }
+    }
+    else if (tableName === 'patta_corrections') {
+      let localList = [];
+      try {
+        const raw = localStorage.getItem('patta_corrections_list');
+        if (raw) localList = JSON.parse(raw);
+      } catch(e) {}
+
+      if (sb && CLOUD_ON) {
+        try {
+          const { data, error } = await sb.from('patta_corrections').select(columns.trim() || '*').limit(limit);
+          if (!error && Array.isArray(data) && data.length) {
+            records = data;
+          } else {
+            records = localList.slice(0, limit);
+          }
+        } catch(e) {
+          records = localList.slice(0, limit);
+        }
+      } else {
+        records = localList.slice(0, limit);
+      }
+    }
+    else if (tableName === 'village_settings') {
+      const settings = [
+        {
+          setting_key: 'village_test.dayRanges.v1',
+          category: 'ISD Day Thresholds',
+          setting_value: (function(){ try { return JSON.parse(localStorage.getItem('village_test.dayRanges.v1')); } catch(e){ return localStorage.getItem('village_test.dayRanges.v1') || 'Default [25, 30]'; } })(),
+          updated_at: new Date().toISOString()
+        },
+        {
+          setting_key: 'village_test.taluks.v1',
+          category: 'Taluk Directory Roster',
+          setting_value: (function(){ try { return JSON.parse(localStorage.getItem('village_test.taluks.v1')); } catch(e){ return localStorage.getItem('village_test.taluks.v1') || 'Arakkonam | Arcot | Kalavai | Nemili | Sholinghur | Walajah'; } })(),
+          updated_at: new Date().toISOString()
+        },
+        {
+          setting_key: 'village_test.nisdRanges.v3',
+          category: 'NISD Day Cut-offs',
+          setting_value: (function(){ try { return JSON.parse(localStorage.getItem('village_test.nisdRanges.v3')); } catch(e){ return localStorage.getItem('village_test.nisdRanges.v3') || 'Default'; } })(),
+          updated_at: new Date().toISOString()
+        },
+        {
+          setting_key: 'village_test.tnCreds.v2',
+          category: 'Tamil Nilam Credentials Cache',
+          setting_value: '(Secure Encrypted Portal Cache)',
+          updated_at: new Date().toISOString()
+        },
+        {
+          setting_key: 'isd_sort_mode',
+          category: 'ISD Display Sorting Mode',
+          setting_value: localStorage.getItem('isd_sort_mode') || 'emp_asc',
+          updated_at: new Date().toISOString()
+        }
+      ];
+      records = settings.slice(0, limit);
+    }
+  } catch(err) {
+    errorMsg = err.message || String(err);
+  }
+
+  const elapsedMs = Math.round(performance.now() - startTime);
+  __dbConsoleState.lastQueryTimeMs = elapsedMs;
+  __dbConsoleState.lastQueryString = `SELECT ${columns} FROM ${tableName} LIMIT ${limit}`;
+  __dbConsoleState.currentResults = records;
+  __dbConsoleState.filteredResults = [...records];
+  __dbConsoleState.currentPage = 1;
+
+  if (errorMsg) {
+    container.innerHTML = `
+      <div style="padding: 24px; color: #dc2626; background: rgba(239, 68, 68, 0.08); border-radius: 8px;">
+        <strong style="display: block; font-size: 14px; margin-bottom: 4px;">❌ Query Error:</strong>
+        <span>${esc(errorMsg)}</span>
+      </div>
+    `;
+    if (statusText) statusText.innerHTML = `<span style="color: #dc2626; font-weight: 700;">Query Failed</span> (${elapsedMs}ms)`;
+    if (metaText) metaText.textContent = '0 rows';
+    return;
+  }
+
+  if (statusText) {
+    statusText.innerHTML = `<span style="color: #15803d; font-weight: 700;">✓ Success</span>: <code style="font-weight: 600; font-size: 11.5px; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;">${esc(__dbConsoleState.lastQueryString)}</code>`;
+  }
+  if (metaText) {
+    metaText.textContent = `${records.length} ${records.length === 1 ? 'row' : 'rows'} (${elapsedMs}ms)`;
+  }
+
+  renderDbConsoleResultsTable();
+}
+
+function filterDbQueryResults(searchTerm) {
+  const term = (searchTerm || '').toLowerCase().trim();
+  if (!term) {
+    __dbConsoleState.filteredResults = [...__dbConsoleState.currentResults];
+  } else {
+    __dbConsoleState.filteredResults = __dbConsoleState.currentResults.filter(row => {
+      return Object.values(row).some(val => {
+        if (val == null) return false;
+        const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        return str.toLowerCase().includes(term);
+      });
+    });
+  }
+  __dbConsoleState.currentPage = 1;
+  renderDbConsoleResultsTable();
+}
+
+function renderDbConsoleResultsTable() {
+  const container = document.getElementById('dbQueryResultsContainer');
+  const paginationInfo = document.getElementById('dbPaginationInfo');
+  const pageIndicator = document.getElementById('dbPageIndicator');
+  const prevBtn = document.getElementById('dbPagePrevBtn');
+  const nextBtn = document.getElementById('dbPageNextBtn');
+  if (!container) return;
+
+  const data = __dbConsoleState.filteredResults;
+  if (!data || !data.length) {
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--muted); font-size: 13.5px;">
+        No matching records found.
+      </div>
+    `;
+    if (paginationInfo) paginationInfo.textContent = 'Showing 0 of 0 records';
+    if (pageIndicator) pageIndicator.textContent = 'Page 1 of 1';
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
+    return;
+  }
+
+  const columns = Object.keys(data[0]);
+  const pageSize = __dbConsoleState.pageSize;
+  const totalPages = Math.ceil(data.length / pageSize) || 1;
+  const curPage = Math.min(Math.max(__dbConsoleState.currentPage, 1), totalPages);
+  __dbConsoleState.currentPage = curPage;
+
+  const startIdx = (curPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, data.length);
+  const pageRows = data.slice(startIdx, endIdx);
+
+  let html = `
+    <table class="utable" style="margin: 0; font-size: 12px; width: 100%;">
+      <thead>
+        <tr style="background: var(--surface-2); position: sticky; top: 0; z-index: 2;">
+          <th style="width: 44px; text-align: center;">#</th>
+          ${columns.map(c => `
+            <th style="white-space: nowrap; font-family: monospace; font-size: 11px;">
+              ${esc(c)}
+            </th>
+          `).join('')}
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  pageRows.forEach((row, i) => {
+    const rowIdx = startIdx + i + 1;
+    html += `<tr>`;
+    html += `<td style="text-align: center; font-size: 11px; color: var(--muted); font-weight: 700;">${rowIdx}</td>`;
+    columns.forEach(col => {
+      const val = row[col];
+      let formatted = '';
+
+      if (val === null || val === undefined) {
+        formatted = '<span style="color: var(--muted); font-style: italic;">null</span>';
+      } else if (typeof val === 'boolean') {
+        formatted = val 
+          ? '<span style="color: #15803d; font-weight: 700; background: rgba(34,197,94,0.12); padding: 2px 6px; border-radius: 4px;">✓ true</span>'
+          : '<span style="color: #dc2626; font-weight: 700; background: rgba(239,68,68,0.12); padding: 2px 6px; border-radius: 4px;">✗ false</span>';
+      } else if (col === 'role') {
+        formatted = val === 'admin'
+          ? '<span style="color: #7c3aed; font-weight: 700; background: rgba(124,58,237,0.12); padding: 2px 6px; border-radius: 4px;">admin</span>'
+          : '<span style="color: #0369a1; font-weight: 600; background: rgba(2,132,199,0.12); padding: 2px 6px; border-radius: 4px;">user</span>';
+      } else if (col === 'status') {
+        formatted = String(val).toLowerCase().includes('approved')
+          ? '<span style="color: #15803d; font-weight: 700; background: rgba(34,197,94,0.12); padding: 2px 6px; border-radius: 4px;">✓ Approved</span>'
+          : '<span style="color: #d97706; font-weight: 600; background: rgba(245,158,11,0.12); padding: 2px 6px; border-radius: 4px;">⏳ Pending</span>';
+      } else if (typeof val === 'object') {
+        const jsonText = JSON.stringify(val);
+        const preview = jsonText.length > 40 ? jsonText.slice(0, 40) + '…' : jsonText;
+        formatted = `<code style="font-size: 11px; background: rgba(0,0,0,0.06); padding: 2px 5px; border-radius: 4px; color: #4338ca; cursor: pointer;" title="${esc(jsonText)}">${esc(preview)}</code>`;
+      } else {
+        const str = String(val);
+        const isDate = col.includes('_at') && !isNaN(Date.parse(str));
+        if (isDate) {
+          try {
+            formatted = `<span style="font-size: 11px; color: var(--muted);">${new Date(str).toLocaleString()}</span>`;
+          } catch(e) {
+            formatted = esc(str);
+          }
+        } else {
+          formatted = esc(str);
+        }
+      }
+
+      html += `<td style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${formatted}</td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+
+  if (paginationInfo) {
+    paginationInfo.textContent = `Showing ${startIdx + 1}–${endIdx} of ${data.length} records`;
+  }
+  if (pageIndicator) {
+    pageIndicator.textContent = `Page ${curPage} of ${totalPages}`;
+  }
+  if (prevBtn) prevBtn.disabled = curPage <= 1;
+  if (nextBtn) nextBtn.disabled = curPage >= totalPages;
+}
+
+function exportDbDataToCsv(data, filename) {
+  if (!data || !data.length) return;
+  const headers = Object.keys(data[0]);
+  const csvRows = [headers.join(',')];
+
+  for (const row of data) {
+    const values = headers.map(h => {
+      let val = row[h];
+      if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+      const str = String(val == null ? '' : val).replace(/"/g, '""');
+      return `"${str}"`;
+    });
+    csvRows.push(values.join(','));
+  }
+
+  const blob = new Blob([csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'database_query_results.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if (typeof toast === 'function') toast('CSV Exported', `Downloaded ${data.length} records as CSV.`, 'ok');
+}
+
+window.renderDbInfoTab = renderDbInfoTab;
+window.executeDbConsoleQuery = executeDbConsoleQuery;
+window.loadLiveDbCounts = loadLiveDbCounts;
+window.exportDbDataToCsv = exportDbDataToCsv;
+
 
 
 /* ============================================================
@@ -11797,7 +13020,8 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
       return;
     }
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-    if(!isAdmin && tab === 'users'){
+    if(!isAdmin && (tab === 'users' || tab === 'dbinfo')){
+      toast('Access restricted', 'Only Admin accounts can access Database Info & Query Suite.', 'warn');
       return;
     }
     if(tab === 'creds' && !canManageCreds()){

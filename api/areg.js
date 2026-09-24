@@ -365,6 +365,290 @@ function callTnService(path, inputObj = null, method = 'GET', userId = 'rpt_pann
   });
 }
 
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ollhtyeflpggdazrsqsq.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_vXtlD6VqEY8u_tBSdmw-0A_hxEIlf2j';
+
+const DB_TABLE_METADATA = {
+  isd_users: {
+    tableName: 'isd_users',
+    description: 'Application user accounts and profiles with Role-Based Access Control (RBAC), authentication metadata, site-level access, module permissions, assigned taluks, and portal credentials privileges.',
+    purpose: 'Manage authorized personnel, roles (admin/user), allowed taluks, module permissions, and portal credential viewing/updating rights.',
+    estimatedRowCount: 10,
+    aliases: ['isd_users'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Unique user identifier, foreign key to auth.users.id' },
+      { name: 'email', type: 'text', unique: true, nullable: false, description: 'User login email address' },
+      { name: 'full_name', type: 'text', nullable: true, description: 'Display name / officer name' },
+      { name: 'role', type: 'text', defaultValue: "'user'", description: "Access role: 'admin' or 'user'" },
+      { name: 'active', type: 'boolean', defaultValue: 'true', description: 'Account status (true = active, false = disabled)' },
+      { name: 'site_access', type: 'text', defaultValue: "'both'", description: "Permitted application ('both', 'village-auto-test', 'village-applications')" },
+      { name: 'report_access', type: 'text', defaultValue: "'combined'", description: "Allowed report domain ('combined', 'isd', 'nisd')" },
+      { name: 'menu_access', type: 'text[]', description: "Accessible UI modules (e.g. ['isd', 'nisd', 'fline', 'chitta', 'eservices'])" },
+      { name: 'taluks', type: 'text[]', description: 'Array of accessible taluk names; empty array permits all taluks' },
+      { name: 'can_view_creds', type: 'boolean', defaultValue: 'false', description: 'Permission to view sensitive Tamil Nilam portal passwords' },
+      { name: 'can_update_creds', type: 'boolean', defaultValue: 'false', description: 'Permission to edit/update Tamil Nilam portal passwords' },
+      { name: 'created_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Account creation timestamp' },
+      { name: 'updated_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Last profile update timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY',
+      email: 'text UNIQUE NOT NULL',
+      full_name: 'text',
+      role: "text DEFAULT 'user'",
+      active: 'boolean DEFAULT true',
+      site_access: "text DEFAULT 'both'",
+      report_access: "text DEFAULT 'combined'",
+      menu_access: 'text[]',
+      taluks: 'text[]',
+      can_view_creds: 'boolean DEFAULT false',
+      can_update_creds: 'boolean DEFAULT false',
+      created_at: 'timestamp with time zone DEFAULT now()',
+      updated_at: 'timestamp with time zone DEFAULT now()'
+    }
+  },
+  isd_invites: {
+    tableName: 'isd_invites',
+    description: 'Pending user invitations and pre-provisioned role/permission assignments for onboarding staff before their initial authentication.',
+    purpose: 'Store invited emails and preset RBAC settings so new users automatically receive configured privileges upon sign up.',
+    estimatedRowCount: 5,
+    aliases: ['isd_invites'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Primary key invitation identifier' },
+      { name: 'email', type: 'text', unique: true, nullable: false, description: 'Invited user email address' },
+      { name: 'full_name', type: 'text', nullable: true, description: 'Invited user full name' },
+      { name: 'role', type: 'text', defaultValue: "'user'", description: "Preset role to assign upon account activation ('admin' or 'user')" },
+      { name: 'site_access', type: 'text', defaultValue: "'both'", description: "Preset application scope ('both', 'village-auto-test', 'village-applications')" },
+      { name: 'report_access', type: 'text', defaultValue: "'combined'", description: "Preset report access category ('combined', 'isd', 'nisd')" },
+      { name: 'menu_access', type: 'text[]', description: 'Preset menu modules accessible by the invitee' },
+      { name: 'taluks', type: 'text[]', description: 'Preset taluk permissions array' },
+      { name: 'can_view_creds', type: 'boolean', defaultValue: 'false', description: 'Preset credential view privilege' },
+      { name: 'can_update_creds', type: 'boolean', defaultValue: 'false', description: 'Preset credential update privilege' },
+      { name: 'created_by', type: 'uuid', description: 'Foreign key to isd_users.id of the inviting admin' },
+      { name: 'created_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Invitation sent timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+      email: 'text UNIQUE NOT NULL',
+      full_name: 'text',
+      role: "text DEFAULT 'user'",
+      site_access: "text DEFAULT 'both'",
+      report_access: "text DEFAULT 'combined'",
+      menu_access: 'text[]',
+      taluks: 'text[]',
+      can_view_creds: 'boolean DEFAULT false',
+      can_update_creds: 'boolean DEFAULT false',
+      created_by: 'uuid REFERENCES isd_users(id)',
+      created_at: 'timestamp with time zone DEFAULT now()'
+    }
+  },
+  isd_files: {
+    tableName: 'isd_files',
+    description: 'Uploaded report datasets, cached portal extracts, Excel workbooks, and village-level JSON/PDF snapshots stored by taluk and category.',
+    purpose: 'Store persistent spreadsheet datasets, village tables, and historical sync payloads in cloud storage and database records.',
+    estimatedRowCount: 60,
+    aliases: ['isd_files', 'isd_test_datasets'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Primary key record identifier' },
+      { name: 'kind', type: 'text', nullable: false, description: "Dataset category ('village', 'vaoDetails', 'isdRural', 'isdRuralPdf', 'isdNatham', 'flineRural', etc.)" },
+      { name: 'taluk', type: 'text', nullable: false, description: "Taluk identifier or 'all'" },
+      { name: 'file_name', type: 'text', nullable: true, description: 'Original file name or template export name' },
+      { name: 'storage_path', type: 'text', nullable: true, description: "Supabase Storage bucket path in 'isd-uploads'" },
+      { name: 'payload', type: 'jsonb', nullable: true, description: 'Parsed table rows, JSON array of objects, or village metrics' },
+      { name: 'row_count', type: 'integer', nullable: true, description: 'Total records or data rows in payload' },
+      { name: 'uploaded_by', type: 'uuid', nullable: true, description: 'Foreign key to isd_users.id of the uploader' },
+      { name: 'uploaded_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Upload / snapshot timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+      kind: 'text NOT NULL',
+      taluk: 'text NOT NULL',
+      file_name: 'text',
+      storage_path: 'text',
+      payload: 'jsonb',
+      row_count: 'integer DEFAULT 0',
+      uploaded_by: 'uuid REFERENCES isd_users(id)',
+      uploaded_at: 'timestamp with time zone DEFAULT now()'
+    }
+  },
+  isd_day_ranges: {
+    tableName: 'isd_day_ranges',
+    description: 'Threshold aging buckets and SLA interval configurations (e.g. 0-15 days, 15-30 days, >30 days) used to aggregate application pendency matrix and highlight overdue cases.',
+    purpose: 'Configure pendency duration buckets and SLA thresholds for categorized reporting across ISD Rural, Natham, and F-Line modules.',
+    estimatedRowCount: 6,
+    aliases: ['isd_day_ranges'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Primary key range identifier' },
+      { name: 'category', type: 'text', nullable: false, description: "Report category ('isdRural', 'isdNatham', 'nisdRural', 'fline')" },
+      { name: 'range_index', type: 'integer', nullable: false, description: 'Sequence order of the bucket' },
+      { name: 'min_days', type: 'integer', nullable: false, description: 'Minimum pending days for this bucket' },
+      { name: 'max_days', type: 'integer', nullable: true, description: 'Maximum pending days for this bucket (NULL for open-ended / >min)' },
+      { name: 'label', type: 'text', nullable: false, description: "Bucket display label (e.g. '0-15 Days', '15-30 Days', '>30 Days')" },
+      { name: 'color_code', type: 'text', nullable: true, description: 'Hex color code for UI badge display' },
+      { name: 'taluk', type: 'text', nullable: true, description: "Taluk scope or NULL/'all' for district-wide default" },
+      { name: 'created_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Record creation timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+      category: 'text NOT NULL',
+      range_index: 'integer NOT NULL',
+      min_days: 'integer NOT NULL',
+      max_days: 'integer',
+      label: 'text NOT NULL',
+      color_code: 'text',
+      taluk: 'text',
+      created_at: 'timestamp with time zone DEFAULT now()'
+    }
+  },
+  patta_corrections: {
+    tableName: 'patta_corrections',
+    description: 'Audit trail, historical submissions, and Tahsildar approval records for Patta Name and Size corrections processed through Tamil Nilam portal workflows.',
+    purpose: 'Track and persist statutory A-Register addition, correction, and deletion applications approved at the Tahsildar level with full before/after audit state.',
+    estimatedRowCount: 15,
+    aliases: ['patta_corrections'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Primary key audit record identifier' },
+      { name: 'appl_id', type: 'text', nullable: false, description: 'Tamil Nilam Application ID (e.g. 2026/0109/37/03/...)' },
+      { name: 'district_code', type: 'text', nullable: false, description: 'District code (e.g. 37 for Ranipet)' },
+      { name: 'taluk_code', type: 'text', nullable: false, description: 'Taluk code (e.g. 03 for Arakkonam, 12 for Nemili)' },
+      { name: 'village_code', type: 'text', nullable: false, description: 'Village code (e.g. 045)' },
+      { name: 'patta_no', type: 'text', nullable: true, description: 'Patta number' },
+      { name: 'survey_no', type: 'text', nullable: false, description: 'Survey number' },
+      { name: 'subdiv_no', type: 'text', nullable: true, description: 'Subdivision number' },
+      { name: 'old_owner_name', type: 'text', nullable: true, description: 'Owner name before correction' },
+      { name: 'new_owner_name', type: 'text', nullable: true, description: 'Updated/corrected owner name' },
+      { name: 'old_extent', type: 'text', nullable: true, description: 'Extent before correction' },
+      { name: 'new_extent', type: 'text', nullable: true, description: 'Updated/corrected extent' },
+      { name: 'extent_unit', type: 'text', defaultValue: "'Hectares-Ares'", description: "Extent unit ('Hectares-Ares' or 'Sq.ft')" },
+      { name: 'is_natham', type: 'boolean', defaultValue: 'false', description: 'True for Natham land (N108), False for Rural (0109)' },
+      { name: 'service_code', type: 'text', defaultValue: "'0109'", description: "Tamil Nilam service code ('0109' or 'N108')" },
+      { name: 'status', type: 'text', defaultValue: "'Approved'", description: "Status ('Submitted', 'Approved', 'Pending Order Copy')" },
+      { name: 'remarks', type: 'text', nullable: true, description: 'Submission remarks and justification' },
+      { name: 'approved_by_user', type: 'text', nullable: true, description: 'Officer login username used for approval (e.g. rpt_panneerselvam)' },
+      { name: 'portal_response', type: 'jsonb', nullable: true, description: 'Raw JSON response returned by Tamil Nilam backend services' },
+      { name: 'created_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Application creation/approval timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+      appl_id: 'text NOT NULL',
+      district_code: 'text NOT NULL',
+      taluk_code: 'text NOT NULL',
+      village_code: 'text NOT NULL',
+      patta_no: 'text',
+      survey_no: 'text NOT NULL',
+      subdiv_no: 'text',
+      old_owner_name: 'text',
+      new_owner_name: 'text',
+      old_extent: 'text',
+      new_extent: 'text',
+      extent_unit: "text DEFAULT 'Hectares-Ares'",
+      is_natham: 'boolean DEFAULT false',
+      service_code: "text DEFAULT '0109'",
+      status: "text DEFAULT 'Approved'",
+      remarks: 'text',
+      approved_by_user: 'text',
+      portal_response: 'jsonb',
+      created_at: 'timestamp with time zone DEFAULT now()'
+    }
+  },
+  taluk_credentials: {
+    tableName: 'taluk_credentials',
+    description: 'Encrypted portal access credentials and role configurations mapped to each taluk for Tamil Nilam services (DLU, Tahsildar, ZDT, VAO logins).',
+    purpose: 'Securely store and manage Tamil Nilam portal authentication credentials per taluk with role delegation.',
+    estimatedRowCount: 6,
+    aliases: ['taluk_credentials', 'isd_taluk_credentials'],
+    columns: [
+      { name: 'id', type: 'uuid', primaryKey: true, nullable: false, description: 'Primary key credential record identifier' },
+      { name: 'taluk_code', type: 'text', unique: true, nullable: false, description: 'Taluk code (e.g. 01, 02, 03, 12)' },
+      { name: 'taluk_name', type: 'text', nullable: false, description: 'Taluk name (e.g. Arakkonam, Nemili, Walajah)' },
+      { name: 'district_code', type: 'text', defaultValue: "'37'", description: 'District code (e.g. 37 for Ranipet)' },
+      { name: 'district_name', type: 'text', defaultValue: "'Ranipet'", description: 'District name' },
+      { name: 'primary_username', type: 'text', nullable: false, description: 'Primary portal login (DLU / roleId 7)' },
+      { name: 'primary_password', type: 'text', nullable: false, description: 'Primary portal login password' },
+      { name: 'primary_role', type: 'text', defaultValue: "'7'", description: 'Primary role ID' },
+      { name: 'secondary_username', type: 'text', nullable: true, description: 'Secondary portal login (Tahsildar / roleId 8)' },
+      { name: 'secondary_password', type: 'text', nullable: true, description: 'Secondary portal login password' },
+      { name: 'secondary_role', type: 'text', defaultValue: "'8'", description: 'Secondary role ID' },
+      { name: 'is_active', type: 'boolean', defaultValue: 'true', description: 'Active status of the credential set' },
+      { name: 'updated_by', type: 'text', nullable: true, description: 'Identifier of the officer/admin who last modified credentials' },
+      { name: 'created_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Record creation timestamp' },
+      { name: 'updated_at', type: 'timestamp with time zone', defaultValue: 'now()', description: 'Last update timestamp' }
+    ],
+    columnTypes: {
+      id: 'uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+      taluk_code: 'text UNIQUE NOT NULL',
+      taluk_name: 'text NOT NULL',
+      district_code: "text DEFAULT '37'",
+      district_name: "text DEFAULT 'Ranipet'",
+      primary_username: 'text NOT NULL',
+      primary_password: 'text NOT NULL',
+      primary_role: "text DEFAULT '7'",
+      secondary_username: 'text',
+      secondary_password: 'text',
+      secondary_role: "text DEFAULT '8'",
+      is_active: 'boolean DEFAULT true',
+      updated_by: 'text',
+      created_at: 'timestamp with time zone DEFAULT now()',
+      updated_at: 'timestamp with time zone DEFAULT now()'
+    }
+  }
+};
+
+function fetchSupabaseCount(tableName, aliases = [], timeoutMs = 2500) {
+  return new Promise(resolve => {
+    const candidateNames = [tableName, ...aliases];
+    let idx = 0;
+
+    function tryNext() {
+      if (idx >= candidateNames.length) {
+        return resolve({ count: null, isLive: false, table: tableName });
+      }
+      const tbl = candidateNames[idx++];
+      try {
+        const req = https.get(`${SUPABASE_URL}/rest/v1/${tbl}?select=count`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Range': '0-0',
+            'Prefer': 'count=exact'
+          },
+          timeout: timeoutMs
+        }, res => {
+          let rawData = '';
+          res.on('data', chunk => rawData += chunk);
+          res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                const parsed = JSON.parse(rawData);
+                if (Array.isArray(parsed) && parsed[0] && typeof parsed[0].count === 'number') {
+                  return resolve({ count: parsed[0].count, isLive: true, table: tbl });
+                }
+              } catch (e) {}
+              const cr = res.headers['content-range'];
+              if (cr && cr.includes('/')) {
+                const parsedTotal = parseInt(cr.split('/')[1], 10);
+                if (!isNaN(parsedTotal)) {
+                  return resolve({ count: parsedTotal, isLive: true, table: tbl });
+                }
+              }
+            }
+            tryNext();
+          });
+        });
+
+        req.on('error', () => tryNext());
+        req.on('timeout', () => {
+          req.destroy();
+          tryNext();
+        });
+      } catch (err) {
+        tryNext();
+      }
+    }
+
+    tryNext();
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -389,6 +673,106 @@ module.exports = async (req, res) => {
     const password = params.password || 'Nemili@1970';
     const roleId = String(params.roleId || '8');
     const mode = params.mode || 'pending_list';
+
+    // 0. DATABASE SCHEMA SUMMARY & TABLE METADATA (SUPABASE / LOCAL TABLES)
+    if (mode === 'db_info' || mode === 'db' || mode === 'database_info' || mode === 'schema') {
+      const targetAdminEmail = String(params.adminEmail || params.email || 'admin@example.com').trim().toLowerCase();
+      const skipLive = params.live === 'false' || params.skipLive === true || params.skipLive === 'true';
+
+      const tableKeys = ['isd_users', 'isd_invites', 'isd_files', 'isd_day_ranges', 'patta_corrections', 'taluk_credentials'];
+
+      let liveResults = {};
+      if (!skipLive) {
+        try {
+          const liveFetches = await Promise.all(
+            tableKeys.map(key => {
+              const meta = DB_TABLE_METADATA[key];
+              return fetchSupabaseCount(key, meta ? meta.aliases : []);
+            })
+          );
+          tableKeys.forEach((key, idx) => {
+            liveResults[key] = liveFetches[idx];
+          });
+        } catch (e) {
+          console.warn('Error fetching live table counts:', e.message);
+        }
+      }
+
+      const tablesResponse = {};
+      const tablesList = [];
+
+      for (const key of tableKeys) {
+        const meta = DB_TABLE_METADATA[key];
+        const liveInfo = liveResults[key] || { count: null, isLive: false };
+        const hasLiveCount = liveInfo.isLive && liveInfo.count !== null;
+        const rowCount = hasLiveCount ? liveInfo.count : meta.estimatedRowCount;
+
+        const tableEntry = {
+          tableName: meta.tableName,
+          description: meta.description,
+          purpose: meta.purpose,
+          columns: meta.columns,
+          columnNames: meta.columns.map(c => c.name),
+          columnTypes: meta.columnTypes,
+          totalColumns: meta.columns.length,
+          rowCount: rowCount,
+          estimatedRowCount: meta.estimatedRowCount,
+          liveRowCount: liveInfo.count,
+          rowCountStatus: hasLiveCount ? 'live' : 'estimated',
+          resolvedSource: hasLiveCount ? `Supabase (table: ${liveInfo.table})` : 'Application Schema Cache / Estimated'
+        };
+
+        tablesResponse[key] = tableEntry;
+        tablesList.push(tableEntry);
+      }
+
+      // SQL Query Helpers required:
+      // 1. Querying all tables: 'SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = \'public\''
+      // 2. Querying column counts: 'SELECT table_name, count(column_name) as total_columns FROM information_schema.columns WHERE table_schema = \'public\' GROUP BY table_name'
+      // 3. Querying row counts: 'SELECT schemaname, relname as table_name, n_live_tup as row_count FROM pg_stat_user_tables'
+      // 4. Creating/promoting an admin user in 'isd_users'
+      const sqlQueryHelpers = {
+        queryAllTables: "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'public'",
+        queryColumnCounts: "SELECT table_name, count(column_name) as total_columns FROM information_schema.columns WHERE table_schema = 'public' GROUP BY table_name",
+        queryRowCounts: "SELECT schemaname, relname as table_name, n_live_tup as row_count FROM pg_stat_user_tables",
+        promoteAdminUser: `UPDATE isd_users SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true, site_access = 'both', report_access = 'combined', menu_access = ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'] WHERE email = '${targetAdminEmail}';`,
+        createAdminUser: `INSERT INTO isd_users (id, email, full_name, role, active, site_access, report_access, menu_access, can_view_creds, can_update_creds) VALUES (gen_random_uuid(), '${targetAdminEmail}', 'System Administrator', 'admin', true, 'both', 'combined', ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'], true, true) ON CONFLICT (email) DO UPDATE SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true, site_access = 'both', report_access = 'combined';`,
+        linkAuthAdminUser: `INSERT INTO isd_users (id, email, full_name, role, active, site_access, report_access, menu_access, can_view_creds, can_update_creds) SELECT id, email, COALESCE(raw_user_meta_data->>'full_name', email), 'admin', true, 'both', 'combined', ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'], true, true FROM auth.users WHERE email = '${targetAdminEmail}' ON CONFLICT (email) DO UPDATE SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true;`
+      };
+
+      const sqlHelpersSnakeCase = {
+        query_all_tables: "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'public'",
+        query_column_counts: "SELECT table_name, count(column_name) as total_columns FROM information_schema.columns WHERE table_schema = 'public' GROUP BY table_name",
+        query_row_counts: "SELECT schemaname, relname as table_name, n_live_tup as row_count FROM pg_stat_user_tables",
+        promote_admin_user: `UPDATE isd_users SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true, site_access = 'both', report_access = 'combined', menu_access = ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'] WHERE email = '${targetAdminEmail}';`,
+        create_admin_user: `INSERT INTO isd_users (id, email, full_name, role, active, site_access, report_access, menu_access, can_view_creds, can_update_creds) VALUES (gen_random_uuid(), '${targetAdminEmail}', 'System Administrator', 'admin', true, 'both', 'combined', ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'], true, true) ON CONFLICT (email) DO UPDATE SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true, site_access = 'both', report_access = 'combined';`,
+        link_auth_admin_user: `INSERT INTO isd_users (id, email, full_name, role, active, site_access, report_access, menu_access, can_view_creds, can_update_creds) SELECT id, email, COALESCE(raw_user_meta_data->>'full_name', email), 'admin', true, 'both', 'combined', ARRAY['isd', 'nisd', 'fline', 'chitta', 'eservices'], true, true FROM auth.users WHERE email = '${targetAdminEmail}' ON CONFLICT (email) DO UPDATE SET role = 'admin', active = true, can_view_creds = true, can_update_creds = true;`
+      };
+
+      res.status(200).json({
+        success: true,
+        mode: 'db_info',
+        database: {
+          provider: 'Supabase (PostgreSQL) / Application Database',
+          schema: 'public',
+          url: SUPABASE_URL,
+          totalTables: tableKeys.length
+        },
+        schemaSummary: {
+          database: 'Supabase PostgreSQL (Cloud) / Application Database',
+          schema: 'public',
+          totalTables: tableKeys.length,
+          tables: tableKeys,
+          description: 'Application database schema and table metadata for Tamil Nilam Automation & ISD Hub (Supabase PostgreSQL / local application storage).'
+        },
+        tables: tablesResponse,
+        tablesList: tablesList,
+        sqlQueryHelpers: sqlQueryHelpers,
+        sql_helpers: sqlHelpersSnakeCase,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
 
     // 1. PENDING APPLICATIONS LIST
     if (mode === 'pending_list' || mode === 'list') {
@@ -983,7 +1367,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, or patta_correction.' });
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, or db_info.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
