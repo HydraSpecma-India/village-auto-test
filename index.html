@@ -92,13 +92,11 @@
   .brand p{margin:1px 0 0; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .topbar .spacer{flex:1 1 auto; min-width:8px}
   .topbar-controls{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0}
-  .topbar-actions{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; flex-shrink:1; max-width:100%}
-  .taluksel{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap; flex-shrink:0}
-  .taluksel select{padding:5px 8px; font-size:12px; border-radius:7px; font-family:inherit; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); font-weight:600; cursor:pointer}
-  .topbar .flash-fill-btn{
-    white-space:nowrap; padding:0 13px; height:32px; font-size:12px; font-weight:700;
-    display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border-radius:7px;
+  .topbar-controls .tn-auto-btn{
+    width:34px; height:34px; min-width:34px; padding:0; font-size:15px; border-radius:8px;
+    display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; line-height:1;
   }
+  .topbar-actions{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; flex-shrink:1; max-width:100%}
   .pill{
     display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
     padding:4px 9px; border-radius:999px; border:1px solid var(--line-2); background:var(--surface-2); color:var(--ink-2);
@@ -1226,13 +1224,13 @@
         <span>Taluk</span>
         <select id="talukSel"><option value="">All taluks</option></select>
       </label>
-      <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center to configure dates &amp; pull reports for selected Taluk">⚡ Flash Fill Control Center</button>
-      <button type="button" class="tn-auto-btn" id="singleReportBtn" title="View Rural Overall Pending Single Report (Consolidated)" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff; font-weight:700;">📊 Single Report</button>
-      <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta from Tahsildar login page (All Districts, Taluks &amp; Villages)" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7;">📜 Chitta Extract</button>
-      <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services நில உரிமை (பட்டா / சிட்டா) — Without OTP" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490;">🌐 e-Services (No OTP)</button>
-      <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Addition &amp; Correction Approval Suite (Tahsildar)" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff; font-weight:700;">📝 A-Register Approval</button>
-      <button type="button" class="tn-auto-btn" id="pattaMenuBtn" title="Patta Name &amp; Size Correction Management Suite" style="background:linear-gradient(135deg, #059669, #047857); border-color:#059669; color:#fff; font-weight:700;">📜 Patta Correction</button>
-      <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Manage Tahsildar Portal Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5;">🔑 Credentials</button>
+      <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Flash Fill Control Center">⚡</button>
+      <button type="button" class="tn-auto-btn" id="singleReportBtn" title="Rural Overall Pending Single Report" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff;">📊</button>
+      <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta Extract" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7; color:#fff;">📜</button>
+      <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services (No OTP)" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490; color:#fff;">🌐</button>
+      <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Approval Suite" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff;">📝</button>
+      <button type="button" class="tn-auto-btn" id="pattaMenuBtn" title="Patta Name &amp; Size Correction" style="background:linear-gradient(135deg, #059669, #047857); border-color:#059669; color:#fff;">✏️</button>
+      <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Tamil Nilam Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5; color:#fff;">🔑</button>
     </div>
     <div class="topbar-actions">
       <span class="whoami" id="whoami" style="display:none"></span>
@@ -9434,7 +9432,12 @@ let isFetchingPatta = false;
 async function fetchLivePattaInfo() {
   const pattaInp = document.getElementById('pattaNoInput');
   const pattaNo = pattaInp ? pattaInp.value.trim() : '';
-  if (!pattaNo || isFetchingPatta) return;
+  const surveyInp = document.getElementById('pattaSurveyNoInput');
+  const surveyNo = surveyInp ? surveyInp.value.trim() : '';
+  const subdivInp = document.getElementById('pattaSubdivNoInput');
+  const subdivNo = subdivInp ? subdivInp.value.trim() : '';
+
+  if ((!pattaNo && !surveyNo) || isFetchingPatta) return;
 
   const talukSel = document.getElementById('pattaTalukSel');
   const villageSel = document.getElementById('pattaVillageSel');
@@ -9443,21 +9446,25 @@ async function fetchLivePattaInfo() {
 
   isFetchingPatta = true;
 
+  const queryLabel = pattaNo ? `Patta ${pattaNo}` : `Survey ${surveyNo}${subdivNo ? '/' + subdivNo : ''}`;
   const banner = document.getElementById('pattaStatusBanner');
   if (banner) {
     banner.className = 'tn-status-banner info';
     banner.style.background = 'rgba(37, 99, 235, 0.15)';
     banner.style.color = '#2563eb';
     banner.style.display = 'block';
-    banner.textContent = `⏳ Fetching Live Patta details from Tamil Nilam for Patta ${pattaNo}...`;
+    banner.textContent = `⏳ Fetching Live Patta / Survey details from Tamil Nilam for ${queryLabel}...`;
   }
 
   try {
-    const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}`;
+    const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}`;
     const res = await fetch(url);
     const data = await res.json();
 
     if (data.success) {
+      if (data.pattaNo && pattaInp) {
+        pattaInp.value = data.pattaNo;
+      }
       if (data.ownerName) {
         const oldNameInp = document.getElementById('pattaOldNameInput');
         if (oldNameInp) oldNameInp.value = data.ownerName;
@@ -9466,13 +9473,11 @@ async function fetchLivePattaInfo() {
         const oldExtentInp = document.getElementById('pattaOldExtentInput');
         if (oldExtentInp) oldExtentInp.value = data.totalExtent;
       }
-      if (data.surveyNo) {
-        const surveyInp = document.getElementById('pattaSurveyNoInput');
-        if (surveyInp) surveyInp.value = data.surveyNo;
+      if (data.surveyNo && surveyInp) {
+        surveyInp.value = data.surveyNo;
       }
-      if (data.subdivNo) {
-        const subdivInp = document.getElementById('pattaSubdivNoInput');
-        if (subdivInp) subdivInp.value = data.subdivNo;
+      if (data.subdivNo && subdivInp) {
+        subdivInp.value = data.subdivNo;
       }
 
       if (banner) {
@@ -9959,7 +9964,7 @@ async function renderPattaCorrectionTab() {
             </label>
             <div style="display: flex; gap: 6px;">
               <input type="text" id="pattaNoInput" placeholder="e.g. 1245" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
-              <button type="button" id="pattaFetchLiveBtn" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">🔍 Fetch Live Patta</button>
+              <button type="button" id="pattaFetchLiveBtn" title="Search live details by Patta Number or Survey/Subdivision Number" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">🔍 Search Patta / Survey</button>
             </div>
           </div>
 
@@ -10020,7 +10025,10 @@ async function renderPattaCorrectionTab() {
             <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 5px;">
               Subdivision Number / உட்பிரிவு எண்
             </label>
-            <input type="text" id="pattaSubdivNoInput" placeholder="e.g. 1A" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="pattaSubdivNoInput" placeholder="e.g. 1A" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink);">
+              <button type="button" id="pattaSurveyFetchLiveBtn" title="Search live details by Survey Number + Subdivision Number" style="background: #0284c7; color: #fff; border: 1px solid #0369a1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">🔍 Search Patta / Survey</button>
+            </div>
           </div>
 
           <!-- Remarks -->
@@ -10101,7 +10109,18 @@ async function renderPattaCorrectionTab() {
     pattaInp.addEventListener('blur', fetchLivePattaInfo);
     pattaInp.addEventListener('change', fetchLivePattaInfo);
   }
+  const surveyInp = document.getElementById('pattaSurveyNoInput');
+  if (surveyInp) {
+    surveyInp.addEventListener('blur', fetchLivePattaInfo);
+    surveyInp.addEventListener('change', fetchLivePattaInfo);
+  }
+  const subdivInp = document.getElementById('pattaSubdivNoInput');
+  if (subdivInp) {
+    subdivInp.addEventListener('blur', fetchLivePattaInfo);
+    subdivInp.addEventListener('change', fetchLivePattaInfo);
+  }
   document.getElementById('pattaFetchLiveBtn')?.addEventListener('click', fetchLivePattaInfo);
+  document.getElementById('pattaSurveyFetchLiveBtn')?.addEventListener('click', fetchLivePattaInfo);
 
   document.getElementById('pattaSaveBtn')?.addEventListener('click', savePattaCorrectionForm);
   document.getElementById('pattaSubmitBtn')?.addEventListener('click', submitPattaCorrectionFromForm);

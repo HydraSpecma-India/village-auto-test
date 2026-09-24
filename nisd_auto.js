@@ -447,7 +447,7 @@
 
     const talukLabel = document.querySelector('.topbar .inner .taluksel');
     if (talukLabel && !document.getElementById('tnFlashFillBtn')) {
-      const flashBtnHtml = `<button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Open Flash Fill Control Center for Selected Taluk" style="margin-left:8px; margin-right:4px;">⚡ 1-Click Flash Fill All</button>`;
+      const flashBtnHtml = `<button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Flash Fill Control Center" style="margin-left:8px; margin-right:4px;">⚡</button>`;
       talukLabel.insertAdjacentHTML('afterend', flashBtnHtml);
     }
 
@@ -535,10 +535,27 @@
       pattaNoInp.addEventListener('blur', fetchLivePattaInfo);
       pattaNoInp.addEventListener('change', fetchLivePattaInfo);
     }
+    const surveyNoInp = document.getElementById('pattaSurveyNoInput');
+    if (surveyNoInp && !surveyNoInp.__surveyBound) {
+      surveyNoInp.__surveyBound = true;
+      surveyNoInp.addEventListener('blur', fetchLivePattaInfo);
+      surveyNoInp.addEventListener('change', fetchLivePattaInfo);
+    }
+    const subdivNoInp = document.getElementById('pattaSubdivNoInput');
+    if (subdivNoInp && !subdivNoInp.__subdivBound) {
+      subdivNoInp.__subdivBound = true;
+      subdivNoInp.addEventListener('blur', fetchLivePattaInfo);
+      subdivNoInp.addEventListener('change', fetchLivePattaInfo);
+    }
     const fetchLiveBtn = document.getElementById('pattaFetchLiveBtn');
     if (fetchLiveBtn && !fetchLiveBtn.__pattaBound) {
       fetchLiveBtn.__pattaBound = true;
       fetchLiveBtn.addEventListener('click', fetchLivePattaInfo);
+    }
+    const surveyFetchLiveBtn = document.getElementById('pattaSurveyFetchLiveBtn');
+    if (surveyFetchLiveBtn && !surveyFetchLiveBtn.__pattaBound) {
+      surveyFetchLiveBtn.__pattaBound = true;
+      surveyFetchLiveBtn.addEventListener('click', fetchLivePattaInfo);
     }
 
     bindEvents();
@@ -548,7 +565,12 @@
   async function fetchLivePattaInfo() {
     const pattaInp = document.getElementById('pattaNoInput');
     const pattaNo = pattaInp ? pattaInp.value.trim() : '';
-    if (!pattaNo || _isFetchingPatta) return;
+    const surveyInp = document.getElementById('pattaSurveyNoInput');
+    const surveyNo = surveyInp ? surveyInp.value.trim() : '';
+    const subdivInp = document.getElementById('pattaSubdivNoInput');
+    const subdivNo = subdivInp ? subdivInp.value.trim() : '';
+
+    if ((!pattaNo && !surveyNo) || _isFetchingPatta) return;
 
     const talukSel = document.getElementById('pattaTalukSel');
     const villageSel = document.getElementById('pattaVillageSel');
@@ -557,21 +579,25 @@
 
     _isFetchingPatta = true;
 
+    const queryLabel = pattaNo ? `Patta ${pattaNo}` : `Survey ${surveyNo}${subdivNo ? '/' + subdivNo : ''}`;
     const banner = document.getElementById('pattaStatusBanner');
     if (banner) {
       banner.className = 'tn-status-banner info';
       banner.style.background = 'rgba(37, 99, 235, 0.15)';
       banner.style.color = '#2563eb';
       banner.style.display = 'block';
-      banner.textContent = `⏳ Fetching Live Patta details from Tamil Nilam for Patta ${pattaNo}...`;
+      banner.textContent = `⏳ Fetching Live Patta / Survey details from Tamil Nilam for ${queryLabel}...`;
     }
 
     try {
-      const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}`;
+      const url = `/api/areg?mode=fetch_patta&distCode=37&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&pattaNo=${encodeURIComponent(pattaNo)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}`;
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.success) {
+        if (data.pattaNo && pattaInp) {
+          pattaInp.value = data.pattaNo;
+        }
         if (data.ownerName) {
           const oldNameInp = document.getElementById('pattaOldNameInput');
           if (oldNameInp) oldNameInp.value = data.ownerName;
@@ -580,13 +606,11 @@
           const oldExtentInp = document.getElementById('pattaOldExtentInput');
           if (oldExtentInp) oldExtentInp.value = data.totalExtent;
         }
-        if (data.surveyNo) {
-          const surveyInp = document.getElementById('pattaSurveyNoInput');
-          if (surveyInp) surveyInp.value = data.surveyNo;
+        if (data.surveyNo && surveyInp) {
+          surveyInp.value = data.surveyNo;
         }
-        if (data.subdivNo) {
-          const subdivInp = document.getElementById('pattaSubdivNoInput');
-          if (subdivInp) subdivInp.value = data.subdivNo;
+        if (data.subdivNo && subdivInp) {
+          subdivInp.value = data.subdivNo;
         }
 
         if (banner) {
