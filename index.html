@@ -6033,59 +6033,51 @@ function getAllTnCreds() {
 function getTnCreds(type = 'primary', talukName = null) {
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   const userTaluk = (ME && ME.taluk) ? ME.taluk : null;
+  const targetTaluk = talukName || userTaluk || (typeof TALUK !== 'undefined' ? TALUK : null);
 
-  // 1. ADMIN USER:
-  // Admin uses Nemili Tahsildar login (rpt_panneerselvam / Nemili@1970) as primary default for all data fetch,
-  // all reports, and all chitta downloads. Automatic retry / fallback handles other logins.
-  if (isAdmin) {
-    if (type === 'secondary' || type === 'isd' || type === 'tahsildar' || type === 'all' || type === 'chitta') {
-      const nemiliCred = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === 'nemili');
+  // 1. Check if specific target taluk credentials exist in TALUK_CREDS
+  if (targetTaluk && (type === 'secondary' || type === 'isd' || type === 'tahsildar' || type === 'chitta')) {
+    const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(targetTaluk));
+    if (found && found.username && found.password) {
       return {
-        username: (nemiliCred && nemiliCred.username) || 'rpt_panneerselvam',
-        password: (nemiliCred && nemiliCred.password) || 'Nemili@1970',
-        roleId: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
-        role_id: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
-        taluk: 'Nemili',
-        talukCode: '12',
-        label: 'Admin Default (Nemili Tahsildar)'
+        username: found.username.trim(),
+        password: found.password.trim(),
+        roleId: (found.role_id || found.roleId || '8').trim(),
+        role_id: (found.role_id || found.roleId || '8').trim(),
+        taluk: found.taluk,
+        talukCode: found.taluk_code || resolveTalukCode(found.taluk),
+        label: `${found.taluk} Tahsildar`
       };
     }
-    // DLU login for bulk NISD / F-Line district queries
-    const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
-    if (distCred && distCred.username) {
-      return {
-        username: distCred.username,
-        password: distCred.password,
-        roleId: distCred.role_id || '7',
-        role_id: distCred.role_id || '7',
-        label: 'Primary (DLU / NISD & F-Line)'
-      };
-    }
-    const creds = getAllTnCreds();
-    return creds.primary;
   }
 
-  // 2. TALUK-SCOPED USER:
-  // User with a particular taluk must use their own taluk's Tahsildar login from TALUK_CREDS to pull data & chitta.
-  const targetTaluk = userTaluk || talukName || (typeof TALUK !== 'undefined' ? TALUK : '') || 'Nemili';
-  const found = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === normTaluk(targetTaluk));
-  if (found && found.username) {
+  // 2. ADMIN & GENERAL DEFAULT: Nemili Tahsildar login (rpt_panneerselvam / Nemili@1970)
+  if (type === 'secondary' || type === 'isd' || type === 'tahsildar' || type === 'all' || type === 'chitta') {
+    const nemiliCred = (TALUK_CREDS || []).find(c => normTaluk(c.taluk) === 'nemili');
     return {
-      username: found.username,
-      password: found.password,
-      roleId: found.role_id || '8',
-      role_id: found.role_id || '8',
-      taluk: found.taluk,
-      talukCode: found.taluk_code,
-      label: `${found.taluk} Tahsildar`
+      username: (nemiliCred && nemiliCred.username) || 'rpt_panneerselvam',
+      password: (nemiliCred && nemiliCred.password) || 'Nemili@1970',
+      roleId: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
+      role_id: (nemiliCred && (nemiliCred.role_id || nemiliCred.roleId)) || '8',
+      taluk: 'Nemili',
+      talukCode: '12',
+      label: 'Default (Nemili Tahsildar)'
     };
   }
 
-  // Fallback to secondary creds
+  // 3. Primary / District DLU login
+  const distCred = (TALUK_CREDS || []).find(c => c.type === 'primary' || normTaluk(c.taluk) === 'district');
+  if (distCred && distCred.username) {
+    return {
+      username: distCred.username,
+      password: distCred.password,
+      roleId: distCred.role_id || '7',
+      role_id: distCred.role_id || '7',
+      label: 'Primary (DLU / NISD & F-Line)'
+    };
+  }
   const creds = getAllTnCreds();
-  return (creds.secondary && creds.secondary.username && creds.secondary.password)
-    ? creds.secondary
-    : { username: 'rpt_panneerselvam', password: 'Nemili@1970', roleId: '8', label: 'Secondary (Tahsildar / ISD Rural)' };
+  return creds.primary;
 }
 
 function saveAllTnCreds(primaryObj, secondaryObj) {
