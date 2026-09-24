@@ -451,6 +451,35 @@
       talukLabel.insertAdjacentHTML('afterend', flashBtnHtml);
     }
 
+    const aregMenuBtn = document.getElementById('aregMenuBtn');
+    if (aregMenuBtn && !aregMenuBtn.__aregBound) {
+      aregMenuBtn.__aregBound = true;
+      aregMenuBtn.addEventListener('click', () => {
+        const currentTaluk = (typeof window.TALUK !== 'undefined' && window.TALUK) ? window.TALUK : 'Nemili';
+        if (typeof window.openAregApprovalModal === 'function') {
+          window.openAregApprovalModal(currentTaluk, '0109');
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-tab="areg"]').forEach(btn => {
+      if (!btn.__aregBound) {
+        btn.__aregBound = true;
+        btn.addEventListener('click', () => {
+          if (typeof window.closeUsersPanel === 'function') {
+            window.closeUsersPanel();
+          } else {
+            const panel = document.getElementById('usersPanel');
+            if (panel) panel.hidden = true;
+          }
+          const currentTaluk = (typeof window.TALUK !== 'undefined' && window.TALUK) ? window.TALUK : 'Nemili';
+          if (typeof window.openAregApprovalModal === 'function') {
+            window.openAregApprovalModal(currentTaluk, '0109');
+          }
+        });
+      }
+    });
+
     bindEvents();
   }
 
@@ -3001,7 +3030,7 @@
     let backdrop = document.getElementById('aregModalBackdrop');
     if (!backdrop) {
       const modalHtml = `
-        <div id="aregModalBackdrop" class="tn-modal-backdrop">
+        <div id="aregModalBackdrop" class="tn-modal-backdrop" style="z-index: 20000 !important;">
           <div class="tn-modal" style="max-width: 950px; width: 95vw;">
             <div class="tn-modal-header" style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff;">
               <h2>
@@ -3096,8 +3125,9 @@
       document.getElementById('aregApproveAllBtn').addEventListener('click', approveAllAregApplications);
     }
 
-    if (initialTaluk) {
-      const tCode = resolveTalukCode(initialTaluk) || '12';
+    const targetTaluk = initialTaluk || (typeof window.TALUK !== 'undefined' && window.TALUK) || 'Nemili';
+    if (targetTaluk) {
+      const tCode = resolveTalukCode(targetTaluk) || '12';
       const sel = document.getElementById('aregTalukSel');
       if (sel) sel.value = tCode;
     }
@@ -3313,7 +3343,6 @@
       approveAllBtn.innerHTML = `✓ Bulk Approval Complete (${successCount}/${aregPendingApps.length})`;
     }
   }
-};
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectUI);

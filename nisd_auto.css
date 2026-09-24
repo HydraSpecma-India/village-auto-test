@@ -42,6 +42,9 @@
   opacity: 1;
   pointer-events: auto;
 }
+#aregModalBackdrop {
+  z-index: 20000 !important;
+}
 
 .tn-modal {
   background: var(--surface, #ffffff);

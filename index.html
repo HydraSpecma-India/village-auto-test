@@ -704,6 +704,9 @@
     box-shadow: none !important;
     animation: fullModalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  #aregModalBackdrop {
+    z-index: 20000 !important;
+  }
   @keyframes fullModalEnter {
     from { opacity: 0; transform: scale(0.985); }
     to { opacity: 1; transform: scale(1); }
@@ -10636,8 +10639,9 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   openUsersPanel();
 });
 document.getElementById('aregMenuBtn')?.addEventListener('click', () => {
+  const t = (typeof TALUK !== 'undefined' && TALUK) ? TALUK : 'Nemili';
   if (typeof window.openAregApprovalModal === 'function') {
-    window.openAregApprovalModal(TALUK || 'Nemili', '0109');
+    window.openAregApprovalModal(t, '0109');
   }
 });
 document.getElementById('credsMenuBtn')?.addEventListener('click', () => {
@@ -10656,8 +10660,9 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
     const tab = b.dataset.tab;
     if(tab === 'areg'){
       closeUsersPanel();
+      const t = (typeof TALUK !== 'undefined' && TALUK) ? TALUK : 'Nemili';
       if (typeof window.openAregApprovalModal === 'function') {
-        window.openAregApprovalModal(TALUK || 'Nemili', '0109');
+        window.openAregApprovalModal(t, '0109');
       }
       return;
     }
