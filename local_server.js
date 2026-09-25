@@ -6,7 +6,11 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
-const apiHandler = require('./api/nisd-rural.js');
+const apiHandlers = {
+  '/api/nisd-rural': require('./api/nisd-rural.js'),
+  '/api/areg': require('./api/areg.js'),
+  '/api/chitta': require('./api/chitta.js')
+};
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -26,7 +30,8 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
 
   // Handle API route
-  if (pathname === '/api/nisd-rural') {
+  if (apiHandlers[pathname]) {
+    const handler = apiHandlers[pathname];
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
@@ -37,7 +42,7 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {}
       req.query = parsedUrl.query;
 
-      // Enhance res with status and json helpers
+      // Enhance res with status, json and send helpers
       res.status = function(code) {
         res.statusCode = code;
         return res;
@@ -46,9 +51,12 @@ const server = http.createServer(async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(data));
       };
+      res.send = function(data) {
+        res.end(data);
+      };
 
       try {
-        await apiHandler(req, res);
+        await handler(req, res);
       } catch (err) {
         console.error('API execution error:', err);
         res.statusCode = 500;

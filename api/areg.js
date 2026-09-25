@@ -3,6 +3,10 @@
 const crypto = require('crypto');
 const https = require('https');
 
+const DEFAULT_U = 'rpt_panneerselvam';
+const DEFAULT_P = 'Nemili@1970';
+const DEFAULT_R = '8';
+
 function formatDateToDDMMYYYY(d) {
   if (!d) return '';
   if (/^\d{2}-\d{2}-\d{4}$/.test(d)) return d;
@@ -287,7 +291,7 @@ function extractPattaFields(data, defaultParams = {}) {
   };
 }
 
-function callTnService(path, inputObj = null, method = 'GET', userId = 'rpt_panneerselvam', password = 'Nemili@1970', roleId = '8', extraHeaders = {}, customBody = null, timeoutMs = 30000) {
+function callTnService(path, inputObj = null, method = 'GET', userId = DEFAULT_U, password = DEFAULT_P, roleId = DEFAULT_R, extraHeaders = {}, customBody = null, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
     const t = Date.now().toString();
@@ -669,10 +673,10 @@ module.exports = async (req, res) => {
     const serviceCode = params.serviceCode || '0109'; // 0109: A-REG Correction
     const nathamFlag = (serviceCode.startsWith('N') || params.nathamFlag === 'N') ? 'N' : 'R';
     const campFlag = params.campFlag || 'N';
-    const username = params.username || 'rpt_panneerselvam';
-    const password = params.password || 'Nemili@1970';
-    const roleId = String(params.roleId || '8');
-    const mode = params.mode || 'pending_list';
+    const username = params.username || DEFAULT_U;
+    const password = params.password || DEFAULT_P;
+    const roleId = String(params.roleId || DEFAULT_R);
+    const mode = String(params.mode || 'pending_list').trim().toLowerCase();
 
     // 0. DATABASE SCHEMA SUMMARY & TABLE METADATA (SUPABASE / LOCAL TABLES)
     if (mode === 'db_info' || mode === 'db' || mode === 'database_info' || mode === 'schema') {
@@ -1148,9 +1152,9 @@ module.exports = async (req, res) => {
       }
 
       // Statutory Tahsildar credentials (rpt_panneerselvam / Nemili@1970 / roleId: 8)
-      const tahsildarUser = 'rpt_panneerselvam';
-      const tahsildarPass = 'Nemili@1970';
-      const tahsildarRole = '8';
+      const tahsildarUser = DEFAULT_U;
+      const tahsildarPass = DEFAULT_P;
+      const tahsildarRole = DEFAULT_R;
 
       // Step 1: Create/register the official A-Register Correction/Addition application with updated Owner Name and Extent details
       const creationPayload = {
@@ -1367,7 +1371,297 @@ module.exports = async (req, res) => {
       return;
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, or db_info.' });
+    // 8. A-REGISTER EXTRACT PDF DOWNLOAD
+    if (mode === 'areg_pdf' || mode === 'download_pdf' || mode === 'download' || mode === 'pdf') {
+      const distCode = params.distCode;
+      const talukCode = params.talukCode;
+      const villageCode = params.villageCode;
+      const surveyNo = params.surveyNo;
+      const subdivNo = params.subdivNo;
+      const pattaNo = params.pattaNo;
+      const transType = params.transType;
+
+      const inputValObj = {
+        districtCode: String(distCode || '37').padStart(2, '0'),
+        talukCode: String(talukCode || '12').padStart(2, '0'),
+        villageCode: String(villageCode || '045').padStart(3, '0'),
+        SurveyNo: surveyNo ? String(surveyNo).trim() : '@',
+        SubDivNo: subdivNo ? String(subdivNo).trim() : '@',
+        PattaNo: pattaNo ? String(pattaNo).trim() : '@',
+        transType: (transType || 'R').toUpperCase()
+      };
+
+      let data = null;
+      try {
+        data = await callTnService(
+          'Master/getARegExtractData_PDF',
+          inputValObj,
+          'POST',
+          username,
+          password,
+          roleId
+        );
+      } catch (errPdf) {
+        console.warn('getARegExtractData_PDF error:', errPdf.message);
+      }
+
+      const hasPdf = (d) => {
+        if (!d) return false;
+        const obj = Array.isArray(d) ? d[0] : d;
+        return Boolean(obj && (obj.base64Output || obj.pdffile || obj.base64));
+      };
+
+      // Fallback 1: try 'Master/getARegExtractDataPdf'
+      if (!hasPdf(data)) {
+        try {
+          const fallbackData = await callTnService(
+            'Master/getARegExtractDataPdf',
+            inputValObj,
+            'POST',
+            username,
+            password,
+            roleId
+          );
+          if (hasPdf(fallbackData)) {
+            data = fallbackData;
+          }
+        } catch (errFallback) {
+          console.warn('getARegExtractDataPdf fallback error:', errFallback.message);
+        }
+      }
+
+      // Fallback 2: try 'Master/getChittaExtractData_pdf'
+      if (!hasPdf(data)) {
+        try {
+          const fallbackData2 = await callTnService(
+            'Master/getChittaExtractData_pdf',
+            inputValObj,
+            'GET',
+            username,
+            password,
+            roleId
+          );
+          if (hasPdf(fallbackData2)) {
+            data = fallbackData2;
+          }
+        } catch (errFallback2) {
+          console.warn('getChittaExtractData_pdf fallback error:', errFallback2.message);
+        }
+      }
+
+      const resObj = Array.isArray(data) ? (data[0] || {}) : (data || {});
+      const pdfBase64 = resObj.base64Output || resObj.pdffile || resObj.base64;
+      const sNoClean = (surveyNo && String(surveyNo).trim() !== '@') ? String(surveyNo).trim() : (inputValObj.SurveyNo !== '@' ? inputValObj.SurveyNo : '100');
+      const filename = params.filename || `Areg_Extract_D${inputValObj.districtCode}_T${inputValObj.talukCode}_V${inputValObj.villageCode}_Survey${sNoClean}.pdf`;
+
+      if (pdfBase64) {
+        if (params.binary === 'true' || params.download === '1') {
+          const pdfBuf = Buffer.from(pdfBase64, 'base64');
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.setHeader('Content-Length', pdfBuf.length);
+          return res.status(200).send(pdfBuf);
+        }
+
+        return res.status(200).json({
+          success: true,
+          base64: pdfBase64,
+          filename,
+          statusDesc: resObj.Status_Desc || 'Success'
+        });
+      }
+
+      const errMsg = resObj.Status_Desc || resObj.error || resObj.IssuePatta || 'Failed to fetch A-Register PDF from Tamil Nilam portal';
+      return res.status(200).json({ success: false, error: errMsg, raw: data });
+    }
+
+    // 9. A-REGISTER EXTRACT DATA
+    if (mode === 'areg_extract_data' || mode === 'areg_data') {
+      const distCode = params.distCode;
+      const talukCode = params.talukCode;
+      const villageCode = params.villageCode;
+      const surveyNo = params.surveyNo;
+      const subdivNo = params.subdivNo;
+      const pattaNo = params.pattaNo;
+      const transType = params.transType;
+
+      const inputValObj = {
+        districtCode: String(distCode || '37').padStart(2, '0'),
+        talukCode: String(talukCode || '12').padStart(2, '0'),
+        villageCode: String(villageCode || '045').padStart(3, '0'),
+        SurveyNo: surveyNo ? String(surveyNo).trim() : '@',
+        SubDivNo: subdivNo ? String(subdivNo).trim() : '@',
+        PattaNo: pattaNo ? String(pattaNo).trim() : '@',
+        transType: (transType || 'R').toUpperCase()
+      };
+
+      const data = await callTnService(
+        'Master/getARegExtractData',
+        inputValObj,
+        'POST',
+        username,
+        password,
+        roleId
+      );
+
+      return res.status(200).json({
+        success: true,
+        data,
+        distCode: inputValObj.districtCode,
+        talukCode: inputValObj.talukCode,
+        villageCode: inputValObj.villageCode,
+        surveyNo: inputValObj.SurveyNo,
+        transType: inputValObj.transType
+      });
+    }
+
+    // 10. DISTRICTS LIST (Cross-district master query with all 38 districts)
+    if (mode === 'districts') {
+      try {
+        const data = await callTnService('Master/getAllDistrict', null, 'GET', username, password, roleId);
+        if (Array.isArray(data) && data.length > 0) {
+          const districts = data
+            .filter(d => (d.dId || d.id || d.districtCode) && (d.dName || d.name || d.districtName))
+            .map(d => ({
+              id: String(d.dId || d.id || d.districtCode),
+              name: String(d.dName || d.name || d.districtName)
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (districts.length > 0) {
+            return res.status(200).json({ success: true, districts });
+          }
+        }
+      } catch (eDist) {
+        console.warn('getAllDistrict error, falling back:', eDist.message);
+      }
+      return res.status(200).json({
+        success: true,
+        districts: [
+          { id: '17', name: 'Ariyalur' },
+          { id: '35', name: 'Chengalpattu' },
+          { id: '02', name: 'Chennai' },
+          { id: '12', name: 'Coimbatore' },
+          { id: '18', name: 'Cuddalore' },
+          { id: '05', name: 'Dharmapuri' },
+          { id: '13', name: 'Dindigul' },
+          { id: '10', name: 'Erode' },
+          { id: '34', name: 'Kallakurichi' },
+          { id: '04', name: 'Kancheepuram' },
+          { id: '30', name: 'Kanyakumari' },
+          { id: '14', name: 'Karur' },
+          { id: '31', name: 'Krishnagiri' },
+          { id: '24', name: 'Madurai' },
+          { id: '38', name: 'Mayiladuthurai' },
+          { id: '19', name: 'Nagapattinam' },
+          { id: '09', name: 'Namakkal' },
+          { id: '11', name: 'Nilgiris' },
+          { id: '16', name: 'Perambalur' },
+          { id: '22', name: 'Pudukkottai' },
+          { id: '27', name: 'Ramanathapuram' },
+          { id: '37', name: 'Ranipet' },
+          { id: '08', name: 'Salem' },
+          { id: '23', name: 'Sivaganga' },
+          { id: '33', name: 'Tenkasi' },
+          { id: '21', name: 'Thanjavur' },
+          { id: '25', name: 'Theni' },
+          { id: '28', name: 'Thoothukudi' },
+          { id: '15', name: 'Tiruchirappalli' },
+          { id: '29', name: 'Tirunelveli' },
+          { id: '36', name: 'Tirupathur' },
+          { id: '32', name: 'Tiruppur' },
+          { id: '01', name: 'Tiruvallur' },
+          { id: '06', name: 'Tiruvannamalai' },
+          { id: '20', name: 'Tiruvarur' },
+          { id: '07', name: 'Vellore' },
+          { id: '26', name: 'Viluppuram' },
+          { id: '35', name: 'Virudhunagar' }
+        ]
+      });
+    }
+
+    // 11. TALUKS LIST (Cross-district master query)
+    if (mode === 'taluks') {
+      const targetDistCode = String(params.distCode || '37');
+      const inputObj = { DistrictCode: targetDistCode, dist_code: targetDistCode };
+      try {
+        const data = await callTnService('Master/getTaluk', inputObj, 'GET', username, password, roleId);
+        if (Array.isArray(data) && data.length > 0) {
+          const taluks = data
+            .filter(t => (t.tId || t.id || t.talukCode) && (t.tName || t.name || t.talukName))
+            .map(t => ({
+              id: String(t.tId || t.id || t.talukCode),
+              name: String(t.tName || t.name || t.talukName)
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (taluks.length > 0) {
+            return res.status(200).json({ success: true, distCode: targetDistCode, taluks });
+          }
+        }
+      } catch (eTaluk) {
+        console.warn('getTaluk error, falling back:', eTaluk.message);
+      }
+      const fallbackTaluks = targetDistCode === '37' ? [
+        { id: '12', name: 'Nemili' },
+        { id: '03', name: 'Arakkonam' },
+        { id: '02', name: 'Arcot' },
+        { id: '13', name: 'Kalavai' },
+        { id: '14', name: 'Sholinghur' },
+        { id: '04', name: 'Walajah' }
+      ] : [{ id: '01', name: 'Taluk 1' }];
+      return res.status(200).json({ success: true, distCode: targetDistCode, taluks: fallbackTaluks });
+    }
+
+    // 12. VILLAGES LIST (Cross-district master query)
+    if (mode === 'villages') {
+      const targetDistCode = String(params.distCode || '37');
+      const targetTalukCode = String(params.talukCode || '12');
+      const inputObj = { DistrictCode: targetDistCode, talukCode: targetTalukCode };
+      try {
+        const data = await callTnService('Master/getVillage', inputObj, 'GET', username, password, roleId);
+
+        let arr = [];
+        if (Array.isArray(data)) {
+          arr = data;
+        } else if (data && data.villageArray) {
+          try {
+            arr = typeof data.villageArray === 'string' ? JSON.parse(data.villageArray) : data.villageArray;
+          } catch (e) {
+            arr = [];
+          }
+        } else if (data && data.villages) {
+          try {
+            arr = typeof data.villages === 'string' ? JSON.parse(data.villages) : data.villages;
+          } catch (e) {
+            arr = [];
+          }
+        }
+
+        if (Array.isArray(arr) && arr.length > 0) {
+          const villages = arr
+            .filter(v => (v.vId || v.id || v.villageCode) && (v.vName || v.name || v.villageName))
+            .map(v => ({
+              id: String(v.vId || v.id || v.villageCode),
+              name: String(v.vName || v.name || v.villageName)
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (villages.length > 0) {
+            return res.status(200).json({ success: true, distCode: targetDistCode, talukCode: targetTalukCode, villages });
+          }
+        }
+      } catch (eVill) {
+        console.warn('getVillage error, falling back:', eVill.message);
+      }
+      const fallbackVillages = (targetDistCode === '37' && targetTalukCode === '12') ? [
+        { id: '045', name: 'Karivedu' },
+        { id: '122', name: 'Nemili' },
+        { id: '034', name: 'Kaveripakkam' },
+        { id: '053', name: 'Panappakkam' },
+        { id: '046', name: 'Avalur' }
+      ] : [{ id: '001', name: 'Village 1' }];
+      return res.status(200).json({ success: true, distCode: targetDistCode, talukCode: targetTalukCode, villages: fallbackVillages });
+    }
+
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, areg_pdf, areg_extract_data, districts, taluks, villages, or db_info.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });

@@ -1174,6 +1174,7 @@
     <button data-tab="creds">🔑 Tamil Nilam Credentials</button>
     <button data-tab="chitta">📜 Chitta Extract (Tahsildar)</button>
     <button data-tab="eservices">🌐 e-Services (No OTP)</button>
+    <button data-tab="areg_pdf">📑 A-Register Extract (PDF)</button>
     <button data-tab="areg">📝 A-Register Approval</button>
     <button data-tab="patta">📜 Patta Name &amp; Size Correction</button>
     <button data-tab="dbinfo">🗄️ Database Info &amp; Query</button>
@@ -1229,6 +1230,7 @@
       <button type="button" class="tn-auto-btn" id="singleReportBtn" title="Rural Overall Pending Single Report" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff;">📊</button>
       <button type="button" class="tn-auto-btn" id="chittaMenuBtn" title="Download Chitta Extract" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7; color:#fff;">📜</button>
       <button type="button" class="tn-auto-btn" id="eservicesMenuBtn" title="e-Services (No OTP)" style="background:linear-gradient(135deg, #0e7490, #155e75); border-color:#0e7490; color:#fff;">🌐</button>
+      <button type="button" class="tn-auto-btn" id="aregPdfMenuBtn" title="Download A-Register Extract PDF" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border-color:#7c3aed; color:#fff;">📑</button>
       <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Approval Suite" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff;">📝</button>
       <button type="button" class="tn-auto-btn" id="pattaMenuBtn" title="Patta Name &amp; Size Correction" style="background:linear-gradient(135deg, #059669, #047857); border-color:#059669; color:#fff;">✏️</button>
       <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Tamil Nilam Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5; color:#fff;">🔑</button>
@@ -5930,13 +5932,14 @@ function mayUseTaluk(name){
 window.myTaluks = myTaluks;
 window.mayUseTaluk = mayUseTaluk;
 
-/* Menu-by-menu access control: 'isd', 'nisd', 'fline', 'chitta', 'eservices' */
+/* Menu-by-menu access control: 'isd', 'nisd', 'fline', 'chitta', 'eservices', 'areg_pdf', 'patta' */
 const ALL_MENUS = [
   { key: 'isd', label: 'ISD' },
   { key: 'nisd', label: 'NISD' },
   { key: 'fline', label: 'F-Line' },
   { key: 'chitta', label: 'Chitta Extract' },
   { key: 'eservices', label: 'e-Services (No OTP)' },
+  { key: 'areg_pdf', label: 'A-Register Extract (PDF)' },
   { key: 'patta', label: 'Patta Correction' }
 ];
 const ALL_MENU_KEYS = ALL_MENUS.map(m => m.key);
@@ -6441,6 +6444,7 @@ function applyReportPermissions(){
   const canFline = hasMenu('fline');
   const canChitta = hasMenu('chitta');
   const canEservices = hasMenu('eservices');
+  const canAregPdf = hasMenu('areg_pdf');
 
   // Update active CATS for summary table
   CATS = CATS_ALL.filter(c => {
@@ -6478,6 +6482,7 @@ function applyReportPermissions(){
   // 3. Topbar buttons
   const chittaBtn = document.getElementById('chittaMenuBtn');
   const eservicesBtn = document.getElementById('eservicesMenuBtn');
+  const aregPdfBtn = document.getElementById('aregPdfMenuBtn');
   const credsBtn = document.getElementById('credsMenuBtn');
   const aregBtn = document.getElementById('aregMenuBtn');
   const ffBtn = document.getElementById('tnFlashFillBtn');
@@ -6485,6 +6490,7 @@ function applyReportPermissions(){
   const canCreds = isAdmin || canManageCreds();
   if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
+  if(aregPdfBtn) aregPdfBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(credsBtn) credsBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(aregBtn) aregBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
@@ -6500,12 +6506,14 @@ function applyReportPermissions(){
   // 5. Hub Tabs
   const chittaTabBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesTabBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
+  const aregPdfTabBtn = document.querySelector('#usersTabs button[data-tab="areg_pdf"]');
   const credsTabBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
   const pattaBtn = document.getElementById('pattaMenuBtn');
   if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
+  if(aregPdfTabBtn) aregPdfTabBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(credsTabBtn) credsTabBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
@@ -6730,6 +6738,7 @@ function renderAdminTabs(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   const canChitta = hasMenu('chitta');
   const canEservices = hasMenu('eservices');
+  const canAregPdf = hasMenu('areg_pdf');
   const canCreds = canManageCreds();
 
   const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
@@ -6737,6 +6746,7 @@ function renderAdminTabs(){
   const credsBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   const chittaBtn = document.querySelector('#usersTabs button[data-tab="chitta"]');
   const eservicesBtn = document.querySelector('#usersTabs button[data-tab="eservices"]');
+  const aregPdfTabBtn = document.querySelector('#usersTabs button[data-tab="areg_pdf"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
   const dbinfoTabBtn = document.querySelector('#usersTabs button[data-tab="dbinfo"]');
@@ -6746,37 +6756,33 @@ function renderAdminTabs(){
   if(credsBtn) credsBtn.style.display = (isAdmin || canCreds) ? 'inline-block' : 'none';
   if(chittaBtn) chittaBtn.style.display = (isAdmin || canChitta) ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = (isAdmin || canEservices) ? 'inline-block' : 'none';
+  if(aregPdfTabBtn) aregPdfTabBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
   if(dbinfoTabBtn) dbinfoTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   
   if(!isAdmin){
+    const getFirstAllowedTab = () => {
+      if(canCreds) return 'creds';
+      if(canChitta) return 'chitta';
+      if(canEservices) return 'eservices';
+      if(canAregPdf) return 'areg_pdf';
+      if(hasMenu('patta')) return 'patta';
+      return 'files';
+    };
+
     if(ADMIN_TAB === 'users' || ADMIN_TAB === 'areg' || ADMIN_TAB === 'dbinfo'){
-      if(canCreds) ADMIN_TAB = 'creds';
-      else if(canChitta) ADMIN_TAB = 'chitta';
-      else if(canEservices) ADMIN_TAB = 'eservices';
-      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = getFirstAllowedTab();
     } else if(ADMIN_TAB === 'creds' && !canCreds){
-      if(canChitta) ADMIN_TAB = 'chitta';
-      else if(canEservices) ADMIN_TAB = 'eservices';
-      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = getFirstAllowedTab();
     } else if(ADMIN_TAB === 'chitta' && !canChitta){
-      if(canCreds) ADMIN_TAB = 'creds';
-      else if(canEservices) ADMIN_TAB = 'eservices';
-      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = getFirstAllowedTab();
     } else if(ADMIN_TAB === 'eservices' && !canEservices){
-      if(canCreds) ADMIN_TAB = 'creds';
-      else if(canChitta) ADMIN_TAB = 'chitta';
-      else if(hasMenu('patta')) ADMIN_TAB = 'patta';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = getFirstAllowedTab();
+    } else if(ADMIN_TAB === 'areg_pdf' && !canAregPdf){
+      ADMIN_TAB = getFirstAllowedTab();
     } else if(ADMIN_TAB === 'patta' && !hasMenu('patta')){
-      if(canCreds) ADMIN_TAB = 'creds';
-      else if(canChitta) ADMIN_TAB = 'chitta';
-      else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = getFirstAllowedTab();
     }
   }
   
@@ -6799,6 +6805,10 @@ function renderAdminTabs(){
   else if(ADMIN_TAB === 'eservices'){
     if(!isAdmin && !canEservices){ renderAdminTabs(); return; }
     renderEservicesTab();
+  }
+  else if(ADMIN_TAB === 'areg_pdf'){
+    if(!isAdmin && !canAregPdf){ renderAdminTabs(); return; }
+    renderAregPdfTab();
   }
   else if(ADMIN_TAB === 'patta'){
     if(!isAdmin && !hasMenu('patta')){ renderAdminTabs(); return; }
@@ -8441,6 +8451,532 @@ async function initChittaDropdowns() {
     }
   });
 }
+
+/* ---------- A-Register Extract (Tahsildar Portal) ---------- */
+let __aregDistrictsCache = null;
+let __aregTaluksCache = {};
+let __aregVillagesCache = {};
+let __aregCurrentPdfBlobUrl = null;
+let __aregCurrentFilename = '';
+
+const ALL_38_TN_DISTRICTS = [
+  { id: '17', name: 'Ariyalur' },
+  { id: '35', name: 'Chengalpattu' },
+  { id: '02', name: 'Chennai' },
+  { id: '12', name: 'Coimbatore' },
+  { id: '18', name: 'Cuddalore' },
+  { id: '05', name: 'Dharmapuri' },
+  { id: '13', name: 'Dindigul' },
+  { id: '10', name: 'Erode' },
+  { id: '34', name: 'Kallakurichi' },
+  { id: '04', name: 'Kancheepuram' },
+  { id: '30', name: 'Kanyakumari' },
+  { id: '14', name: 'Karur' },
+  { id: '31', name: 'Krishnagiri' },
+  { id: '24', name: 'Madurai' },
+  { id: '38', name: 'Mayiladuthurai' },
+  { id: '19', name: 'Nagapattinam' },
+  { id: '09', name: 'Namakkal' },
+  { id: '11', name: 'Nilgiris' },
+  { id: '16', name: 'Perambalur' },
+  { id: '22', name: 'Pudukkottai' },
+  { id: '27', name: 'Ramanathapuram' },
+  { id: '37', name: 'Ranipet' },
+  { id: '08', name: 'Salem' },
+  { id: '23', name: 'Sivaganga' },
+  { id: '33', name: 'Tenkasi' },
+  { id: '21', name: 'Thanjavur' },
+  { id: '25', name: 'Theni' },
+  { id: '28', name: 'Thoothukudi' },
+  { id: '15', name: 'Tiruchirappalli' },
+  { id: '29', name: 'Tirunelveli' },
+  { id: '36', name: 'Tirupathur' },
+  { id: '32', name: 'Tiruppur' },
+  { id: '01', name: 'Tiruvallur' },
+  { id: '06', name: 'Tiruvannamalai' },
+  { id: '20', name: 'Tiruvarur' },
+  { id: '07', name: 'Vellore' },
+  { id: '26', name: 'Viluppuram' },
+  { id: '35', name: 'Virudhunagar' }
+];
+
+function renderAregPdfTab() {
+  const box = document.getElementById('usersBody');
+  if (!box) return;
+
+  const printedDate = 'அச்சடித்த நாள் : ' + new Date().toLocaleDateString('en-GB');
+
+  box.innerHTML = `
+    <div style="max-width: 920px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Tamil Nilam Header Banner (Matching Reference Image) -->
+      <div style="background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%); color: #fff; border-radius: 14px; padding: 20px 24px; box-shadow: 0 4px 14px rgba(109, 40, 217, 0.25);">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center;">
+          <div style="background: #fff; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+            <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 54px; width: 54px; object-fit: contain; border-radius: 50%;">
+          </div>
+          <div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: #fff;">Revenue and Disaster Management Department</h2>
+            <div style="font-size: 14px; font-weight: 600; opacity: 0.95; margin-top: 2px;">Government of Tamil Nadu</div>
+            <div style="font-size: 11.5px; opacity: 0.85; margin-top: 2px; letter-spacing: 0.3px;">Tamil Nadu Information System On Land Administration And Management (TAMILNILAM)</div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px;">
+          <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+            <span>👤</span> Login: Tahsildar (Nemili Master)
+          </span>
+          <span id="aregPdfBannerLoc" style="font-weight: 600; opacity: 0.95;">District: Ranipet | Taluk: Nemili</span>
+          <span style="opacity: 0.9; font-weight: 500;">${printedDate}</span>
+        </div>
+      </div>
+
+      <!-- Form Card -->
+      <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 24px 26px; box-shadow: var(--shadow);">
+        
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 6px; font-size: 18px; font-weight: 800; color: #6d28d9; text-decoration: underline; text-underline-offset: 4px;">
+            A - Register Extract – Tahsildar (அ-பதிவேடு விவரங்கள் பதிவிறக்கம்)
+          </h3>
+          <p style="margin: 0; font-size: 12.5px; color: var(--muted);">
+            நில அளவை ஆவணம் — அ-பதிவேடு விவரங்கள் &amp; PDF ஆவணம் பதிவிறக்கம் (அனைத்து மாவட்டங்கள்)
+          </p>
+        </div>
+
+        <!-- Form Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;">
+          
+          <!-- District -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              மாவட்டம் <span style="color:#ef4444">*</span> (District)
+            </label>
+            <select id="aregPdfDist" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="37">Ranipet (37)</option>
+            </select>
+          </div>
+
+          <!-- Taluk -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              வட்டம் <span style="color:#ef4444">*</span> (Taluk)
+            </label>
+            <select id="aregPdfTaluk" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="12">Nemili (12)</option>
+            </select>
+          </div>
+
+          <!-- Village -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              கிராமம் <span style="color:#ef4444">*</span> (Village)
+            </label>
+            <select id="aregPdfVillage" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="045">Karivedu (045)</option>
+            </select>
+          </div>
+
+          <!-- Type -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              வகை <span style="color:#ef4444">*</span> (Type)
+            </label>
+            <select id="aregPdfType" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+              <option value="R" selected>Rural (கிராமப்புறம்)</option>
+              <option value="N">Natham (நத்தம்)</option>
+            </select>
+          </div>
+
+          <!-- Survey Number -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              புல எண் <span style="color:#ef4444">*</span> (Survey No)
+            </label>
+            <input type="text" id="aregPdfSurveyNo" value="100" placeholder="e.g. 100" maxlength="15" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 700;">
+          </div>
+
+          <!-- Subdivision Number -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              உட்பிரிவு எண் (Subdivision No)
+            </label>
+            <input type="text" id="aregPdfSubdivNo" value="" placeholder="e.g. 1 or leave empty for all" maxlength="15" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 700;">
+          </div>
+
+          <!-- Patta Number -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink);">
+              பட்டா எண் (Patta No)
+            </label>
+            <input type="text" id="aregPdfPattaNo" value="" placeholder="e.g. 1069 or leave empty" maxlength="15" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 700;">
+          </div>
+
+        </div>
+
+        <!-- Buttons -->
+        <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="primary" id="aregPdfFetchBtn" style="padding: 10px 24px; font-size: 13.5px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(124,58,237,0.3);">
+              <span>📥</span> Get Details &amp; Download PDF
+            </button>
+            <button type="button" class="ghost" id="aregPdfPreviewBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: not-allowed; display: flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>👁️</span> Open PDF in New Tab
+            </button>
+            <button type="button" class="ghost" id="aregPdfToggleEmbedBtn" disabled style="padding: 10px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: not-allowed; display: flex; align-items: center; gap: 6px; opacity: 0.5;">
+              <span>📄</span> Toggle Inline Preview
+            </button>
+          </div>
+
+          <button type="button" class="ghost" id="aregPdfResetBtn" style="padding: 10px 16px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line-2); cursor: pointer; color: var(--muted);">
+            🔄 Reset
+          </button>
+        </div>
+
+        <!-- Status Box -->
+        <div id="aregPdfStatusBox" style="margin-top: 16px; display: none; padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;"></div>
+
+      </div>
+
+      <!-- PDF Preview Box -->
+      <div id="aregPdfPreviewBox" style="display: none; background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 16px; box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <b id="aregPdfPreviewTitle" style="font-size: 13.5px; color: var(--ink);">📄 PDF Preview</b>
+          <a id="aregPdfDirectDownloadLink" href="#" download="" class="primary" style="padding: 6px 14px; font-size: 12px; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff;">⬇ Re-download PDF</a>
+        </div>
+        <iframe id="aregPdfIframe" style="width: 100%; height: 650px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff;" src="about:blank"></iframe>
+      </div>
+
+    </div>
+  `;
+
+  initAregPdfDropdowns();
+}
+
+async function initAregPdfDropdowns() {
+  const distSel = document.getElementById('aregPdfDist');
+  const talukSel = document.getElementById('aregPdfTaluk');
+  const villageSel = document.getElementById('aregPdfVillage');
+  const typeSel = document.getElementById('aregPdfType');
+  const surveyInp = document.getElementById('aregPdfSurveyNo');
+  const subdivInp = document.getElementById('aregPdfSubdivNo');
+  const pattaInp = document.getElementById('aregPdfPattaNo');
+  const bannerLoc = document.getElementById('aregPdfBannerLoc');
+  const fetchBtn = document.getElementById('aregPdfFetchBtn');
+  const previewBtn = document.getElementById('aregPdfPreviewBtn');
+  const toggleEmbedBtn = document.getElementById('aregPdfToggleEmbedBtn');
+  const resetBtn = document.getElementById('aregPdfResetBtn');
+  const statusBox = document.getElementById('aregPdfStatusBox');
+
+  const updateBanner = () => {
+    const dTxt = distSel?.options[distSel.selectedIndex]?.text || 'Ranipet';
+    const tTxt = talukSel?.options[talukSel.selectedIndex]?.text || 'Nemili';
+    if (bannerLoc) {
+      bannerLoc.textContent = `District: ${dTxt} | Taluk: ${tTxt}`;
+    }
+  };
+
+  const getTahsildarCreds = () => {
+    const activeTaluk = talukSel?.options[talukSel.selectedIndex]?.text || '';
+    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if (isAdmin) {
+      return {
+        username: 'rpt_panneerselvam',
+        password: 'Nemili@1970',
+        roleId: '8'
+      };
+    }
+    const sec = (typeof getTnCreds === 'function') ? getTnCreds('secondary', activeTaluk) : {};
+    return {
+      username: sec?.username || 'rpt_panneerselvam',
+      password: sec?.password || 'Nemili@1970',
+      roleId: sec?.roleId || '8'
+    };
+  };
+
+  // Helper to load districts via /api/areg?mode=districts
+  const loadDistricts = async () => {
+    if (__aregDistrictsCache && __aregDistrictsCache.length) {
+      return __aregDistrictsCache;
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/areg?mode=districts&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.districts) && data.districts.length > 0) {
+        __aregDistrictsCache = data.districts;
+        return data.districts;
+      }
+    } catch (e) {
+      console.warn('Failed to load districts from /api/areg:', e);
+    }
+    __aregDistrictsCache = ALL_38_TN_DISTRICTS;
+    return ALL_38_TN_DISTRICTS;
+  };
+
+  // Helper to load taluks for district via /api/areg?mode=taluks
+  const loadTaluks = async (distCode) => {
+    if (__aregTaluksCache[distCode] && __aregTaluksCache[distCode].length) {
+      return __aregTaluksCache[distCode];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/areg?mode=taluks&distCode=${encodeURIComponent(distCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.taluks) && data.taluks.length > 0) {
+        __aregTaluksCache[distCode] = data.taluks;
+        return data.taluks;
+      }
+    } catch (e) {
+      console.warn(`Failed to load taluks for dist ${distCode}:`, e);
+    }
+    return distCode === '37' ? [
+      { id: '12', name: 'Nemili' },
+      { id: '03', name: 'Arakkonam' },
+      { id: '02', name: 'Arcot' },
+      { id: '13', name: 'Kalavai' },
+      { id: '14', name: 'Sholinghur' },
+      { id: '04', name: 'Walajah' }
+    ] : [{ id: '01', name: 'Taluk 1' }];
+  };
+
+  // Helper to load villages for taluk via /api/areg?mode=villages
+  const loadVillages = async (distCode, talukCode) => {
+    const key = `${distCode}_${talukCode}`;
+    if (__aregVillagesCache[key] && __aregVillagesCache[key].length) {
+      return __aregVillagesCache[key];
+    }
+    try {
+      const creds = getTahsildarCreds();
+      const res = await fetch(`/api/areg?mode=villages&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.villages) && data.villages.length > 0) {
+        __aregVillagesCache[key] = data.villages;
+        return data.villages;
+      }
+    } catch (e) {
+      console.warn(`Failed to load villages for ${key}:`, e);
+    }
+    return (distCode === '37' && talukCode === '12') ? [
+      { id: '045', name: 'Karivedu' },
+      { id: '122', name: 'Nemili' },
+      { id: '034', name: 'Kaveripakkam' },
+      { id: '053', name: 'Panappakkam' },
+      { id: '046', name: 'Avalur' }
+    ] : [{ id: '001', name: 'Village 1' }];
+  };
+
+  // Populate Districts
+  const districts = await loadDistricts();
+  if (distSel) {
+    distSel.innerHTML = districts.map(d => `<option value="${d.id}" ${d.id === '37' ? 'selected' : ''}>${esc(d.name)} (${d.id})</option>`).join('');
+  }
+
+  // Populate Taluks for initial district
+  const populateTaluks = async (distCode, preferredTaluk = '12') => {
+    if (!talukSel) return;
+    talukSel.innerHTML = '<option value="">⏳ Loading taluks...</option>';
+    const taluks = await loadTaluks(distCode);
+    if (!taluks.length) {
+      talukSel.innerHTML = '<option value="">No taluks found</option>';
+      return;
+    }
+    talukSel.innerHTML = taluks.map(t => `<option value="${t.id}" ${t.id === preferredTaluk ? 'selected' : ''}>${esc(t.name)} (${t.id})</option>`).join('');
+    if (!talukSel.value && taluks.length) {
+      talukSel.value = taluks[0].id;
+    }
+    updateBanner();
+    await populateVillages(distCode, talukSel.value);
+  };
+
+  // Populate Villages for initial taluk
+  const populateVillages = async (distCode, talukCode, preferredVillage = '045') => {
+    if (!villageSel) return;
+    villageSel.innerHTML = '<option value="">⏳ Loading villages...</option>';
+    const villages = await loadVillages(distCode, talukCode);
+    if (!villages.length) {
+      villageSel.innerHTML = '<option value="">No villages found</option>';
+      return;
+    }
+    villageSel.innerHTML = villages.map(v => `<option value="${v.id}" ${v.id === preferredVillage ? 'selected' : ''}>${esc(v.name)} (${v.id})</option>`).join('');
+    if (!villageSel.value && villages.length) {
+      villageSel.value = villages[0].id;
+    }
+  };
+
+  // Initial Load (defaulting to Ranipet 37, Nemili 12, Karivedu 045)
+  const initDist = distSel?.value || '37';
+  await populateTaluks(initDist, '12');
+
+  // District Change Event
+  distSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateTaluks(distSel.value);
+  });
+
+  // Taluk Change Event
+  talukSel?.addEventListener('change', async () => {
+    updateBanner();
+    await populateVillages(distSel.value, talukSel.value);
+  });
+
+  // Reset Button
+  resetBtn?.addEventListener('click', async () => {
+    if (distSel) distSel.value = '37';
+    if (typeSel) typeSel.value = 'R';
+    if (surveyInp) surveyInp.value = '100';
+    if (subdivInp) subdivInp.value = '';
+    if (pattaInp) pattaInp.value = '';
+    await populateTaluks('37', '12');
+    if (statusBox) { statusBox.style.display = 'none'; statusBox.textContent = ''; }
+    const previewBox = document.getElementById('aregPdfPreviewBox');
+    if (previewBox) previewBox.style.display = 'none';
+    if (previewBtn) {
+      previewBtn.disabled = true;
+      previewBtn.style.opacity = '0.5';
+      previewBtn.style.cursor = 'not-allowed';
+    }
+    if (toggleEmbedBtn) {
+      toggleEmbedBtn.disabled = true;
+      toggleEmbedBtn.style.opacity = '0.5';
+      toggleEmbedBtn.style.cursor = 'not-allowed';
+    }
+  });
+
+  // Fetch / Download PDF Click
+  fetchBtn?.addEventListener('click', async () => {
+    const distCode = distSel?.value || '37';
+    const talukCode = talukSel?.value || '12';
+    const villageCode = villageSel?.value || '045';
+    const transType = typeSel?.value || 'R';
+    const surveyNo = (surveyInp?.value || '').trim();
+    const subdivNo = (subdivInp?.value || '').trim();
+    const pattaNo = (pattaInp?.value || '').trim();
+
+    if (!surveyNo) {
+      toast('Survey Number Required', 'Please enter a valid Survey number.', 'warn');
+      surveyInp?.focus();
+      return;
+    }
+
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = '#f5f3ff';
+      statusBox.style.color = '#6d28d9';
+      statusBox.style.border = '1px solid #ddd6fe';
+      statusBox.innerHTML = '⏳ <b>Connecting to Tamil Nilam Portal using Nemili Tahsildar login...</b> Fetching A-Register Extract PDF for Survey ' + esc(surveyNo) + '...';
+    }
+    fetchBtn.disabled = true;
+    fetchBtn.style.opacity = '0.7';
+
+    try {
+      const creds = getTahsildarCreds();
+      const url = `/api/areg?mode=areg_pdf&transType=${encodeURIComponent(transType)}&distCode=${encodeURIComponent(distCode)}&talukCode=${encodeURIComponent(talukCode)}&villageCode=${encodeURIComponent(villageCode)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}&pattaNo=${encodeURIComponent(pattaNo)}&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}&roleId=${encodeURIComponent(creds.roleId)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.success || !data.base64) {
+        throw new Error(data.error || 'Failed to download A-Register PDF from Tamil Nilam portal');
+      }
+
+      // Convert Base64 to Blob
+      const binaryString = atob(data.base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+
+      if (__aregCurrentPdfBlobUrl) {
+        URL.revokeObjectURL(__aregCurrentPdfBlobUrl);
+      }
+      __aregCurrentPdfBlobUrl = URL.createObjectURL(blob);
+      __aregCurrentFilename = data.filename || `Areg_Extract_D${distCode}_T${talukCode}_V${villageCode}_Survey${surveyNo}.pdf`;
+
+      // Auto trigger download
+      const dlLink = document.createElement('a');
+      dlLink.href = __aregCurrentPdfBlobUrl;
+      dlLink.download = __aregCurrentFilename;
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      dlLink.remove();
+
+      // Update UI
+      const kb = (blob.size / 1024).toFixed(1);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#ecfdf5';
+        statusBox.style.color = '#065f46';
+        statusBox.style.border = '1px solid #a7f3d0';
+        statusBox.innerHTML = `✓ <b>Success!</b> A-Register Extract PDF downloaded: <b>${esc(__aregCurrentFilename)}</b> (${kb} KB).`;
+      }
+
+      toast('A-Register Extract Downloaded', `Successfully downloaded ${__aregCurrentFilename}`, 'ok');
+
+      // Enable preview buttons
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        previewBtn.style.opacity = '1';
+        previewBtn.style.cursor = 'pointer';
+      }
+      if (toggleEmbedBtn) {
+        toggleEmbedBtn.disabled = false;
+        toggleEmbedBtn.style.opacity = '1';
+        toggleEmbedBtn.style.cursor = 'pointer';
+      }
+
+      // Prepare preview box
+      const previewBox = document.getElementById('aregPdfPreviewBox');
+      const previewTitle = document.getElementById('aregPdfPreviewTitle');
+      const directDl = document.getElementById('aregPdfDirectDownloadLink');
+      const iframe = document.getElementById('aregPdfIframe');
+
+      if (previewTitle) previewTitle.textContent = `📄 PDF Preview: ${__aregCurrentFilename} (${kb} KB)`;
+      if (directDl) {
+        directDl.href = __aregCurrentPdfBlobUrl;
+        directDl.download = __aregCurrentFilename;
+      }
+      if (iframe) {
+        iframe.src = __aregCurrentPdfBlobUrl;
+      }
+      if (previewBox) {
+        previewBox.style.display = 'block';
+      }
+
+    } catch (err) {
+      console.error('A-Register download error:', err);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = '#fef2f2';
+        statusBox.style.color = '#b91c1c';
+        statusBox.style.border = '1px solid #fecaca';
+        statusBox.innerHTML = `✕ <b>Failed:</b> ${esc(err.message)}`;
+      }
+      toast('Download Failed', err.message, 'err');
+    } finally {
+      fetchBtn.disabled = false;
+      fetchBtn.style.opacity = '1';
+    }
+  });
+
+  // Open in New Tab Button
+  previewBtn?.addEventListener('click', () => {
+    if (__aregCurrentPdfBlobUrl) {
+      window.open(__aregCurrentPdfBlobUrl, '_blank');
+    }
+  });
+
+  // Toggle Inline Preview Button
+  toggleEmbedBtn?.addEventListener('click', () => {
+    const previewBox = document.getElementById('aregPdfPreviewBox');
+    if (previewBox) {
+      previewBox.style.display = (previewBox.style.display === 'none') ? 'block' : 'none';
+    }
+  });
+}
+window.renderAregPdfTab = renderAregPdfTab;
+window.initAregPdfDropdowns = initAregPdfDropdowns;
 
 /* ---------- e-Services Portal (Without OTP - Official Format) ---------- */
 let __eservCurrentPdfBlobUrl = null;
@@ -12977,6 +13513,15 @@ document.getElementById('eservicesMenuBtn')?.addEventListener('click', () => {
   ADMIN_TAB = 'eservices';
   openUsersPanel();
 });
+document.getElementById('aregPdfMenuBtn')?.addEventListener('click', () => {
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin && !hasMenu('areg_pdf')){
+    toast('Access restricted', 'You do not have permission to download A-Register Extracts. Contact an administrator.', 'warn');
+    return;
+  }
+  ADMIN_TAB = 'areg_pdf';
+  openUsersPanel();
+});
 document.getElementById('aregMenuBtn')?.addEventListener('click', () => {
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   if (!isAdmin) {
@@ -13020,6 +13565,16 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
       return;
     }
     const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+    if(tab === 'areg_pdf'){
+      const canAregPdf = hasMenu('areg_pdf');
+      if(!isAdmin && !canAregPdf){
+        toast('Access restricted', 'Access restricted: Only authorized users can download A-Register Extracts.', 'warn');
+        return;
+      }
+      ADMIN_TAB = 'areg_pdf';
+      renderAdminTabs();
+      return;
+    }
     if(!isAdmin && (tab === 'users' || tab === 'dbinfo')){
       toast('Access restricted', 'Only Admin accounts can access Database Info & Query Suite.', 'warn');
       return;

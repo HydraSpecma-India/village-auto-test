@@ -502,6 +502,56 @@
       }
     });
 
+    const canAregPdf = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('areg_pdf'));
+    const aregPdfMenuBtn = document.getElementById('aregPdfMenuBtn');
+    if (aregPdfMenuBtn) {
+      aregPdfMenuBtn.style.display = canAregPdf ? 'inline-block' : 'none';
+    }
+    document.querySelectorAll('[data-tab="areg_pdf"]').forEach(btn => {
+      btn.style.display = canAregPdf ? 'inline-block' : 'none';
+      if (!btn.__aregPdfBound) {
+        btn.__aregPdfBound = true;
+        btn.addEventListener('click', () => {
+          if (!isAdmin && !(typeof window.hasMenu === 'function' && window.hasMenu('areg_pdf'))) {
+            if (typeof window.toast === 'function') {
+              window.toast('Access restricted', 'Access restricted: Only authorized users can download A-Register Extracts.', 'warn');
+            }
+            return;
+          }
+          window.ADMIN_TAB = 'areg_pdf';
+          if (typeof window.openUsersPanel === 'function') {
+            window.openUsersPanel();
+          }
+          if (typeof window.renderAdminTabs === 'function') {
+            window.renderAdminTabs();
+          } else if (typeof window.renderAregPdfTab === 'function') {
+            window.renderAregPdfTab();
+          }
+        });
+      }
+    });
+
+    if (aregPdfMenuBtn && !aregPdfMenuBtn.__aregPdfBound) {
+      aregPdfMenuBtn.__aregPdfBound = true;
+      aregPdfMenuBtn.addEventListener('click', () => {
+        if (!isAdmin && !(typeof window.hasMenu === 'function' && window.hasMenu('areg_pdf'))) {
+          if (typeof window.toast === 'function') {
+            window.toast('Access restricted', 'You do not have permission to download A-Register Extracts. Contact an administrator.', 'warn');
+          }
+          return;
+        }
+        window.ADMIN_TAB = 'areg_pdf';
+        if (typeof window.openUsersPanel === 'function') {
+          window.openUsersPanel();
+        }
+        if (typeof window.renderAdminTabs === 'function') {
+          window.renderAdminTabs();
+        } else if (typeof window.renderAregPdfTab === 'function') {
+          window.renderAregPdfTab();
+        }
+      });
+    }
+
     const pattaMenuBtn = document.getElementById('pattaMenuBtn');
     if (pattaMenuBtn) {
       const canPatta = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('patta'));
