@@ -1177,6 +1177,7 @@
     <button data-tab="areg_pdf">📑 A-Register Extract (PDF)</button>
     <button data-tab="areg">📝 A-Register Approval</button>
     <button data-tab="patta">📜 Patta Name &amp; Size Correction</button>
+    <button data-tab="reject_reasons">🚫 Reject Reason Analysis</button>
     <button data-tab="dbinfo">🗄️ Database Info &amp; Query</button>
   </div>
   <div id="usersBody" class="full-page-body"></div>
@@ -1233,6 +1234,7 @@
       <button type="button" class="tn-auto-btn" id="aregPdfMenuBtn" title="Download A-Register Extract PDF" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border-color:#7c3aed; color:#fff;">📑</button>
       <button type="button" class="tn-auto-btn" id="aregMenuBtn" title="A-Register Approval Suite" style="background:linear-gradient(135deg, #d97706, #b45309); border-color:#d97706; color:#fff;">📝</button>
       <button type="button" class="tn-auto-btn" id="pattaMenuBtn" title="Patta Name &amp; Size Correction" style="background:linear-gradient(135deg, #059669, #047857); border-color:#059669; color:#fff;">✏️</button>
+      <button type="button" class="tn-auto-btn" id="rejectReasonMenuBtn" title="Reject Reason Analysis (Tahsildar)" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border-color:#dc2626; color:#fff;">🚫</button>
       <button type="button" class="tn-auto-btn" id="credsMenuBtn" title="Tamil Nilam Credentials" style="background:linear-gradient(135deg, #4f46e5, #4338ca); border-color:#4f46e5; color:#fff;">🔑</button>
     </div>
     <div class="topbar-actions">
@@ -5940,7 +5942,8 @@ const ALL_MENUS = [
   { key: 'chitta', label: 'Chitta Extract' },
   { key: 'eservices', label: 'e-Services (No OTP)' },
   { key: 'areg_pdf', label: 'A-Register Extract (PDF)' },
-  { key: 'patta', label: 'Patta Correction' }
+  { key: 'patta', label: 'Patta Correction' },
+  { key: 'reject_reasons', label: 'Reject Reason Report' }
 ];
 const ALL_MENU_KEYS = ALL_MENUS.map(m => m.key);
 
@@ -6485,14 +6488,19 @@ function applyReportPermissions(){
   const aregPdfBtn = document.getElementById('aregPdfMenuBtn');
   const credsBtn = document.getElementById('credsMenuBtn');
   const aregBtn = document.getElementById('aregMenuBtn');
+  const pattaBtn = document.getElementById('pattaMenuBtn');
+  const rejectReasonMenuBtn = document.getElementById('rejectReasonMenuBtn');
   const ffBtn = document.getElementById('tnFlashFillBtn');
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
   const canCreds = isAdmin || canManageCreds();
+  const canReject = isAdmin || hasMenu('reject_reasons');
   if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
   if(aregPdfBtn) aregPdfBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(credsBtn) credsBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(aregBtn) aregBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  if(pattaBtn) pattaBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
+  if(rejectReasonMenuBtn) rejectReasonMenuBtn.style.display = canReject ? 'inline-block' : 'none';
   if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
 
   // 4. Print layout sections
@@ -6510,14 +6518,14 @@ function applyReportPermissions(){
   const credsTabBtn = document.querySelector('#usersTabs button[data-tab="creds"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
-  const pattaBtn = document.getElementById('pattaMenuBtn');
+  const rejectTabBtn = document.querySelector('#usersTabs button[data-tab="reject_reasons"]');
   if(chittaTabBtn) chittaTabBtn.style.display = canChitta ? 'inline-block' : 'none';
   if(eservicesTabBtn) eservicesTabBtn.style.display = canEservices ? 'inline-block' : 'none';
   if(aregPdfTabBtn) aregPdfTabBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(credsTabBtn) credsTabBtn.style.display = canCreds ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
-  if(pattaBtn) pattaBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
+  if(rejectTabBtn) rejectTabBtn.style.display = canReject ? 'inline-block' : 'none';
 
   // 6. Tell nisd_auto.js to filter modals
   if(typeof window.__applyReportAccessFilter === 'function') {
@@ -6739,6 +6747,7 @@ function renderAdminTabs(){
   const canChitta = hasMenu('chitta');
   const canEservices = hasMenu('eservices');
   const canAregPdf = hasMenu('areg_pdf');
+  const canReject = isAdmin || hasMenu('reject_reasons');
   const canCreds = canManageCreds();
 
   const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
@@ -6749,6 +6758,8 @@ function renderAdminTabs(){
   const aregPdfTabBtn = document.querySelector('#usersTabs button[data-tab="areg_pdf"]');
   const aregTabBtn = document.querySelector('#usersTabs button[data-tab="areg"]');
   const pattaTabBtn = document.querySelector('#usersTabs button[data-tab="patta"]');
+  const rejectBtn = document.querySelector('#usersTabs button[data-tab="reject_reasons"]');
+  const rejectMenuBtn = document.getElementById('rejectReasonMenuBtn');
   const dbinfoTabBtn = document.querySelector('#usersTabs button[data-tab="dbinfo"]');
   
   if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
@@ -6759,6 +6770,8 @@ function renderAdminTabs(){
   if(aregPdfTabBtn) aregPdfTabBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
   if(aregTabBtn) aregTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   if(pattaTabBtn) pattaTabBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
+  if(rejectBtn) rejectBtn.style.display = canReject ? 'inline-block' : 'none';
+  if(rejectMenuBtn) rejectMenuBtn.style.display = canReject ? 'inline-block' : 'none';
   if(dbinfoTabBtn) dbinfoTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   
   if(!isAdmin){
@@ -6768,6 +6781,7 @@ function renderAdminTabs(){
       if(canEservices) return 'eservices';
       if(canAregPdf) return 'areg_pdf';
       if(hasMenu('patta')) return 'patta';
+      if(canReject) return 'reject_reasons';
       return 'files';
     };
 
@@ -6782,6 +6796,8 @@ function renderAdminTabs(){
     } else if(ADMIN_TAB === 'areg_pdf' && !canAregPdf){
       ADMIN_TAB = getFirstAllowedTab();
     } else if(ADMIN_TAB === 'patta' && !hasMenu('patta')){
+      ADMIN_TAB = getFirstAllowedTab();
+    } else if(ADMIN_TAB === 'reject_reasons' && !canReject){
       ADMIN_TAB = getFirstAllowedTab();
     }
   }
@@ -6813,6 +6829,11 @@ function renderAdminTabs(){
   else if(ADMIN_TAB === 'patta'){
     if(!isAdmin && !hasMenu('patta')){ renderAdminTabs(); return; }
     renderPattaCorrectionTab();
+  }
+  else if(ADMIN_TAB === 'reject_reasons'){
+    if(!isAdmin && !canReject){ renderAdminTabs(); return; }
+    if(typeof renderRejectReasonsTab === 'function') renderRejectReasonsTab();
+    else if(typeof window.renderRejectReasonsTab === 'function') window.renderRejectReasonsTab();
   }
   else if(ADMIN_TAB === 'dbinfo'){
     if(!isAdmin){ renderAdminTabs(); return; }
@@ -13535,6 +13556,16 @@ document.getElementById('aregMenuBtn')?.addEventListener('click', () => {
     window.openAregApprovalModal(t, '0109');
   }
 });
+document.getElementById('rejectReasonMenuBtn')?.addEventListener('click', () => {
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  if(!isAdmin && !hasMenu('reject_reasons')){
+    toast('Access restricted', 'Your account does not have access to Reject Reason Analysis.', 'warn');
+    return;
+  }
+  ADMIN_TAB = 'reject_reasons';
+  openUsersPanel();
+  renderAdminTabs();
+});
 document.getElementById('credsMenuBtn')?.addEventListener('click', () => {
   if(!canManageCreds() && (!ME || ME.role !== 'admin')){
     toast('Access restricted', 'You do not have credentials management access.', 'warn');
@@ -13572,6 +13603,16 @@ document.getElementById('usersTabs').addEventListener('click', e=>{
         return;
       }
       ADMIN_TAB = 'areg_pdf';
+      renderAdminTabs();
+      return;
+    }
+    if(tab === 'reject_reasons'){
+      const canReject = isAdmin || hasMenu('reject_reasons');
+      if(!canReject){
+        toast('Access restricted', 'Your account does not have access to Reject Reason Analysis.', 'warn');
+        return;
+      }
+      ADMIN_TAB = 'reject_reasons';
       renderAdminTabs();
       return;
     }

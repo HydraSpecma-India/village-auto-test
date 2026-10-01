@@ -1661,7 +1661,225 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: true, distCode: targetDistCode, talukCode: targetTalukCode, villages: fallbackVillages });
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, areg_pdf, areg_extract_data, districts, taluks, villages, or db_info.' });
+    // 13. TAHSILDAR REJECT REASON REPORT (ISD / NISD Reject Reasons)
+    if (mode === 'reject_reasons' || mode === 'reject_report') {
+      const distCode = params.distCode || params.districtCode || '37';
+      const talukCode = params.talukCode || params.talukcode || '12';
+      const fromParam = params.from || params.fromDate;
+      const toParam = params.to || params.toDate;
+      const from = fromParam ? formatDateToDDMMYYYY(fromParam) : '01-09-2026';
+      const to = toParam ? formatDateToDDMMYYYY(toParam) : '28-09-2026';
+      const serv_codeSel = params.serv_codeSel || params.servCodeSel || params.serviceCode || '0105';
+      const transType = (params.transType || params.transtype || 'R').toUpperCase();
+      const rtr_str = params.rtr_str || params.rtrStr || 'A';
+      const reqUsername = params.username || DEFAULT_U;
+      const reqPassword = params.password || DEFAULT_P;
+      const reqRoleId = String(params.roleId || DEFAULT_R);
+
+      const inputValObj = {
+        districtCode: String(distCode || '37'),
+        talukcode: String(talukCode || '12'),
+        from: String(from || '01-09-2026'),
+        to: String(to || '28-09-2026'),
+        rtr_str: String(rtr_str || 'A'),
+        serv_codeSel: String(serv_codeSel || '0105'),
+        transType: (transType || 'R').toUpperCase()
+      };
+
+      let data;
+      try {
+        data = await callTnService(
+          'Report_Service/collct_rejectReasonReport_detail',
+          inputValObj,
+          'POST',
+          reqUsername,
+          reqPassword,
+          reqRoleId
+        );
+      } catch (err) {
+        console.error('rejectReasonReport fetch error:', err);
+        return res.status(502).json({
+          success: false,
+          error: `Failed to fetch reject reason report: ${err.message}`,
+          transType: inputValObj.transType,
+          from: inputValObj.from,
+          to: inputValObj.to,
+          talukCode: inputValObj.talukcode,
+          distCode: inputValObj.districtCode
+        });
+      }
+
+      // Check for portal Issue messages
+      let issueText = null;
+      if (data && typeof data === 'object') {
+        if (!Array.isArray(data) && data.Issue) {
+          issueText = data.Issue;
+        } else if (Array.isArray(data) && data.length > 0 && data[0] && data[0].Issue) {
+          issueText = data[0].Issue;
+        }
+      } else if (typeof data === 'string') {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && parsed.Issue) issueText = parsed.Issue;
+          else if (Array.isArray(parsed) && parsed[0] && parsed[0].Issue) issueText = parsed[0].Issue;
+        } catch (e) {}
+      }
+
+      if (issueText === 'No Data Available' || issueText === 'Authentication Problem' || (data && data.Issue)) {
+        return res.status(200).json({
+          success: true,
+          transType: inputValObj.transType,
+          totalRawRecords: 0,
+          totalUniqueApplications: 0,
+          duplicatesEliminated: 0,
+          categories: [],
+          applications: [],
+          message: issueText || (data && data.Issue) || 'No Data Available'
+        });
+      }
+
+      let rawArray = [];
+      if (Array.isArray(data)) {
+        rawArray = data;
+      } else if (data && typeof data === 'object') {
+        if (Array.isArray(data.applications)) rawArray = data.applications;
+        else if (Array.isArray(data.data)) rawArray = data.data;
+        else if (Array.isArray(data.detail)) rawArray = data.detail;
+        else if (Array.isArray(data.records)) rawArray = data.records;
+      } else if (typeof data === 'string') {
+        try {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed)) rawArray = parsed;
+        } catch (e) {}
+      }
+
+      // Helper to extract survey/subdivision formatted pair (e.g. "728/4")
+      function formatSurveySubdivPair(item) {
+        if (!item || typeof item !== 'object') return '';
+        const s = String(
+          item.survey_no || item.sur_no || item.surveyNo || item.surveyno || item.survey_number || ''
+        ).trim();
+        const sub = String(
+          item.subdiv_no || item.sub_no || item.subdivNo || item.subdivno || item.subdivision_no || item.sub_div_no || ''
+        ).trim();
+        const surSub = String(item.sur_sub || item.survey_subdiv || item.survey_no_dis || '').trim();
+
+        if (s && sub) {
+          if (s.includes('/')) return s;
+          return `${s}/${sub}`;
+        }
+        if (surSub) {
+          if (surSub.includes('/') || !sub) return surSub;
+          return `${surSub}/${sub}`;
+        }
+        if (s) return s;
+        if (sub) return `/${sub}`;
+        return '';
+      }
+
+      // 1. SUBDIVISION DEDUPLICATION:
+      // Group records by appl_id.
+      // For duplicate entries of the same appl_id (caused by multiple survey/subdivisions),
+      // collect survey/subdivision pairs into a clean formatted string e.g. "728/4, 728/5".
+      // Preserve village_name, appl_name, mobile_no, firka_desc, reject_reason, source_name, district_name, taluk_name.
+      const appMap = new Map();
+
+      for (let i = 0; i < rawArray.length; i++) {
+        const raw = rawArray[i];
+        if (!raw || typeof raw !== 'object') continue;
+
+        const applId = String(
+          raw.appl_id || raw.applId || raw.application_id || raw.app_id || `APP-${i + 1}`
+        ).trim();
+
+        const pair = formatSurveySubdivPair(raw);
+
+        if (!appMap.has(applId)) {
+          const record = {
+            ...raw,
+            appl_id: applId,
+            village_name: String(raw.village_name || raw.villageName || raw.vill_name || '').trim(),
+            appl_name: String(raw.appl_name || raw.applName || raw.applicant_name || raw.applicantName || '').trim(),
+            mobile_no: String(raw.mobile_no || raw.mobileNo || raw.mobile || raw.phone_no || '').trim(),
+            firka_desc: String(raw.firka_desc || raw.firka_name || raw.firkaDesc || raw.firka || '').trim(),
+            reject_reason: String(raw.reject_reason || raw.rejectReason || raw.reason || raw.rejection_reason || 'Unspecified').trim(),
+            source_name: String(raw.source_name || raw.sourceName || raw.source || '').trim(),
+            district_name: String(raw.district_name || raw.districtName || raw.dist_name || '').trim(),
+            taluk_name: String(raw.taluk_name || raw.talukName || '').trim(),
+            _pairs: pair ? [pair] : []
+          };
+          appMap.set(applId, record);
+        } else {
+          const existing = appMap.get(applId);
+          if (pair && !existing._pairs.includes(pair)) {
+            existing._pairs.push(pair);
+          }
+          if (!existing.village_name && raw.village_name) existing.village_name = String(raw.village_name).trim();
+          if (!existing.appl_name && raw.appl_name) existing.appl_name = String(raw.appl_name).trim();
+          if (!existing.mobile_no && raw.mobile_no) existing.mobile_no = String(raw.mobile_no).trim();
+          if (!existing.firka_desc && raw.firka_desc) existing.firka_desc = String(raw.firka_desc).trim();
+          if ((!existing.reject_reason || existing.reject_reason === 'Unspecified') && raw.reject_reason) {
+            existing.reject_reason = String(raw.reject_reason).trim();
+          }
+          if (!existing.source_name && raw.source_name) existing.source_name = String(raw.source_name).trim();
+          if (!existing.district_name && raw.district_name) existing.district_name = String(raw.district_name).trim();
+          if (!existing.taluk_name && raw.taluk_name) existing.taluk_name = String(raw.taluk_name).trim();
+        }
+      }
+
+      const uniqueAppsArray = [];
+      for (const app of appMap.values()) {
+        const surveyPairsStr = app._pairs.join(', ');
+        delete app._pairs;
+        app.survey_no = surveyPairsStr || app.survey_no || '';
+        app.survey_subdiv = surveyPairsStr || app.survey_subdiv || '';
+        app.sur_sub = surveyPairsStr || app.sur_sub || '';
+        uniqueAppsArray.push(app);
+      }
+
+      // 2. CATEGORY-WISE AGGREGATION:
+      // Group the unique applications by reject_reason.
+      // Count unique applications per category.
+      // Sort categories by count descending.
+      // Calculate percentage share for each category.
+      const categoryMap = new Map();
+      for (const app of uniqueAppsArray) {
+        const reason = (app.reject_reason && app.reject_reason.trim()) ? app.reject_reason.trim() : 'Unspecified';
+        categoryMap.set(reason, (categoryMap.get(reason) || 0) + 1);
+      }
+
+      const totalUnique = uniqueAppsArray.length;
+      const categoriesArray = Array.from(categoryMap.entries())
+        .map(([reason, count]) => {
+          const percentage = totalUnique > 0 ? parseFloat(((count / totalUnique) * 100).toFixed(2)) : 0;
+          return {
+            reason,
+            reject_reason: reason,
+            category: reason,
+            count,
+            percentage,
+            percentage_str: `${percentage}%`
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+
+      // 3. Return response:
+      return res.status(200).json({
+        success: true,
+        transType: (transType || 'R').toUpperCase(),
+        totalRawRecords: rawArray.length,
+        totalUniqueApplications: uniqueAppsArray.length,
+        duplicatesEliminated: rawArray.length - uniqueAppsArray.length,
+        categories: categoriesArray,
+        applications: uniqueAppsArray,
+        from: inputValObj.from,
+        to: inputValObj.to,
+        talukCode: inputValObj.talukcode,
+        distCode: inputValObj.districtCode
+      });
+    }
+
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, areg_pdf, areg_extract_data, districts, taluks, villages, reject_reasons, or db_info.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });

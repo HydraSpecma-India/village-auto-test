@@ -628,6 +628,58 @@
       });
     }
 
+    const canReject = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('reject_reasons'));
+    const rejectReasonMenuBtn = document.getElementById('rejectReasonMenuBtn');
+    if (rejectReasonMenuBtn) {
+      rejectReasonMenuBtn.style.display = canReject ? 'inline-block' : 'none';
+    }
+    document.querySelectorAll('[data-tab="reject_reasons"]').forEach(btn => {
+      btn.style.display = canReject ? 'inline-block' : 'none';
+      if (!btn.__rejectBound) {
+        btn.__rejectBound = true;
+        btn.addEventListener('click', () => {
+          const canR = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('reject_reasons'));
+          if (!canR) {
+            if (typeof window.toast === 'function') {
+              window.toast('Access restricted', 'Access restricted: You do not have Reject Reason Analysis access.', 'warn');
+            }
+            return;
+          }
+          window.ADMIN_TAB = 'reject_reasons';
+          if (typeof window.openUsersPanel === 'function') {
+            window.openUsersPanel();
+          }
+          if (typeof window.renderAdminTabs === 'function') {
+            window.renderAdminTabs();
+          } else if (typeof window.renderRejectReasonsTab === 'function') {
+            window.renderRejectReasonsTab();
+          }
+        });
+      }
+    });
+
+    if (rejectReasonMenuBtn && !rejectReasonMenuBtn.__rejectBound) {
+      rejectReasonMenuBtn.__rejectBound = true;
+      rejectReasonMenuBtn.addEventListener('click', () => {
+        const canR = isAdmin || (typeof window.hasMenu === 'function' && window.hasMenu('reject_reasons'));
+        if (!canR) {
+          if (typeof window.toast === 'function') {
+            window.toast('Access restricted', 'Access restricted: You do not have Reject Reason Analysis access.', 'warn');
+          }
+          return;
+        }
+        window.ADMIN_TAB = 'reject_reasons';
+        if (typeof window.openUsersPanel === 'function') {
+          window.openUsersPanel();
+        }
+        if (typeof window.renderAdminTabs === 'function') {
+          window.renderAdminTabs();
+        } else if (typeof window.renderRejectReasonsTab === 'function') {
+          window.renderRejectReasonsTab();
+        }
+      });
+    }
+
     const pattaNoInp = document.getElementById('pattaNoInput');
     if (pattaNoInp && !pattaNoInp.__pattaBound) {
       pattaNoInp.__pattaBound = true;
@@ -4541,6 +4593,816 @@
       approveAllBtn.innerHTML = `✓ Bulk Approval Complete (${successCount}/${aregPendingApps.length})`;
     }
   }
+
+  // ============================================================
+  // REJECT REASON ANALYSIS SUITE (TAHSILDAR LOGIN)
+  // Multi-subdivision deduplication, category-wise breakdown,
+  // dual Rural/Natham views, KPI metrics and Excel export
+  // ============================================================
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatDateForApi(dStr) {
+    if (!dStr) return '';
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dStr)) return dStr;
+    const parts = dStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dStr;
+  }
+
+  function getRejectSuiteState() {
+    if (!window.__rejectSuiteState) {
+      window.__rejectSuiteState = {
+        talukCode: '12',
+        talukName: 'Nemili',
+        servCodeSel: '0105', // '0105' (ISD) or '0103' (NISD)
+        transType: 'R',      // 'R' (Rural) or 'N' (Natham)
+        fromDate: '2026-09-01',
+        toDate: '2026-09-28',
+        rawRecordsCount: 0,
+        uniqueAppsCount: 0,
+        duplicatesEliminated: 0,
+        categories: [],
+        applications: [],
+        activeCategoryFilter: null,
+        searchTerm: '',
+        isLoading: false,
+        hasLoadedOnce: false
+      };
+    }
+    return window.__rejectSuiteState;
+  }
+
+  async function fetchRejectReport() {
+    const state = getRejectSuiteState();
+    const talukSel = document.getElementById('rejectTalukSel');
+    const optSel = document.getElementById('rejectOptTypeSel');
+    const fromInp = document.getElementById('rejectFromDate');
+    const toInp = document.getElementById('rejectToDate');
+    const btn = document.getElementById('fetchRejectBtn');
+    const statusBox = document.getElementById('rejectStatusBox');
+
+    if (talukSel) {
+      state.talukCode = talukSel.value;
+      const optText = talukSel.options[talukSel.selectedIndex]?.text || 'Nemili';
+      state.talukName = optText.split(' ')[0] || 'Nemili';
+    }
+    if (optSel) state.servCodeSel = optSel.value;
+    if (fromInp && fromInp.value) state.fromDate = fromInp.value;
+    if (toInp && toInp.value) state.toDate = toInp.value;
+
+    const apiFrom = formatDateForApi(state.fromDate);
+    const apiTo = formatDateForApi(state.toDate);
+
+    const creds = (typeof window.getTnCreds === 'function') ? window.getTnCreds('secondary', state.talukName) : null;
+    const u = creds?.username || 'rpt_panneerselvam';
+    const p = creds?.password || 'Nemili@1970';
+    const r = creds?.roleId || '8';
+
+    state.isLoading = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Fetching Report...';
+    }
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = 'rgba(37, 99, 235, 0.1)';
+      statusBox.style.color = '#2563eb';
+      statusBox.style.border = '1px solid rgba(37, 99, 235, 0.3)';
+      statusBox.innerHTML = `Connecting to Tamil Nilam &amp; fetching live Reject Reason Report for ${escapeHtml(state.talukName)} (${state.transType === 'R' ? 'Rural' : 'Natham'}, ${state.servCodeSel === '0105' ? 'ISD' : 'NISD'})...`;
+    }
+
+    try {
+      const url = `/api/areg?mode=reject_reasons&distCode=37&talukCode=${encodeURIComponent(state.talukCode)}&serv_codeSel=${encodeURIComponent(state.servCodeSel)}&transType=${encodeURIComponent(state.transType)}&fromDate=${encodeURIComponent(apiFrom)}&toDate=${encodeURIComponent(apiTo)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.success && data.error) {
+        throw new Error(data.error);
+      }
+
+      state.rawRecordsCount = data.totalRawRecords || 0;
+      state.uniqueAppsCount = data.totalUniqueApplications || 0;
+      state.duplicatesEliminated = data.duplicatesEliminated || 0;
+      state.categories = Array.isArray(data.categories) ? data.categories : [];
+      state.applications = Array.isArray(data.applications) ? data.applications : [];
+      state.activeCategoryFilter = null;
+      state.hasLoadedOnce = true;
+
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = 'rgba(22, 163, 74, 0.1)';
+        statusBox.style.color = '#16a34a';
+        statusBox.style.border = '1px solid rgba(22, 163, 74, 0.3)';
+        statusBox.innerHTML = `✓ Successfully fetched <b>${state.uniqueAppsCount}</b> unique applications (<b>${state.duplicatesEliminated}</b> multi-subdivision duplicates eliminated from <b>${state.rawRecordsCount}</b> portal records) across <b>${state.categories.length}</b> reject categories.`;
+      }
+
+      updateRejectKPIs();
+      renderRejectCategoryTable();
+      renderRejectApplicationsTable();
+
+      if (typeof window.toast === 'function') {
+        window.toast('Reject Report Loaded', `Fetched ${state.uniqueAppsCount} unique applications for ${state.talukName}!`, 'ok');
+      }
+    } catch (err) {
+      console.error('Fetch reject report error:', err);
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = 'rgba(220, 38, 38, 0.1)';
+        statusBox.style.color = '#dc2626';
+        statusBox.style.border = '1px solid rgba(220, 38, 38, 0.3)';
+        statusBox.innerHTML = `❌ Failed to fetch reject report: ${escapeHtml(err.message)}`;
+      }
+      if (typeof window.toast === 'function') {
+        window.toast('Fetch Failed', err.message, 'err');
+      }
+    } finally {
+      state.isLoading = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Fetch Reject Report';
+      }
+    }
+  }
+
+  function updateRejectKPIs() {
+    const state = getRejectSuiteState();
+    const elUnique = document.getElementById('kpiUniqueApps');
+    const elRaw = document.getElementById('kpiRawRecords');
+    const elDups = document.getElementById('kpiDuplicatesRemoved');
+    const elTopReason = document.getElementById('kpiTopReason');
+    const elTopCount = document.getElementById('kpiTopReasonCount');
+
+    if (elUnique) elUnique.textContent = state.uniqueAppsCount.toLocaleString();
+    if (elRaw) elRaw.textContent = state.rawRecordsCount.toLocaleString();
+    if (elDups) elDups.textContent = `${state.duplicatesEliminated} removed`;
+
+    if (elTopReason && elTopCount) {
+      if (state.categories.length > 0) {
+        const top = state.categories[0];
+        const reasonText = top.reason || 'Unspecified';
+        elTopReason.textContent = reasonText;
+        elTopReason.title = reasonText;
+        elTopCount.textContent = `${top.count} applications (${top.percentage_str || `${top.percentage}%`})`;
+      } else {
+        elTopReason.textContent = '-';
+        elTopReason.title = '';
+        elTopCount.textContent = 'No categories';
+      }
+    }
+  }
+
+  function renderRejectCategoryTable() {
+    const state = getRejectSuiteState();
+    const tbody = document.getElementById('rejectCategoryTableBody');
+    const tfoot = document.getElementById('rejectCategoryTableFoot');
+    if (!tbody) return;
+
+    if (!state.categories || state.categories.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--muted);">No category data loaded yet. Click <b>Fetch Reject Report</b> above.</td></tr>`;
+      if (tfoot) tfoot.innerHTML = '';
+      return;
+    }
+
+    let rowsHtml = '';
+    let grandTotal = 0;
+
+    state.categories.forEach((cat, idx) => {
+      grandTotal += (cat.count || 0);
+      const isFiltered = state.activeCategoryFilter === cat.reason;
+      const pct = cat.percentage != null ? cat.percentage : 0;
+      const pctStr = cat.percentage_str || `${pct}%`;
+
+      rowsHtml += `
+        <tr style="border-bottom: 1px solid var(--line-2); transition: background 0.15s; ${isFiltered ? 'background: rgba(37, 99, 235, 0.12);' : ''}">
+          <td style="padding: 10px 14px; text-align: center; font-weight: 600; color: var(--muted);">${idx + 1}</td>
+          <td style="padding: 10px 14px; font-weight: 600; color: var(--ink);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>${escapeHtml(cat.reason || 'Unspecified')}</span>
+              ${isFiltered ? '<span style="background: #2563eb; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">ACTIVE FILTER</span>' : ''}
+            </div>
+          </td>
+          <td style="padding: 10px 14px; text-align: right; font-weight: 700; font-size: 13.5px; color: var(--ink);">${(cat.count || 0).toLocaleString()}</td>
+          <td style="padding: 10px 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="flex: 1; height: 8px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden;">
+                <div style="width: ${Math.min(100, Math.max(0, pct))}%; height: 100%; background: linear-gradient(90deg, #dc2626, #b91c1c); border-radius: 4px;"></div>
+              </div>
+              <span style="font-size: 11.5px; font-weight: 700; color: var(--muted); min-width: 44px; text-align: right;">${pctStr}</span>
+            </div>
+          </td>
+          <td style="padding: 10px 14px; text-align: center;">
+            <button type="button" class="filter-cat-btn" data-reason="${escapeHtml(cat.reason || '')}" style="background: ${isFiltered ? '#1e40af' : '#2563eb'}; color: #fff; border: none; font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(37,99,235,0.3);">
+              <span>🔍</span> ${isFiltered ? 'Active' : 'Filter Applications'}
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = rowsHtml;
+
+    if (tfoot) {
+      tfoot.innerHTML = `
+        <tr style="border-top: 2px solid var(--line-2); background: var(--surface-2);">
+          <td style="padding: 12px 14px; text-align: center; font-weight: 800; color: var(--ink);">Total</td>
+          <td style="padding: 12px 14px; font-weight: 800; color: var(--ink);">Grand Total (Unique Applications)</td>
+          <td style="padding: 12px 14px; text-align: right; font-weight: 800; font-size: 14px; color: var(--ink);">${grandTotal.toLocaleString()}</td>
+          <td style="padding: 12px 14px; font-weight: 800; color: #16a34a;">100.00%</td>
+          <td style="padding: 12px 14px; text-align: center;">
+            <button type="button" class="clear-cat-filter-btn" style="background: transparent; border: 1px solid var(--line-2); color: var(--ink); font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+              Show All (${grandTotal})
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    // Attach row filter buttons
+    tbody.querySelectorAll('.filter-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const reason = btn.getAttribute('data-reason');
+        if (state.activeCategoryFilter === reason) {
+          state.activeCategoryFilter = null;
+        } else {
+          state.activeCategoryFilter = reason;
+        }
+        renderRejectCategoryTable();
+        renderRejectApplicationsTable();
+
+        const detailSection = document.getElementById('rejectDetailSection');
+        if (detailSection) {
+          detailSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    if (tfoot) {
+      tfoot.querySelector('.clear-cat-filter-btn')?.addEventListener('click', () => {
+        state.activeCategoryFilter = null;
+        renderRejectCategoryTable();
+        renderRejectApplicationsTable();
+      });
+    }
+  }
+
+  function renderRejectApplicationsTable() {
+    const state = getRejectSuiteState();
+    const tbody = document.getElementById('rejectAppsTableBody');
+    const badge = document.getElementById('rejectAppsCountBadge');
+    const pill = document.getElementById('activeCatFilterPill');
+    const pillText = document.getElementById('activeCatFilterText');
+
+    if (!tbody) return;
+
+    // Filter indicator badge
+    if (state.activeCategoryFilter) {
+      if (pill) pill.style.display = 'inline-flex';
+      if (pillText) pillText.textContent = state.activeCategoryFilter;
+    } else {
+      if (pill) pill.style.display = 'none';
+    }
+
+    let filtered = state.applications || [];
+
+    // Filter by active category
+    if (state.activeCategoryFilter) {
+      filtered = filtered.filter(app => (app.reject_reason || 'Unspecified') === state.activeCategoryFilter);
+    }
+
+    // Filter by search query
+    const q = (state.searchTerm || '').trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter(app => {
+        const id = String(app.appl_id || '').toLowerCase();
+        const name = String(app.appl_name || '').toLowerCase();
+        const village = String(app.village_name || '').toLowerCase();
+        const survey = String(app.survey_no || app.survey_subdiv || '').toLowerCase();
+        const firka = String(app.firka_desc || '').toLowerCase();
+        const reason = String(app.reject_reason || '').toLowerCase();
+        return id.includes(q) || name.includes(q) || village.includes(q) || survey.includes(q) || firka.includes(q) || reason.includes(q);
+      });
+    }
+
+    if (badge) {
+      badge.textContent = `Showing ${filtered.length} of ${state.applications.length} applications`;
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 32px; color: var(--muted); font-size: 13px;">
+            ${state.applications.length === 0 ? 'No rejected applications loaded yet.' : 'No applications match your filter/search criteria.'}
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let rowsHtml = '';
+    filtered.forEach((app, idx) => {
+      const surveyVal = app.survey_no || app.survey_subdiv || app.sur_sub || '-';
+      const isMulti = surveyVal.includes(',');
+
+      rowsHtml += `
+        <tr style="border-bottom: 1px solid var(--line-2); transition: background 0.15s;">
+          <td style="padding: 10px 12px; text-align: center; font-weight: 600; color: var(--muted);">${idx + 1}</td>
+          <td style="padding: 10px 12px; font-weight: 700; color: var(--ink);">${escapeHtml(app.village_name || '-')}</td>
+          <td style="padding: 10px 12px; font-family: monospace; font-weight: 700; font-size: 12.5px; color: #1e40af;">${escapeHtml(app.appl_id || '-')}</td>
+          <td style="padding: 10px 12px; font-weight: 600; color: var(--ink);">${escapeHtml(app.appl_name || '-')}</td>
+          <td style="padding: 10px 12px; font-size: 11.5px; color: var(--muted);">${escapeHtml(app.mobile_no || '-')}</td>
+          <td style="padding: 10px 12px;">
+            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; ${isMulti ? 'background: rgba(217, 119, 6, 0.12); color: #b45309; border: 1px solid rgba(217, 119, 6, 0.3);' : 'background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-2);'}">
+              ${isMulti ? '<span>📑</span> ' : ''}${escapeHtml(surveyVal)}
+            </span>
+          </td>
+          <td style="padding: 10px 12px; font-size: 11.5px; color: var(--ink);">${escapeHtml(app.firka_desc || '-')}</td>
+          <td style="padding: 10px 12px;">
+            <span style="display: inline-block; background: rgba(220, 38, 38, 0.08); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.2); padding: 3px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; line-height: 1.3;">
+              ${escapeHtml(app.reject_reason || 'Unspecified')}
+            </span>
+          </td>
+          <td style="padding: 10px 12px; font-size: 11px; font-family: monospace; color: var(--muted);">${escapeHtml(app.source_name || '-')}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = rowsHtml;
+  }
+
+  function exportCategorySummaryToExcel() {
+    const state = getRejectSuiteState();
+    if (!state.categories || !state.categories.length) {
+      if (typeof window.toast === 'function') window.toast('Export Notice', 'No category data to export', 'warn');
+      return;
+    }
+
+    const exportRows = [
+      ['TAMIL NADU REVENUE AND DISASTER MANAGEMENT DEPARTMENT'],
+      ['TAMILNILAM - REJECT REASON CATEGORY SUMMARY REPORT'],
+      [`District: Ranipet | Taluk: ${state.talukName} (${state.talukCode}) | Service: ${state.servCodeSel === '0105' ? 'ISD (0105)' : 'NISD (0103)'} | Mode: ${state.transType === 'R' ? 'Rural' : 'Natham'}`],
+      [`Period: ${state.fromDate} to ${state.toDate} | Exported on: ${new Date().toLocaleString('en-GB')}`],
+      [],
+      ['S.No', 'Reject Reason Category', 'Application Count', '% of Total']
+    ];
+
+    let totalCount = 0;
+    state.categories.forEach((cat, idx) => {
+      exportRows.push([
+        idx + 1,
+        cat.reason || 'Unspecified',
+        cat.count || 0,
+        cat.percentage_str || `${cat.percentage}%`
+      ]);
+      totalCount += (cat.count || 0);
+    });
+
+    exportRows.push([]);
+    exportRows.push(['', 'Grand Total', totalCount, '100.00%']);
+
+    const fileName = `Reject_Reasons_Summary_${state.talukName}_${state.servCodeSel}_${state.transType}_${state.fromDate}_${state.toDate}.xlsx`;
+
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.aoa_to_sheet(exportRows);
+      ws['!cols'] = [{ wch: 8 }, { wch: 55 }, { wch: 20 }, { wch: 15 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Category_Summary');
+      XLSX.writeFile(wb, fileName);
+      if (typeof window.toast === 'function') window.toast('Excel Export Complete', `Downloaded ${fileName}`, 'ok');
+    } else {
+      const csvContent = '\uFEFF' + exportRows.map(r => r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName.replace('.xlsx', '.csv');
+      link.click();
+    }
+  }
+
+  function exportApplicationsToExcel() {
+    const state = getRejectSuiteState();
+    if (!state.applications || !state.applications.length) {
+      if (typeof window.toast === 'function') window.toast('Export Notice', 'No application data to export', 'warn');
+      return;
+    }
+
+    const appsToExport = state.activeCategoryFilter
+      ? state.applications.filter(a => (a.reject_reason || 'Unspecified') === state.activeCategoryFilter)
+      : state.applications;
+
+    const exportRows = [
+      ['TAMIL NADU REVENUE AND DISASTER MANAGEMENT DEPARTMENT'],
+      ['TAMILNILAM - DEDUPLICATED REJECTED APPLICATIONS REPORT'],
+      [`District: Ranipet | Taluk: ${state.talukName} (${state.talukCode}) | Service: ${state.servCodeSel === '0105' ? 'ISD (0105)' : 'NISD (0103)'} | Mode: ${state.transType === 'R' ? 'Rural' : 'Natham'}`],
+      [`Period: ${state.fromDate} to ${state.toDate} | Total Deduplicated: ${appsToExport.length} | Exported on: ${new Date().toLocaleString('en-GB')}`],
+      state.activeCategoryFilter ? [`Filtered by Category: ${state.activeCategoryFilter}`] : [],
+      [],
+      ['S.No', 'District', 'Taluk', 'Village', 'Application ID', 'Applicant Name', 'Mobile No', 'Survey & Subdivisions', 'Firka', 'Reject Reason', 'Source Name']
+    ];
+
+    appsToExport.forEach((app, idx) => {
+      exportRows.push([
+        idx + 1,
+        app.district_name || 'Ranipet',
+        app.taluk_name || state.talukName,
+        app.village_name || '-',
+        app.appl_id || '-',
+        app.appl_name || '-',
+        app.mobile_no || '-',
+        app.survey_no || app.survey_subdiv || app.sur_sub || '-',
+        app.firka_desc || '-',
+        app.reject_reason || 'Unspecified',
+        app.source_name || '-'
+      ]);
+    });
+
+    const fileName = `Deduplicated_Reject_Applications_${state.talukName}_${state.servCodeSel}_${state.transType}_${state.fromDate}_${state.toDate}.xlsx`;
+
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.aoa_to_sheet(exportRows);
+      ws['!cols'] = [
+        { wch: 8 },  // S.No
+        { wch: 14 }, // District
+        { wch: 14 }, // Taluk
+        { wch: 18 }, // Village
+        { wch: 24 }, // Appl ID
+        { wch: 22 }, // Applicant Name
+        { wch: 14 }, // Mobile
+        { wch: 25 }, // Survey & Subdivisions
+        { wch: 16 }, // Firka
+        { wch: 50 }, // Reject Reason
+        { wch: 18 }  // Source Name
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Deduplicated_Apps');
+      XLSX.writeFile(wb, fileName);
+      if (typeof window.toast === 'function') window.toast('Excel Export Complete', `Downloaded ${fileName}`, 'ok');
+    } else {
+      const csvContent = '\uFEFF' + exportRows.map(r => r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName.replace('.xlsx', '.csv');
+      link.click();
+    }
+  }
+
+  function renderRejectReasonsTab() {
+    const box = document.getElementById('usersBody');
+    if (!box) return;
+
+    const state = getRejectSuiteState();
+    const printedDate = 'அச்சடித்த நாள் : ' + new Date().toLocaleDateString('en-GB');
+
+    box.innerHTML = `
+      <div style="max-width: 1200px; margin: 10px auto 40px; display: flex; flex-direction: column; gap: 20px;">
+        
+        <!-- Header Banner -->
+        <div style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 50%, #dc2626 100%); color: #fff; border-radius: 14px; padding: 20px 24px; box-shadow: 0 4px 14px rgba(185, 28, 28, 0.25);">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center;">
+            <div style="background: #fff; border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+              <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 54px; width: 54px; object-fit: contain; border-radius: 50%;">
+            </div>
+            <div>
+              <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: #fff;">Revenue and Disaster Management Department</h2>
+              <div style="font-size: 14px; font-weight: 600; opacity: 0.95; margin-top: 2px;">Government of Tamil Nadu</div>
+              <div style="font-size: 11.5px; opacity: 0.85; margin-top: 2px; letter-spacing: 0.3px;">Tamil Nadu Information System On Land Administration And Management (TAMILNILAM)</div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12.5px;">
+            <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+              <span>👤</span> Login: Tahsildar (Nemili Master)
+            </span>
+            <span id="rejectBannerLoc" style="font-weight: 600; opacity: 0.95;">District: Ranipet | Taluk: ${escapeHtml(state.talukName)} (${escapeHtml(state.talukCode)})</span>
+            <span style="opacity: 0.9; font-weight: 500;">${printedDate}</span>
+          </div>
+        </div>
+
+        <!-- Filter Controls Card -->
+        <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 22px 24px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line-2); padding-bottom: 14px;">
+            <div>
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #dc2626; display: flex; align-items: center; gap: 8px;">
+                <span>🚫</span> Reject Reason Analysis Suite (Tahsildar Level)
+              </h3>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                Multi-subdivision deduplication, category-wise breakdown, and comprehensive application audit
+              </div>
+            </div>
+
+            <!-- Dual Mode Switcher -->
+            <div style="display: flex; background: var(--surface); padding: 4px; border-radius: 10px; border: 1px solid var(--line-2); gap: 4px;">
+              <button type="button" class="reject-mode-btn" data-mode="R" id="rejectModeRuralBtn" style="padding: 7px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; ${state.transType === 'R' ? 'background: #dc2626; color: #fff; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);' : 'background: transparent; color: var(--ink);'}">
+                🌾 Rural (கிராமப்புறம்)
+              </button>
+              <button type="button" class="reject-mode-btn" data-mode="N" id="rejectModeNathamBtn" style="padding: 7px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; ${state.transType === 'N' ? 'background: #dc2626; color: #fff; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);' : 'background: transparent; color: var(--ink);'}">
+                🏙️ Natham (நத்தம்)
+              </button>
+            </div>
+          </div>
+
+          <!-- Form Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+            <!-- Taluk -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: 700; font-size: 12.5px; color: var(--ink);">
+                வட்டம் <span style="color:#ef4444">*</span> (Taluk)
+              </label>
+              <select id="rejectTalukSel" style="padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+                <option value="12" ${state.talukCode === '12' ? 'selected' : ''}>Nemili (12)</option>
+                <option value="03" ${state.talukCode === '03' ? 'selected' : ''}>Arakkonam (03)</option>
+                <option value="04" ${state.talukCode === '04' ? 'selected' : ''}>Walajah (04)</option>
+                <option value="02" ${state.talukCode === '02' ? 'selected' : ''}>Arcot (02)</option>
+                <option value="13" ${state.talukCode === '13' ? 'selected' : ''}>Kalavai (13)</option>
+                <option value="14" ${state.talukCode === '14' ? 'selected' : ''}>Sholinghur (14)</option>
+              </select>
+            </div>
+
+            <!-- OPT Type -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: 700; font-size: 12.5px; color: var(--ink);">
+                சேவை வகை <span style="color:#ef4444">*</span> (OPT Type)
+              </label>
+              <select id="rejectOptTypeSel" style="padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+                <option value="0105" ${state.servCodeSel === '0105' ? 'selected' : ''}>ISD (0105)</option>
+                <option value="0103" ${state.servCodeSel === '0103' ? 'selected' : ''}>NISD (0103)</option>
+              </select>
+            </div>
+
+            <!-- From Date -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: 700; font-size: 12.5px; color: var(--ink);">
+                தொடக்க நாள் (From Date)
+              </label>
+              <input type="date" id="rejectFromDate" value="${state.fromDate}" style="padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+            </div>
+
+            <!-- To Date -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: 700; font-size: 12.5px; color: var(--ink);">
+                முடிவு நாள் (To Date)
+              </label>
+              <input type="date" id="rejectToDate" value="${state.toDate}" style="padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">
+            </div>
+
+            <!-- Fetch Button -->
+            <div style="display: flex;">
+              <button type="button" class="primary" id="fetchRejectBtn" style="width: 100%; padding: 10px 20px; font-size: 13.5px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35); height: 40px;">
+                <span>⚡</span> Fetch Reject Report
+              </button>
+            </div>
+          </div>
+
+          <!-- Status / Loading Alert Box -->
+          <div id="rejectStatusBox" style="margin-top: 14px; display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;"></div>
+        </div>
+
+        <!-- Metrics KPI Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px;">
+          <!-- Card 1 -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(220, 38, 38, 0.12); color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              🚫
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Total Unique Applications</div>
+              <div id="kpiUniqueApps" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.uniqueAppsCount.toLocaleString()}</div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 1px;">Single application IDs</div>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(37, 99, 235, 0.12); color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              🗃️
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Raw Portal Records</div>
+              <div id="kpiRawRecords" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.rawRecordsCount.toLocaleString()}</div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 1px;">Subdivision rows from portal</div>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(217, 119, 6, 0.12); color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              ✂️
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Subdivisions Deduplicated</div>
+              <div id="kpiDuplicatesRemoved" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.duplicatesEliminated} removed</div>
+              <div style="font-size: 11px; color: #16a34a; font-weight: 600; margin-top: 1px;">Duplicate rows merged</div>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(124, 58, 237, 0.12); color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              🏷️
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Top Reject Category</div>
+              <div id="kpiTopReason" style="font-size: 13.5px; font-weight: 800; color: var(--ink); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+              <div id="kpiTopReasonCount" style="font-size: 11px; color: var(--muted); margin-top: 1px;">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 1: Category-wise Summary Table -->
+        <div style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 20px 22px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+            <div>
+              <h3 style="margin: 0; font-size: 15.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+                <span>📊</span> Section 1: Category-wise Summary
+              </h3>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                Distribution of unique rejected applications across statutory rejection reasons
+              </div>
+            </div>
+            <button type="button" class="tn-auto-btn" id="exportCategorySummaryBtn" style="background: linear-gradient(135deg, #059669, #047857); border-color: #059669; font-size: 12px; padding: 7px 14px; height: auto;">
+              <span>📊</span> Export Category Summary to Excel
+            </button>
+          </div>
+
+          <div style="overflow-x: auto; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
+              <thead>
+                <tr style="background: var(--surface-2); border-bottom: 2px solid var(--line-2); font-weight: 700; color: var(--ink);">
+                  <th style="padding: 10px 14px; width: 60px; text-align: center;">S.No</th>
+                  <th style="padding: 10px 14px;">Reject Reason Category</th>
+                  <th style="padding: 10px 14px; width: 140px; text-align: right;">Application Count</th>
+                  <th style="padding: 10px 14px; width: 180px;">% of Total</th>
+                  <th style="padding: 10px 14px; width: 160px; text-align: center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rejectCategoryTableBody">
+                <!-- Dynamically rendered -->
+              </tbody>
+              <tfoot id="rejectCategoryTableFoot" style="font-weight: 800; background: var(--surface-2);">
+                <!-- Total row -->
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: Deduplicated Applications Detail Table -->
+        <div id="rejectDetailSection" style="background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line-2); padding: 20px 22px; box-shadow: var(--shadow);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+            <div>
+              <h3 style="margin: 0; font-size: 15.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+                <span>📑</span> Section 2: Deduplicated Applications Detail
+              </h3>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                Granular record of all rejected applications with merged multi-subdivision surveys
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <button type="button" class="tn-auto-btn" id="exportAppsDetailBtn" style="background: linear-gradient(135deg, #0284c7, #0369a1); border-color: #0284c7; font-size: 12px; padding: 7px 14px; height: auto;">
+                <span>📊</span> Export Applications (Deduplicated) to Excel
+              </button>
+            </div>
+          </div>
+
+          <!-- Search and Filter Bar -->
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 280px;">
+              <input type="text" id="rejectAppSearchInput" value="${escapeHtml(state.searchTerm)}" placeholder="🔍 Search by Application ID, Applicant Name, Village, Survey No..." style="width: 100%; max-width: 460px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
+              <span id="rejectAppsCountBadge" style="font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap;">Showing 0 applications</span>
+            </div>
+            
+            <!-- Active Category Filter Badge -->
+            <div id="activeCatFilterPill" style="display: none; align-items: center; gap: 8px; background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.25); padding: 4px 12px; border-radius: 20px; font-size: 12px; color: #dc2626; font-weight: 700;">
+              <span>Category: <b id="activeCatFilterText"></b></span>
+              <button type="button" id="resetCategoryFilterBtn" style="background: none; border: none; color: #dc2626; font-weight: 800; cursor: pointer; padding: 0 4px; font-size: 13px;" title="Reset category filter">✕ Reset</button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); max-height: 650px; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
+              <thead style="position: sticky; top: 0; z-index: 10;">
+                <tr style="background: var(--surface-2); border-bottom: 2px solid var(--line-2); font-weight: 700; color: var(--ink);">
+                  <th style="padding: 10px 12px; width: 50px; text-align: center;">S.No</th>
+                  <th style="padding: 10px 12px; width: 120px;">Village</th>
+                  <th style="padding: 10px 12px; width: 170px;">Application ID</th>
+                  <th style="padding: 10px 12px; width: 150px;">Applicant Name</th>
+                  <th style="padding: 10px 12px; width: 100px;">Mobile No</th>
+                  <th style="padding: 10px 12px; width: 150px;">Survey &amp; Subdivisions</th>
+                  <th style="padding: 10px 12px; width: 100px;">Firka</th>
+                  <th style="padding: 10px 12px; min-width: 220px;">Reject Reason</th>
+                  <th style="padding: 10px 12px; width: 120px;">Source Name</th>
+                </tr>
+              </thead>
+              <tbody id="rejectAppsTableBody">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // Wire up Taluk selector
+    const talukSel = document.getElementById('rejectTalukSel');
+    const bannerLoc = document.getElementById('rejectBannerLoc');
+    talukSel?.addEventListener('change', () => {
+      state.talukCode = talukSel.value;
+      const optText = talukSel.options[talukSel.selectedIndex]?.text || 'Nemili';
+      state.talukName = optText.split(' ')[0] || 'Nemili';
+      if (bannerLoc) {
+        bannerLoc.textContent = `District: Ranipet | Taluk: ${state.talukName} (${state.talukCode})`;
+      }
+    });
+
+    // Wire up OPT Type selector
+    const optSel = document.getElementById('rejectOptTypeSel');
+    optSel?.addEventListener('change', () => {
+      state.servCodeSel = optSel.value;
+    });
+
+    // Wire up Date inputs
+    const fromInp = document.getElementById('rejectFromDate');
+    const toInp = document.getElementById('rejectToDate');
+    fromInp?.addEventListener('change', () => { state.fromDate = fromInp.value; });
+    toInp?.addEventListener('change', () => { state.toDate = toInp.value; });
+
+    // Wire up Dual Mode Switcher
+    const ruralBtn = document.getElementById('rejectModeRuralBtn');
+    const nathamBtn = document.getElementById('rejectModeNathamBtn');
+
+    const updateModeStyles = () => {
+      if (ruralBtn && nathamBtn) {
+        if (state.transType === 'R') {
+          ruralBtn.style.background = '#dc2626';
+          ruralBtn.style.color = '#fff';
+          ruralBtn.style.boxShadow = '0 2px 6px rgba(220, 38, 38, 0.3)';
+          nathamBtn.style.background = 'transparent';
+          nathamBtn.style.color = 'var(--ink)';
+          nathamBtn.style.boxShadow = 'none';
+        } else {
+          nathamBtn.style.background = '#dc2626';
+          nathamBtn.style.color = '#fff';
+          nathamBtn.style.boxShadow = '0 2px 6px rgba(220, 38, 38, 0.3)';
+          ruralBtn.style.background = 'transparent';
+          ruralBtn.style.color = 'var(--ink)';
+          ruralBtn.style.boxShadow = 'none';
+        }
+      }
+    };
+
+    ruralBtn?.addEventListener('click', () => {
+      state.transType = 'R';
+      updateModeStyles();
+    });
+
+    nathamBtn?.addEventListener('click', () => {
+      state.transType = 'N';
+      updateModeStyles();
+    });
+
+    // Wire up Fetch Button
+    document.getElementById('fetchRejectBtn')?.addEventListener('click', fetchRejectReport);
+
+    // Wire up Search Input
+    const searchInp = document.getElementById('rejectAppSearchInput');
+    searchInp?.addEventListener('input', () => {
+      state.searchTerm = searchInp.value;
+      renderRejectApplicationsTable();
+    });
+
+    // Wire up Reset Category Filter Button
+    document.getElementById('resetCategoryFilterBtn')?.addEventListener('click', () => {
+      state.activeCategoryFilter = null;
+      renderRejectCategoryTable();
+      renderRejectApplicationsTable();
+    });
+
+    // Wire up Export Buttons
+    document.getElementById('exportCategorySummaryBtn')?.addEventListener('click', exportCategorySummaryToExcel);
+    document.getElementById('exportAppsDetailBtn')?.addEventListener('click', exportApplicationsToExcel);
+
+    // Initial render of existing state or auto-fetch
+    if (state.hasLoadedOnce && state.applications.length > 0) {
+      updateRejectKPIs();
+      renderRejectCategoryTable();
+      renderRejectApplicationsTable();
+    } else {
+      fetchRejectReport();
+    }
+  }
+
+  window.renderRejectReasonsTab = renderRejectReasonsTab;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectUI);
