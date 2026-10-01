@@ -338,9 +338,10 @@ function callTnService(path, inputObj = null, method = 'GET', userId = DEFAULT_U
     };
 
     const req = https.request(options, res => {
-      let body = '';
-      res.on('data', c => body += c);
+      const chunks = [];
+      res.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
       res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
         try {
           const jsonStr = body.replace(/^cb\(/, '').replace(/\);?$/, '').trim();
           if (!jsonStr || jsonStr === 'cb()') {
@@ -1777,6 +1778,28 @@ module.exports = async (req, res) => {
         return '';
       }
 
+      // Helper to sanitize reject reason strings from portal encoding issues and placeholder values
+      function sanitizeRejectReason(...candidates) {
+        for (const val of candidates) {
+          if (!val) continue;
+          const cleaned = String(val)
+            .replace(/[\uFFFD\uFEFF]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (
+            cleaned &&
+            cleaned !== '-' &&
+            cleaned !== '--' &&
+            cleaned.toLowerCase() !== 'unspecified' &&
+            cleaned.toLowerCase() !== 'null' &&
+            cleaned.toLowerCase() !== 'undefined'
+          ) {
+            return cleaned;
+          }
+        }
+        return 'Unspecified';
+      }
+
       // 1. SUBDIVISION DEDUPLICATION:
       // Group records by appl_id.
       // For duplicate entries of the same appl_id (caused by multiple survey/subdivisions),
@@ -1802,7 +1825,7 @@ module.exports = async (req, res) => {
             appl_name: String(raw.appl_name || raw.applName || raw.applicant_name || raw.applicantName || '').trim(),
             mobile_no: String(raw.mobile_no || raw.mobileNo || raw.mobile || raw.phone_no || '').trim(),
             firka_desc: String(raw.firka_desc || raw.firka_name || raw.firkaDesc || raw.firka || '').trim(),
-            reject_reason: String(raw.reject_reason || raw.rejectReason || raw.reason || raw.rejection_reason || 'Unspecified').trim(),
+            reject_reason: sanitizeRejectReason(raw.reject_reason, raw.rejectReason, raw.reason, raw.rejection_reason),
             source_name: String(raw.source_name || raw.sourceName || raw.source || '').trim(),
             district_name: String(raw.district_name || raw.districtName || raw.dist_name || '').trim(),
             taluk_name: String(raw.taluk_name || raw.talukName || '').trim(),
@@ -1818,8 +1841,11 @@ module.exports = async (req, res) => {
           if (!existing.appl_name && raw.appl_name) existing.appl_name = String(raw.appl_name).trim();
           if (!existing.mobile_no && raw.mobile_no) existing.mobile_no = String(raw.mobile_no).trim();
           if (!existing.firka_desc && raw.firka_desc) existing.firka_desc = String(raw.firka_desc).trim();
-          if ((!existing.reject_reason || existing.reject_reason === 'Unspecified') && raw.reject_reason) {
-            existing.reject_reason = String(raw.reject_reason).trim();
+          if (!existing.reject_reason || existing.reject_reason === 'Unspecified') {
+            const updatedReason = sanitizeRejectReason(raw.reject_reason, raw.rejectReason, raw.reason, raw.rejection_reason);
+            if (updatedReason !== 'Unspecified') {
+              existing.reject_reason = updatedReason;
+            }
           }
           if (!existing.source_name && raw.source_name) existing.source_name = String(raw.source_name).trim();
           if (!existing.district_name && raw.district_name) existing.district_name = String(raw.district_name).trim();
@@ -1844,7 +1870,8 @@ module.exports = async (req, res) => {
       // Calculate percentage share for each category.
       const categoryMap = new Map();
       for (const app of uniqueAppsArray) {
-        const reason = (app.reject_reason && app.reject_reason.trim()) ? app.reject_reason.trim() : 'Unspecified';
+        const reason = sanitizeRejectReason(app.reject_reason);
+        app.reject_reason = reason;
         categoryMap.set(reason, (categoryMap.get(reason) || 0) + 1);
       }
 

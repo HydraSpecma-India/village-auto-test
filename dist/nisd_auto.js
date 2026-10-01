@@ -5005,28 +5005,44 @@
       const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
       return `
         <tr style="background: ${bg};">
-          <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; font-size: 12px;">${idx + 1}</td>
-          <td style="padding: 8px 12px; font-weight: 600; color: #0f172a; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(cat.reason || 'Unspecified')}</td>
-          <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; font-size: 12.5px;">${(cat.count || 0).toLocaleString()}</td>
-          <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #dc2626; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(pctStr)}</td>
+          <td style="width: 50px; text-align: center !important; font-weight: 600; color: #475569; padding: 8px 6px; border: 1px solid #cbd5e1; font-size: 12px;">${idx + 1}</td>
+          <td style="width: 460px; text-align: left !important; font-weight: 600; color: #0f172a; line-height: 1.45; padding: 8px 12px !important; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(cat.reason || 'Unspecified')}</td>
+          <td style="width: 140px; text-align: right !important; font-weight: 800; font-size: 13px !important; color: #0f172a; padding: 8px 14px !important; border: 1px solid #cbd5e1;">${(cat.count || 0).toLocaleString()}</td>
+          <td style="width: 110px; text-align: right !important; font-weight: 700; color: #dc2626; font-size: 12px !important; padding: 8px 14px !important; border: 1px solid #cbd5e1;">${escapeHtml(pctStr)}</td>
         </tr>
       `;
     }).join('');
 
     const container = document.createElement('div');
+    container.id = 'rejectExportCaptureWrap';
     container.style.position = 'fixed';
     container.style.left = '-9999px';
     container.style.top = '0';
     container.style.width = '820px';
+    container.style.boxSizing = 'border-box';
     container.style.background = '#ffffff';
+    container.style.padding = '24px';
     container.style.color = '#0f172a';
     container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-    container.style.padding = '24px 28px';
-    container.style.boxSizing = 'border-box';
     container.style.zIndex = '-99999';
 
     container.innerHTML = `
-      <div style="background: #ffffff; color: #0f172a; display: flex; flex-direction: column; gap: 16px;">
+      <style>
+        #rejectExportCaptureWrap, #rejectExportCaptureWrap * {
+          box-sizing: border-box !important;
+        }
+        #rejectExportCaptureWrap table {
+          table-layout: fixed !important;
+          width: 100% !important;
+          border-collapse: collapse !important;
+        }
+        #rejectExportCaptureWrap th, #rejectExportCaptureWrap td {
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow-wrap: break-word !important;
+        }
+      </style>
+      <div style="background: #ffffff; color: #0f172a; display: flex; flex-direction: column; gap: 16px; width: 100%;">
         
         <!-- Official Tamil Nadu Government Header & Tamil Nilam Banner -->
         <div style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 50%, #dc2626 100%); color: #ffffff; border-radius: 10px; padding: 18px 22px; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.2);">
@@ -5108,13 +5124,19 @@
             <span style="font-size: 11.5px; font-weight: 600; color: #64748b;">Total Categories: ${(state.categories || []).length}</span>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; border: 1px solid #cbd5e1;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; border: 1px solid #cbd5e1; table-layout: fixed;">
+            <colgroup>
+              <col style="width: 50px;">
+              <col style="width: 460px;">
+              <col style="width: 140px;">
+              <col style="width: 110px;">
+            </colgroup>
             <thead>
               <tr style="background: #1e293b; color: #ffffff;">
-                <th style="padding: 10px 12px; width: 50px; text-align: center; border: 1px solid #334155; font-weight: 700;">S.No</th>
-                <th style="padding: 10px 12px; border: 1px solid #334155; font-weight: 700;">Reject Reason Category</th>
-                <th style="padding: 10px 12px; width: 170px; text-align: right; border: 1px solid #334155; font-weight: 700;">Unique Applications Count</th>
-                <th style="padding: 10px 12px; width: 110px; text-align: right; border: 1px solid #334155; font-weight: 700;">% of Total</th>
+                <th style="width: 50px; text-align: center !important; font-weight: 700; padding: 10px 8px; border: 1px solid #334155;">S.No</th>
+                <th style="width: 460px; text-align: left !important; font-weight: 700; padding: 10px 12px; padding-left: 12px !important; border: 1px solid #334155;">Reject Reason Category</th>
+                <th style="width: 140px; text-align: right !important; font-weight: 700; padding: 10px 14px; padding-right: 14px !important; border: 1px solid #334155;">Unique Applications Count</th>
+                <th style="width: 110px; text-align: right !important; font-weight: 700; padding: 10px 14px; padding-right: 14px !important; border: 1px solid #334155;">% of Total</th>
               </tr>
             </thead>
             <tbody>
@@ -5122,10 +5144,10 @@
             </tbody>
             <tfoot>
               <tr style="background: #f1f5f9; border-top: 2px solid #0f172a;">
-                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">Total</td>
-                <td style="padding: 10px 12px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">Grand Total (Unique Applications)</td>
-                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1; font-size: 13px;">${grandTotal.toLocaleString()}</td>
-                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #16a34a; border: 1px solid #cbd5e1; font-size: 12.5px;">100.00%</td>
+                <td style="width: 50px; text-align: center !important; font-weight: 800; color: #0f172a; padding: 10px 8px; border: 1px solid #cbd5e1;">Total</td>
+                <td style="width: 460px; text-align: left !important; font-weight: 800; color: #0f172a; padding: 10px 12px; border: 1px solid #cbd5e1;">Grand Total (Unique Applications)</td>
+                <td style="width: 140px; text-align: right !important; font-weight: 900; font-size: 13.5px !important; color: #0f172a; padding: 10px 14px; border: 1px solid #cbd5e1;">${grandTotal.toLocaleString()}</td>
+                <td style="width: 110px; text-align: right !important; font-weight: 900; color: #16a34a; font-size: 12.5px !important; padding: 10px 14px; border: 1px solid #cbd5e1;">100.00%</td>
               </tr>
             </tfoot>
           </table>
@@ -5189,13 +5211,14 @@
 
       const canvas = await html2canvas(mount, {
         scale: 2.2,
+        width: 820,
+        windowWidth: 820,
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: true,
         logging: false
       });
 
-      const imgData = canvas.toDataURL('image/png');
       let pdf;
       if (window.jspdf && typeof window.jspdf.jsPDF === 'function') {
         pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
@@ -5215,19 +5238,32 @@
       const imgHeight = (canvas.height * availWidth) / canvas.width;
 
       if (imgHeight <= availHeight) {
+        const imgData = canvas.toDataURL('image/png');
         pdf.addImage(imgData, 'PNG', margin, margin, availWidth, imgHeight);
       } else {
-        let heightLeft = imgHeight;
-        let position = margin;
+        const sliceH = Math.max(1, Math.floor((availHeight * canvas.width) / availWidth));
+        let sy = 0;
+        let isFirst = true;
 
-        pdf.addImage(imgData, 'PNG', margin, position, availWidth, imgHeight);
-        heightLeft -= availHeight;
+        while (sy < canvas.height) {
+          const sh = Math.min(sliceH, canvas.height - sy);
+          const partCanvas = document.createElement('canvas');
+          partCanvas.width = canvas.width;
+          partCanvas.height = sh;
+          const ctx = partCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, partCanvas.width, sh);
+          ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
 
-        while (heightLeft > 0) {
-          position = position - availHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', margin, position, availWidth, imgHeight);
-          heightLeft -= availHeight;
+          if (!isFirst) {
+            pdf.addPage();
+          }
+          isFirst = false;
+
+          const partImgData = partCanvas.toDataURL('image/png');
+          const partPdfHeight = (sh * availWidth) / canvas.width;
+          pdf.addImage(partImgData, 'PNG', margin, margin, availWidth, partPdfHeight);
+          sy += sh;
         }
       }
 
@@ -5293,6 +5329,8 @@
 
       const canvas = await html2canvas(mount, {
         scale: 2.2,
+        width: 820,
+        windowWidth: 820,
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: true,
