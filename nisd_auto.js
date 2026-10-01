@@ -4989,6 +4989,357 @@
     }
   }
 
+  function buildCategorySummaryExportDom(state) {
+    const modeLabel = state.transType === 'R' ? 'Rural (கிராமப்புறம்)' : 'Natham (நத்தம்)';
+    const servLabel = state.servCodeSel === '0105' ? 'ISD (0105)' : 'NISD (0103)';
+    const printedDate = 'Generated on: ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB');
+
+    let grandTotal = 0;
+    (state.categories || []).forEach(cat => {
+      grandTotal += (cat.count || 0);
+    });
+
+    const rowsHtml = (state.categories || []).map((cat, idx) => {
+      const pct = cat.percentage != null ? cat.percentage : (grandTotal > 0 ? ((cat.count || 0) / grandTotal * 100) : 0);
+      const pctStr = cat.percentage_str || `${Number(pct).toFixed(2)}%`;
+      const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      return `
+        <tr style="background: ${bg};">
+          <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; font-size: 12px;">${idx + 1}</td>
+          <td style="padding: 8px 12px; font-weight: 600; color: #0f172a; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(cat.reason || 'Unspecified')}</td>
+          <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; font-size: 12.5px;">${(cat.count || 0).toLocaleString()}</td>
+          <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #dc2626; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(pctStr)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '820px';
+    container.style.background = '#ffffff';
+    container.style.color = '#0f172a';
+    container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    container.style.padding = '24px 28px';
+    container.style.boxSizing = 'border-box';
+    container.style.zIndex = '-99999';
+
+    container.innerHTML = `
+      <div style="background: #ffffff; color: #0f172a; display: flex; flex-direction: column; gap: 16px;">
+        
+        <!-- Official Tamil Nadu Government Header & Tamil Nilam Banner -->
+        <div style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 50%, #dc2626 100%); color: #ffffff; border-radius: 10px; padding: 18px 22px; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.2);">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: center;">
+            <div style="background: #ffffff; border-radius: 50%; padding: 4px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2); flex-shrink: 0;">
+              <img src="/logo.jpg" alt="TN Govt Emblem" style="height: 52px; width: 52px; object-fit: contain; border-radius: 50%;">
+            </div>
+            <div>
+              <h2 style="margin: 0; font-size: 19px; font-weight: 800; letter-spacing: 0.3px; color: #ffffff;">Revenue and Disaster Management Department</h2>
+              <div style="font-size: 13.5px; font-weight: 600; opacity: 0.95; margin-top: 2px; color: #fef2f2;">Government of Tamil Nadu</div>
+              <div style="font-size: 11px; opacity: 0.9; margin-top: 2px; letter-spacing: 0.2px; color: #fee2e2;">TAMIL NADU INFORMATION SYSTEM ON LAND ADMINISTRATION AND MANAGEMENT (TAMILNILAM)</div>
+            </div>
+          </div>
+          
+          <!-- Tahsildar credentials indicator, period dates, taluk name, mode -->
+          <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 11.5px; color: #ffffff;">
+            <div style="background: rgba(255,255,255,0.22); padding: 3px 10px; border-radius: 16px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+              <span>👤</span> Tahsildar Credentials: Tahsildar (${escapeHtml(state.talukName)} Master)
+            </div>
+            <div style="font-weight: 700;">
+              Taluk: ${escapeHtml(state.talukName)} (${escapeHtml(state.talukCode)}) &nbsp;|&nbsp; Mode: ${escapeHtml(modeLabel)}
+            </div>
+            <div style="opacity: 0.95; font-weight: 600;">
+              ${escapeHtml(printedDate)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Subheader Details Bar: Period Dates, Service, Taluk -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #334155;">
+          <div>
+            <b>Report:</b> Reject Reasons Overview (Category Summary)
+          </div>
+          <div>
+            <b>Service:</b> ${escapeHtml(servLabel)}
+          </div>
+          <div>
+            <b>Taluk:</b> ${escapeHtml(state.talukName)} (${escapeHtml(state.talukCode)})
+          </div>
+          <div>
+            <b>Mode:</b> ${escapeHtml(modeLabel)}
+          </div>
+          <div>
+            <b>Period:</b> ${escapeHtml(state.fromDate)} to ${escapeHtml(state.toDate)}
+          </div>
+        </div>
+
+        <!-- KPI Summary Cards (Total Unique Applications, Duplicate Subdivisions Removed) -->
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
+          <!-- KPI 1: Total Unique Applications -->
+          <div style="background: #fff5f5; border: 1px solid #fecaca; border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              🚫
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #991b1b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Total Unique Applications</div>
+              <div style="font-size: 22px; font-weight: 800; color: #7f1d1d; margin-top: 1px;">${(state.uniqueAppsCount || 0).toLocaleString()}</div>
+              <div style="font-size: 11px; color: #b91c1c; margin-top: 1px;">Single deduplicated application IDs</div>
+            </div>
+          </div>
+
+          <!-- KPI 2: Duplicate Subdivisions Removed -->
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 8px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              ✂️
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #92400e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Duplicate Subdivisions Removed</div>
+              <div style="font-size: 22px; font-weight: 800; color: #78350f; margin-top: 1px;">${(state.duplicatesEliminated || 0).toLocaleString()} removed</div>
+              <div style="font-size: 11px; color: #15803d; font-weight: 600; margin-top: 1px;">Multi-subdivision portal rows consolidated</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Summary Table -->
+        <div style="margin-top: 4px;">
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span>📊 Category-wise Summary (Statutory Rejection Reasons)</span>
+            <span style="font-size: 11.5px; font-weight: 600; color: #64748b;">Total Categories: ${(state.categories || []).length}</span>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; border: 1px solid #cbd5e1;">
+            <thead>
+              <tr style="background: #1e293b; color: #ffffff;">
+                <th style="padding: 10px 12px; width: 50px; text-align: center; border: 1px solid #334155; font-weight: 700;">S.No</th>
+                <th style="padding: 10px 12px; border: 1px solid #334155; font-weight: 700;">Reject Reason Category</th>
+                <th style="padding: 10px 12px; width: 170px; text-align: right; border: 1px solid #334155; font-weight: 700;">Unique Applications Count</th>
+                <th style="padding: 10px 12px; width: 110px; text-align: right; border: 1px solid #334155; font-weight: 700;">% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr style="background: #f1f5f9; border-top: 2px solid #0f172a;">
+                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">Total</td>
+                <td style="padding: 10px 12px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">Grand Total (Unique Applications)</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1; font-size: 13px;">${grandTotal.toLocaleString()}</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #16a34a; border: 1px solid #cbd5e1; font-size: 12.5px;">100.00%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Official Footer Stamp / Note -->
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: #64748b;">
+          <div>
+            System Generated Statutory Analysis Report &bull; Tamil Nilam Portal &bull; Revenue Administration
+          </div>
+          <div>
+            Taluk Office, ${escapeHtml(state.talukName)} Taluk, Ranipet District
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    return container;
+  }
+
+  async function exportCategorySummaryToPdf() {
+    const state = getRejectSuiteState();
+    if (!state.categories || !state.categories.length) {
+      if (typeof window.toast === 'function') {
+        window.toast('Export Notice', 'No category data to export. Please fetch the report first.', 'warn');
+      } else if (typeof toast === 'function') {
+        toast('Export Notice', 'No category data to export. Please fetch the report first.', 'warn');
+      }
+      return;
+    }
+
+    if (typeof html2canvas === 'undefined') {
+      if (typeof window.toast === 'function') {
+        window.toast('Image library unavailable', 'html2canvas library is not loaded.', 'err');
+      } else if (typeof toast === 'function') {
+        toast('Image library unavailable', 'html2canvas library is not loaded.', 'err');
+      }
+      return;
+    }
+
+    const mount = buildCategorySummaryExportDom(state);
+    document.body.appendChild(mount);
+
+    if (typeof window.toast === 'function') {
+      window.toast('Generating PDF', 'Preparing Reject Reason Overview PDF...', 'info');
+    } else if (typeof toast === 'function') {
+      toast('Generating PDF', 'Preparing Reject Reason Overview PDF...', 'info');
+    }
+
+    try {
+      const imgPromises = Array.from(mount.querySelectorAll('img')).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(res => { img.onload = img.onerror = res; });
+      });
+      await Promise.race([
+        Promise.all(imgPromises),
+        new Promise(res => setTimeout(res, 500))
+      ]);
+      await new Promise(r => setTimeout(r, 60));
+
+      const canvas = await html2canvas(mount, {
+        scale: 2.2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      let pdf;
+      if (window.jspdf && typeof window.jspdf.jsPDF === 'function') {
+        pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
+      } else if (typeof window.jsPDF === 'function') {
+        pdf = new window.jsPDF('p', 'pt', 'a4');
+      } else if (typeof jsPDF === 'function') {
+        pdf = new jsPDF('p', 'pt', 'a4');
+      } else {
+        throw new Error('jsPDF library is not loaded');
+      }
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const availWidth = pdfWidth - (margin * 2);
+      const availHeight = pdfHeight - (margin * 2);
+      const imgHeight = (canvas.height * availWidth) / canvas.width;
+
+      if (imgHeight <= availHeight) {
+        pdf.addImage(imgData, 'PNG', margin, margin, availWidth, imgHeight);
+      } else {
+        let heightLeft = imgHeight;
+        let position = margin;
+
+        pdf.addImage(imgData, 'PNG', margin, position, availWidth, imgHeight);
+        heightLeft -= availHeight;
+
+        while (heightLeft > 0) {
+          position = position - availHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', margin, position, availWidth, imgHeight);
+          heightLeft -= availHeight;
+        }
+      }
+
+      const fileName = `Reject_Reasons_Overview_${state.talukName}_${state.transType}_${state.fromDate}_${state.toDate}.pdf`;
+      pdf.save(fileName);
+
+      if (typeof window.toast === 'function') {
+        window.toast('PDF Export Complete', `Downloaded ${fileName}`, 'ok');
+      } else if (typeof toast === 'function') {
+        toast('PDF Export Complete', `Downloaded ${fileName}`, 'ok');
+      }
+    } catch (err) {
+      console.error('Category summary PDF export error:', err);
+      if (typeof window.toast === 'function') {
+        window.toast('PDF Export Failed', err.message, 'err');
+      } else if (typeof toast === 'function') {
+        toast('PDF Export Failed', err.message, 'err');
+      }
+    } finally {
+      mount.remove();
+    }
+  }
+
+  async function exportCategorySummaryToPng() {
+    const state = getRejectSuiteState();
+    if (!state.categories || !state.categories.length) {
+      if (typeof window.toast === 'function') {
+        window.toast('Export Notice', 'No category data to export. Please fetch the report first.', 'warn');
+      } else if (typeof toast === 'function') {
+        toast('Export Notice', 'No category data to export. Please fetch the report first.', 'warn');
+      }
+      return;
+    }
+
+    if (typeof html2canvas === 'undefined') {
+      if (typeof window.toast === 'function') {
+        window.toast('Image library unavailable', 'html2canvas library is not loaded.', 'err');
+      } else if (typeof toast === 'function') {
+        toast('Image library unavailable', 'html2canvas library is not loaded.', 'err');
+      }
+      return;
+    }
+
+    const mount = buildCategorySummaryExportDom(state);
+    document.body.appendChild(mount);
+
+    if (typeof window.toast === 'function') {
+      window.toast('Generating PNG', 'Rendering Reject Reason Overview...', 'info');
+    } else if (typeof toast === 'function') {
+      toast('Generating PNG', 'Rendering Reject Reason Overview...', 'info');
+    }
+
+    try {
+      const imgPromises = Array.from(mount.querySelectorAll('img')).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(res => { img.onload = img.onerror = res; });
+      });
+      await Promise.race([
+        Promise.all(imgPromises),
+        new Promise(res => setTimeout(res, 500))
+      ]);
+      await new Promise(r => setTimeout(r, 60));
+
+      const canvas = await html2canvas(mount, {
+        scale: 2.2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
+
+      const fileName = `Reject_Reasons_Overview_${state.talukName}_${state.transType}_${state.fromDate}_${state.toDate}.png`;
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          const link = document.createElement('a');
+          link.download = fileName;
+          link.href = canvas.toDataURL('image/png');
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = fileName;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 200);
+        }
+
+        if (typeof window.toast === 'function') {
+          window.toast('PNG Export Complete', `Downloaded ${fileName}`, 'ok');
+        } else if (typeof toast === 'function') {
+          toast('PNG Export Complete', `Downloaded ${fileName}`, 'ok');
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error('Category summary PNG export error:', err);
+      if (typeof window.toast === 'function') {
+        window.toast('PNG Export Failed', err.message, 'err');
+      } else if (typeof toast === 'function') {
+        toast('PNG Export Failed', err.message, 'err');
+      }
+    } finally {
+      mount.remove();
+    }
+  }
+
   function exportApplicationsToExcel() {
     const state = getRejectSuiteState();
     if (!state.applications || !state.applications.length) {
@@ -5230,9 +5581,13 @@
                 Distribution of unique rejected applications across statutory rejection reasons
               </div>
             </div>
-            <button type="button" class="tn-auto-btn" id="exportCategorySummaryBtn" style="background: linear-gradient(135deg, #059669, #047857); border-color: #059669; font-size: 12px; padding: 7px 14px; height: auto;">
-              <span>📊</span> Export Category Summary to Excel
-            </button>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="tn-auto-btn" id="exportCategorySummaryBtn" style="background: linear-gradient(135deg, #059669, #047857); border-color: #059669; font-size: 12px; padding: 7px 14px; height: auto;">
+                <span>📊</span> Export Category Summary to Excel
+              </button>
+              <button type="button" class="tn-auto-btn" id="exportCategorySummaryPdfBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); border-color: #dc2626; font-size: 12px; padding: 7px 14px; height: auto;"><span>📄</span> Export Overview to PDF</button>
+              <button type="button" class="tn-auto-btn" id="exportCategorySummaryPngBtn" style="background: linear-gradient(135deg, #4f46e5, #4338ca); border-color: #4f46e5; font-size: 12px; padding: 7px 14px; height: auto;"><span>🖼️</span> Export Overview to PNG</button>
+            </div>
           </div>
 
           <div style="overflow-x: auto; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface);">
@@ -5390,6 +5745,8 @@
 
     // Wire up Export Buttons
     document.getElementById('exportCategorySummaryBtn')?.addEventListener('click', exportCategorySummaryToExcel);
+    document.getElementById('exportCategorySummaryPdfBtn')?.addEventListener('click', exportCategorySummaryToPdf);
+    document.getElementById('exportCategorySummaryPngBtn')?.addEventListener('click', exportCategorySummaryToPng);
     document.getElementById('exportAppsDetailBtn')?.addEventListener('click', exportApplicationsToExcel);
 
     // Initial render of existing state or auto-fetch
@@ -5403,6 +5760,8 @@
   }
 
   window.renderRejectReasonsTab = renderRejectReasonsTab;
+  window.exportCategorySummaryToPdf = exportCategorySummaryToPdf;
+  window.exportCategorySummaryToPng = exportCategorySummaryToPng;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectUI);
