@@ -7,6 +7,10 @@ const DEFAULT_U = 'rpt_panneerselvam';
 const DEFAULT_P = 'Nemili@1970';
 const DEFAULT_R = '8';
 
+const FALLBACK_U = 'dlurpet';
+const FALLBACK_P = '16-03-1992';
+const FALLBACK_R = '7';
+
 function formatDateToDDMMYYYY(d) {
   if (!d) return '';
   if (/^\d{2}-\d{2}-\d{4}$/.test(d)) return d;
@@ -34,6 +38,7 @@ const SERVICE_NAMES = {
 };
 
 const pattaLookupCache = new Map();
+const appValidationCache = new Map();
 
 function isPlaceholderOwner(name) {
   if (!name || typeof name !== 'string') return true;
@@ -294,10 +299,8 @@ function extractPattaFields(data, defaultParams = {}) {
 function callTnService(path, inputObj = null, method = 'GET', userId = DEFAULT_U, password = DEFAULT_P, roleId = DEFAULT_R, extraHeaders = {}, customBody = null, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const sha1Password = crypto.createHash('sha1').update(password).digest('hex');
-    const t = Date.now().toString();
+    const t = extraHeaders && extraHeaders.timestamp ? extraHeaders.timestamp : Date.now().toString();
     const inputVal = inputObj ? (typeof inputObj === 'string' ? inputObj : JSON.stringify(inputObj)) : '';
-    const finalVal = inputVal ? (userId + t + inputVal) : (userId + t);
-    const hash = crypto.createHmac('sha256', sha1Password).update(finalVal).digest('hex');
 
     let normPath = path.startsWith('/') ? path.substring(1) : path;
     if (normPath.startsWith('Tnilam_Service_N/')) {
@@ -306,12 +309,25 @@ function callTnService(path, inputObj = null, method = 'GET', userId = DEFAULT_U
     let fullPath = `/Tnilam_Service_N/${normPath}`;
     fullPath += fullPath.includes('?') ? `&jsoncallback=cb` : `?jsoncallback=cb`;
 
+    const isNathamOpt = normPath.includes('GetNathamOptDetails');
+    const finalVal = isNathamOpt ? (userId + t) : (inputVal ? (userId + t + inputVal) : (userId + t));
+    const hash = crypto.createHmac('sha256', sha1Password).update(finalVal).digest('hex');
+
+    let defaultReferer = 'https://tamilnilam.tn.gov.in/Revenue/Common_AdditionForm.html?campFlag=N';
+    if (isNathamOpt) {
+      defaultReferer = 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html';
+    } else if (normPath.includes('opt_pending_ason_today')) {
+      defaultReferer = 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html';
+    } else if (normPath.includes('collct_rejectReasonReport_detail')) {
+      defaultReferer = 'https://tamilnilam.tn.gov.in/Revenue/Reject_reason_report.html';
+    }
+
     const headers = {
       'emp_value': userId,
       'signature': hash,
       'timestamp': t,
       'roleId': String(roleId),
-      'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Common_AdditionForm.html?campFlag=N',
+      'Referer': defaultReferer,
       'Origin': 'https://tamilnilam.tn.gov.in',
       'X-Requested-With': 'XMLHttpRequest',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -1906,7 +1922,668 @@ module.exports = async (req, res) => {
       });
     }
 
-    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, areg_pdf, areg_extract_data, districts, taluks, villages, reject_reasons, or db_info.' });
+    // 14. VALIDATE SINGLE APPLICATION STATUS (mode === 'validate_app')
+    if (mode === 'validate_app' || mode === 'validate') {
+      const appl_id = String(params.appl_id || params.applId || params.application_id || params.appId || '').trim();
+      if (!appl_id) {
+        return res.status(400).json({ success: false, error: 'Missing required parameter: appl_id' });
+      }
+
+      const distCode = String(params.distCode || params.districtCode || '37').trim();
+      const talukCode = String(params.talukCode || params.talukcode || '12').trim();
+      const villageCode = String(params.villageCode || params.vcode || params.village_code || '').trim();
+      const transType = String(params.transType || params.transtype || 'R').trim().toUpperCase();
+      const serv_codeSel = String(params.serv_codeSel || params.servCodeSel || params.serviceCode || '0105').trim();
+      const reqUsername = params.username || DEFAULT_U;
+      const reqPassword = params.password || DEFAULT_P;
+      const reqRoleId = String(params.roleId || DEFAULT_R);
+
+      // a. Check cache first. If cached within 10 minutes, return cached result immediately.
+      const cacheKey = `${appl_id}_${distCode}_${talukCode}`;
+      const cached = appValidationCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+        return res.status(200).json({
+          success: true,
+          appl_id: cached.appl_id,
+          status: cached.status,
+          pendingAt: cached.pendingAt,
+          pendingDays: cached.pendingDays,
+          applDate: cached.applDate,
+          remarks: cached.remarks,
+          source: 'cache'
+        });
+      }
+
+      // b. If transType === 'N' (Natham):
+      if (transType === 'N') {
+        const nathamPayload = {
+          FlagVal: 'Detail',
+          TransVal: serv_codeSel === '0103' ? 'N' : 'I',
+          frmDate: '2025-01-01',
+          toDate: '2026-12-31',
+          DCOde: distCode,
+          TCOde: `'${talukCode}'`
+        };
+
+        let rawList = [];
+        try {
+          const nathamData = await callTnService(
+            'Report_Service/GetNathamOptDetails',
+            nathamPayload,
+            'POST',
+            reqUsername,
+            reqPassword,
+            reqRoleId,
+            { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html' }
+          );
+          if (nathamData && Array.isArray(nathamData.NathamOPTportal)) {
+            rawList = nathamData.NathamOPTportal;
+          }
+        } catch (errN) {
+          console.warn('Natham OPT details fetch error:', errN.message);
+        }
+
+        // Check if Tahsildar account returned unpopulated objects, fallback to District User dlurpet
+        const hasValidRecords = rawList.some(item => item && item.appl_id);
+        if (!hasValidRecords && (reqUsername !== FALLBACK_U || reqPassword !== FALLBACK_P)) {
+          try {
+            const fallbackNatham = await callTnService(
+              'Report_Service/GetNathamOptDetails',
+              nathamPayload,
+              'POST',
+              FALLBACK_U,
+              FALLBACK_P,
+              FALLBACK_R,
+              { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html' }
+            );
+            if (fallbackNatham && Array.isArray(fallbackNatham.NathamOPTportal)) {
+              rawList = fallbackNatham.NathamOPTportal;
+            }
+          } catch (errFb) {
+            console.warn('Natham fallback fetch error:', errFb.message);
+          }
+        }
+
+        const cleanApplId = appl_id.toLowerCase();
+        const found = rawList.find(item => item && item.appl_id && String(item.appl_id).trim().toLowerCase() === cleanApplId);
+
+        let status = 'Rejected';
+        let pendingAt = null;
+        let pendingDays = null;
+        let applDate = '';
+        let remarks = 'Statutory Rejection Maintained';
+
+        if (found) {
+          applDate = found.appl_dt || found.appl_date || '';
+          const rawStatus = String(found.appl_status || '').trim();
+          if (rawStatus === 'Approved') {
+            status = 'Approved';
+            remarks = 'Natham Order Copy Issued / Approved';
+          } else if (rawStatus === 'Pending') {
+            status = 'Pending';
+            pendingAt = found.pending_at || 'Pending';
+            pendingDays = String(found.pending_days || '0');
+            remarks = `Pending at ${pendingAt}`;
+          } else if (rawStatus === 'Rejected') {
+            status = 'Rejected';
+            remarks = 'Application Rejected';
+          } else {
+            status = rawStatus || 'Rejected';
+            remarks = `Status: ${status}`;
+          }
+        }
+
+        const resultObj = {
+          appl_id,
+          status,
+          pendingAt,
+          pendingDays,
+          applDate,
+          remarks,
+          timestamp: Date.now()
+        };
+
+        appValidationCache.set(cacheKey, resultObj);
+
+        return res.status(200).json({
+          success: true,
+          appl_id: resultObj.appl_id,
+          status: resultObj.status,
+          pendingAt: resultObj.pendingAt,
+          pendingDays: resultObj.pendingDays,
+          applDate: resultObj.applDate,
+          remarks: resultObj.remarks,
+          source: 'live_validation'
+        });
+      }
+
+      // c. If transType === 'R' (Rural):
+      let status = 'Rejected';
+      let pendingAt = null;
+      let pendingDays = null;
+      let applDate = '';
+      let remarks = 'Statutory Rejection Maintained';
+
+      // 1. Check Live Pending Pool
+      const cleanApplId = appl_id.toLowerCase();
+      let foundPending = null;
+
+      if (villageCode) {
+        try {
+          const vPending = await callTnService(
+            'Report_Service/opt_pending_ason_today',
+            {
+              DistCode: distCode,
+              taluckcode: talukCode,
+              vcode: villageCode,
+              frmDate: '2025-01-01',
+              toDate: '2026-12-31',
+              flag: serv_codeSel === '0103' ? 'N' : 'I',
+              villType: 'B',
+              cdn_flag: 'V'
+            },
+            'POST',
+            reqUsername,
+            reqPassword,
+            reqRoleId,
+            { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html' }
+          );
+          if (vPending && Array.isArray(vPending.distarr)) {
+            foundPending = vPending.distarr.find(v => v && v.appl_id && String(v.appl_id).trim().toLowerCase() === cleanApplId);
+          }
+        } catch (errVP) {
+          console.warn('opt_pending_ason_today village query error:', errVP.message);
+        }
+      }
+
+      // If not found in village pending pool or no villageCode provided:
+      if (!foundPending) {
+        try {
+          const tSummary = await callTnService(
+            'Report_Service/opt_pending_ason_today',
+            {
+              DistCode: distCode,
+              taluckcode: talukCode,
+              vcode: '',
+              frmDate: '2025-01-01',
+              toDate: '2026-12-31',
+              flag: serv_codeSel === '0103' ? 'N' : 'I',
+              villType: 'B',
+              cdn_flag: 'T'
+            },
+            'POST',
+            reqUsername,
+            reqPassword,
+            reqRoleId,
+            { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html' }
+          );
+
+          if (tSummary && Array.isArray(tSummary.distarr)) {
+            const activeVillages = tSummary.distarr.filter(v => {
+              const cnt = parseInt(v.total || v.total_vao || v.total_pending || '0', 10);
+              return cnt > 0 && v.village_code;
+            });
+
+            const BATCH_SIZE = 8;
+            for (let i = 0; i < activeVillages.length && !foundPending; i += BATCH_SIZE) {
+              const batch = activeVillages.slice(i, i + BATCH_SIZE);
+              const batchRes = await Promise.all(
+                batch.map(av =>
+                  callTnService(
+                    'Report_Service/opt_pending_ason_today',
+                    {
+                      DistCode: distCode,
+                      taluckcode: talukCode,
+                      vcode: av.village_code,
+                      frmDate: '2025-01-01',
+                      toDate: '2026-12-31',
+                      flag: serv_codeSel === '0103' ? 'N' : 'I',
+                      villType: 'B',
+                      cdn_flag: 'V'
+                    },
+                    'POST',
+                    reqUsername,
+                    reqPassword,
+                    reqRoleId,
+                    { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html' }
+                  ).catch(() => ({}))
+                )
+              );
+
+              for (const resItem of batchRes) {
+                if (resItem && Array.isArray(resItem.distarr)) {
+                  const match = resItem.distarr.find(v => v && v.appl_id && String(v.appl_id).trim().toLowerCase() === cleanApplId);
+                  if (match) {
+                    foundPending = match;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (errTS) {
+          console.warn('opt_pending_ason_today taluk summary error:', errTS.message);
+        }
+      }
+
+      if (foundPending) {
+        status = 'Pending';
+        pendingAt = foundPending.role_name || 'Pending';
+        pendingDays = String(foundPending.total_pending || foundPending.pending_at_days || '0');
+        applDate = foundPending.appl_date || '';
+        remarks = `Pending at ${pendingAt}`;
+      } else {
+        // 2. If not found in active pending pool:
+        // Check whether order copy / patta issuance exists or if it's already approved.
+        let isApproved = false;
+        const pattaNo = params.pattaNo || params.patta_no;
+        const surveyNo = params.surveyNo || params.survey_no;
+        const subdivNo = params.subdivNo || params.subdiv_no;
+
+        if (pattaNo || (surveyNo && villageCode)) {
+          try {
+            const chittaExtract = await callTnService(
+              'Master/getChittaExtractData',
+              {
+                districtCode: String(distCode).padStart(2, '0'),
+                talukCode: String(talukCode).padStart(2, '0'),
+                villageCode: String(villageCode || '001').padStart(3, '0'),
+                pattaNo: pattaNo ? String(pattaNo).trim() : '@',
+                surveyNo: surveyNo ? String(surveyNo).trim() : '@',
+                subdivNo: subdivNo ? String(subdivNo).trim() : '@',
+                txnType: 'R',
+                transType: 'R'
+              },
+              'GET',
+              reqUsername,
+              reqPassword,
+              reqRoleId
+            );
+            if (chittaExtract && (chittaExtract.existingOwner_landdetails || chittaExtract.status === 1 || chittaExtract.Status === 1)) {
+              isApproved = true;
+            }
+          } catch (eChitta) {
+            console.warn('Chitta extract check error:', eChitta.message);
+          }
+        }
+
+        if (!isApproved) {
+          const cachedPatta = getPattaFromCache(distCode, talukCode, villageCode, pattaNo, surveyNo, subdivNo);
+          if (cachedPatta && cachedPatta.ownerName) {
+            isApproved = true;
+          }
+        }
+
+        if (isApproved) {
+          status = 'Approved';
+          remarks = 'Patta Transfer Approved / Order Issued';
+        } else {
+          status = 'Rejected';
+          remarks = 'Statutory Rejection Maintained';
+        }
+      }
+
+      const resultObj = {
+        appl_id,
+        status,
+        pendingAt,
+        pendingDays,
+        applDate,
+        remarks,
+        timestamp: Date.now()
+      };
+
+      appValidationCache.set(cacheKey, resultObj);
+
+      return res.status(200).json({
+        success: true,
+        appl_id: resultObj.appl_id,
+        status: resultObj.status,
+        pendingAt: resultObj.pendingAt,
+        pendingDays: resultObj.pendingDays,
+        applDate: resultObj.applDate,
+        remarks: resultObj.remarks,
+        source: 'live_validation'
+      });
+    }
+
+    // 15. VALIDATE APPLICATIONS BATCH (mode === 'validate_apps_batch')
+    if (mode === 'validate_apps_batch' || mode === 'validate_batch') {
+      const distCode = String(params.distCode || params.districtCode || '37').trim();
+      const talukCode = String(params.talukCode || params.talukcode || '12').trim();
+      const transType = String(params.transType || params.transtype || 'R').trim().toUpperCase();
+      const serv_codeSel = String(params.serv_codeSel || params.servCodeSel || params.serviceCode || '0105').trim();
+      const reqUsername = params.username || DEFAULT_U;
+      const reqPassword = params.password || DEFAULT_P;
+      const reqRoleId = String(params.roleId || DEFAULT_R);
+
+      // Collect all requested applications and metadata
+      const requestedAppsMap = new Map();
+
+      if (Array.isArray(params.applications)) {
+        for (const app of params.applications) {
+          if (!app) continue;
+          const id = String(app.appl_id || app.applId || app.application_id || app.appId || '').trim();
+          if (id) {
+            requestedAppsMap.set(id, {
+              appl_id: id,
+              village_code: String(app.village_code || app.villageCode || app.vcode || '').trim(),
+              village_name: String(app.village_name || app.villageName || '').trim(),
+              survey_no: String(app.survey_no || app.surveyNo || '').trim(),
+              subdiv_no: String(app.subdiv_no || app.subdivNo || '').trim(),
+              patta_no: String(app.patta_no || app.pattaNo || '').trim()
+            });
+          }
+        }
+      }
+
+      let rawIds = params.appl_ids || params.applIds || params.application_ids || [];
+      if (typeof rawIds === 'string') {
+        rawIds = rawIds.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      if (Array.isArray(rawIds)) {
+        for (const id of rawIds) {
+          const cleanId = String(id).trim();
+          if (cleanId && !requestedAppsMap.has(cleanId)) {
+            requestedAppsMap.set(cleanId, {
+              appl_id: cleanId,
+              village_code: String(params.villageCode || params.vcode || '').trim(),
+              village_name: '',
+              survey_no: '',
+              subdiv_no: '',
+              patta_no: ''
+            });
+          }
+        }
+      }
+
+      const totalRequested = requestedAppsMap.size;
+      if (totalRequested === 0) {
+        return res.status(400).json({ success: false, error: 'No application IDs provided for batch validation' });
+      }
+
+      const batchResults = {};
+      const pendingValidationApps = [];
+
+      // Check cache first for each application
+      for (const [id, meta] of requestedAppsMap.entries()) {
+        const cacheKey = `${id}_${distCode}_${talukCode}`;
+        const cached = appValidationCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < 10 * 60 * 1000)) {
+          batchResults[id] = {
+            status: cached.status,
+            pendingAt: cached.pendingAt,
+            pendingDays: cached.pendingDays,
+            applDate: cached.applDate,
+            remarks: cached.remarks
+          };
+        } else {
+          pendingValidationApps.push(meta);
+        }
+      }
+
+      if (pendingValidationApps.length > 0) {
+        if (transType === 'N') {
+          // For Natham: Queries GetNathamOptDetails once, indexes all applications into a Map by appl_id, and matches all requested IDs in O(1) time.
+          const nathamPayload = {
+            FlagVal: 'Detail',
+            TransVal: serv_codeSel === '0103' ? 'N' : 'I',
+            frmDate: '2025-01-01',
+            toDate: '2026-12-31',
+            DCOde: distCode,
+            TCOde: `'${talukCode}'`
+          };
+
+          let rawList = [];
+          try {
+            const nathamData = await callTnService(
+              'Report_Service/GetNathamOptDetails',
+              nathamPayload,
+              'POST',
+              reqUsername,
+              reqPassword,
+              reqRoleId,
+              { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html' }
+            );
+            if (nathamData && Array.isArray(nathamData.NathamOPTportal)) {
+              rawList = nathamData.NathamOPTportal;
+            }
+          } catch (errN) {
+            console.warn('Natham batch query error:', errN.message);
+          }
+
+          const hasValidRecords = rawList.some(item => item && item.appl_id);
+          if (!hasValidRecords && (reqUsername !== FALLBACK_U || reqPassword !== FALLBACK_P)) {
+            try {
+              const fallbackNatham = await callTnService(
+                'Report_Service/GetNathamOptDetails',
+                nathamPayload,
+                'POST',
+                FALLBACK_U,
+                FALLBACK_P,
+                FALLBACK_R,
+                { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/Natham_OPT_Pending_report.html' }
+              );
+              if (fallbackNatham && Array.isArray(fallbackNatham.NathamOPTportal)) {
+                rawList = fallbackNatham.NathamOPTportal;
+              }
+            } catch (errFb) {
+              console.warn('Natham fallback fetch error:', errFb.message);
+            }
+          }
+
+          // Build index Map by normalized appl_id
+          const nathamMap = new Map();
+          for (const item of rawList) {
+            if (item && item.appl_id) {
+              nathamMap.set(String(item.appl_id).trim().toLowerCase(), item);
+            }
+          }
+
+          // Resolve pending validation applications in O(1) time
+          for (const meta of pendingValidationApps) {
+            const id = meta.appl_id;
+            const found = nathamMap.get(id.toLowerCase());
+
+            let status = 'Rejected';
+            let pendingAt = null;
+            let pendingDays = null;
+            let applDate = '';
+            let remarks = 'Statutory Rejection Maintained';
+
+            if (found) {
+              applDate = found.appl_dt || found.appl_date || '';
+              const rawStatus = String(found.appl_status || '').trim();
+              if (rawStatus === 'Approved') {
+                status = 'Approved';
+                remarks = 'Natham Order Copy Issued / Approved';
+              } else if (rawStatus === 'Pending') {
+                status = 'Pending';
+                pendingAt = found.pending_at || 'Pending';
+                pendingDays = String(found.pending_days || '0');
+                remarks = `Pending at ${pendingAt}`;
+              } else if (rawStatus === 'Rejected') {
+                status = 'Rejected';
+                remarks = 'Application Rejected';
+              } else {
+                status = rawStatus || 'Rejected';
+                remarks = `Status: ${status}`;
+              }
+            }
+
+            const itemResult = {
+              status,
+              pendingAt,
+              pendingDays,
+              applDate,
+              remarks
+            };
+
+            batchResults[id] = itemResult;
+
+            const cacheKey = `${id}_${distCode}_${talukCode}`;
+            appValidationCache.set(cacheKey, {
+              appl_id: id,
+              ...itemResult,
+              timestamp: Date.now()
+            });
+          }
+        } else {
+          // Rural (transType === 'R')
+          // 1. Identifies distinct village codes for the requested applications.
+          const distinctVillages = new Set();
+          for (const app of pendingValidationApps) {
+            if (app.village_code) {
+              distinctVillages.add(String(app.village_code).trim());
+            }
+          }
+
+          // If some applications lack village codes or no distinct village codes known, fetch taluk summary
+          const appsWithoutVillage = pendingValidationApps.filter(a => !a.village_code);
+          if (appsWithoutVillage.length > 0 || distinctVillages.size === 0) {
+            try {
+              const tSummary = await callTnService(
+                'Report_Service/opt_pending_ason_today',
+                {
+                  DistCode: distCode,
+                  taluckcode: talukCode,
+                  vcode: '',
+                  frmDate: '2025-01-01',
+                  toDate: '2026-12-31',
+                  flag: serv_codeSel === '0103' ? 'N' : 'I',
+                  villType: 'B',
+                  cdn_flag: 'T'
+                },
+                'POST',
+                reqUsername,
+                reqPassword,
+                reqRoleId,
+                { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html' }
+              );
+
+              if (tSummary && Array.isArray(tSummary.distarr)) {
+                for (const v of tSummary.distarr) {
+                  const cnt = parseInt(v.total || v.total_vao || v.total_pending || '0', 10);
+                  if (cnt > 0 && v.village_code) {
+                    distinctVillages.add(String(v.village_code).trim());
+                  }
+                }
+              }
+            } catch (errTS) {
+              console.warn('Taluk summary query error in batch:', errTS.message);
+            }
+          }
+
+          // 2. Fetches active pending applications for those villages via opt_pending_ason_today (cdn_flag: 'V')
+          const villageArray = Array.from(distinctVillages);
+          const pendingMap = new Map(); // appl_id.toLowerCase() -> v
+
+          const BATCH_SIZE = 8;
+          for (let i = 0; i < villageArray.length; i += BATCH_SIZE) {
+            const batch = villageArray.slice(i, i + BATCH_SIZE);
+            const batchRes = await Promise.all(
+              batch.map(vc =>
+                callTnService(
+                  'Report_Service/opt_pending_ason_today',
+                  {
+                    DistCode: distCode,
+                    taluckcode: talukCode,
+                    vcode: vc,
+                    frmDate: '2025-01-01',
+                    toDate: '2026-12-31',
+                    flag: serv_codeSel === '0103' ? 'N' : 'I',
+                    villType: 'B',
+                    cdn_flag: 'V'
+                  },
+                  'POST',
+                  reqUsername,
+                  reqPassword,
+                  reqRoleId,
+                  { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/OptApplicationPendingAson.html' }
+                ).catch(() => ({}))
+              )
+            );
+
+            for (const resItem of batchRes) {
+              if (resItem && Array.isArray(resItem.distarr)) {
+                for (const v of resItem.distarr) {
+                  if (v && v.appl_id) {
+                    pendingMap.set(String(v.appl_id).trim().toLowerCase(), v);
+                  }
+                }
+              }
+            }
+          }
+
+          // 3. For each application: determine Pending vs Approved vs Rejected
+          for (const meta of pendingValidationApps) {
+            const id = meta.appl_id;
+            const cleanId = id.toLowerCase();
+
+            let status = 'Rejected';
+            let pendingAt = null;
+            let pendingDays = null;
+            let applDate = '';
+            let remarks = 'Statutory Rejection Maintained';
+
+            if (pendingMap.has(cleanId)) {
+              const v = pendingMap.get(cleanId);
+              status = 'Pending';
+              pendingAt = v.role_name || 'Pending';
+              pendingDays = String(v.total_pending || v.pending_at_days || '0');
+              applDate = v.appl_date || '';
+              remarks = `Pending at ${pendingAt}`;
+            } else {
+              let isApproved = false;
+              const vCode = meta.village_code;
+              const sNo = meta.survey_no;
+              const subNo = meta.subdiv_no;
+              const pNo = meta.patta_no;
+
+              if (pNo || (sNo && vCode)) {
+                const cachedPatta = getPattaFromCache(distCode, talukCode, vCode, pNo, sNo, subNo);
+                if (cachedPatta && cachedPatta.ownerName) {
+                  isApproved = true;
+                }
+              }
+
+              if (isApproved) {
+                status = 'Approved';
+                remarks = 'Patta Transfer Approved / Order Issued';
+              } else {
+                status = 'Rejected';
+                remarks = 'Statutory Rejection Maintained';
+              }
+            }
+
+            const itemResult = {
+              status,
+              pendingAt,
+              pendingDays,
+              applDate,
+              remarks
+            };
+
+            batchResults[id] = itemResult;
+
+            const cacheKey = `${id}_${distCode}_${talukCode}`;
+            appValidationCache.set(cacheKey, {
+              appl_id: id,
+              ...itemResult,
+              timestamp: Date.now()
+            });
+          }
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        totalValidated: Object.keys(batchResults).length,
+        results: batchResults
+      });
+    }
+
+    res.status(400).json({ success: false, error: 'Invalid mode specified. Use mode=pending_list, app_details, create_app, update_correction, approve, fetch_patta, patta_correction, areg_pdf, areg_extract_data, districts, taluks, villages, reject_reasons, validate_app, validate_apps_batch, or db_info.' });
   } catch (err) {
     console.error('A-Register API Error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });

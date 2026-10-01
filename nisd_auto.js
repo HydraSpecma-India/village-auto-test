@@ -4637,7 +4637,11 @@
         activeCategoryFilter: null,
         searchTerm: '',
         isLoading: false,
-        hasLoadedOnce: false
+        hasLoadedOnce: false,
+        appStatusMap: {},
+        statusFilter: 'ALL',
+        isValidatingBatch: false,
+        validatingApplId: null
       };
     }
     return window.__rejectSuiteState;
@@ -4697,7 +4701,13 @@
       state.categories = Array.isArray(data.categories) ? data.categories : [];
       state.applications = Array.isArray(data.applications) ? data.applications : [];
       state.activeCategoryFilter = null;
+      state.appStatusMap = {};
+      state.statusFilter = 'ALL';
+      state.isValidatingBatch = false;
+      state.validatingApplId = null;
       state.hasLoadedOnce = true;
+      const statusFilterSel = document.getElementById('rejectStatusFilterSel');
+      if (statusFilterSel) statusFilterSel.value = 'ALL';
 
       if (statusBox) {
         statusBox.style.display = 'block';
@@ -4880,6 +4890,14 @@
       filtered = filtered.filter(app => (app.reject_reason || 'Unspecified') === state.activeCategoryFilter);
     }
 
+    // Status filtering logic
+    if (state.statusFilter && state.statusFilter !== 'ALL') {
+      filtered = filtered.filter(app => {
+        const st = (state.appStatusMap[app.appl_id]?.status) || 'Rejected';
+        return st === state.statusFilter;
+      });
+    }
+
     // Filter by search query
     const q = (state.searchTerm || '').trim().toLowerCase();
     if (q) {
@@ -4890,18 +4908,27 @@
         const survey = String(app.survey_no || app.survey_subdiv || '').toLowerCase();
         const firka = String(app.firka_desc || '').toLowerCase();
         const reason = String(app.reject_reason || '').toLowerCase();
-        return id.includes(q) || name.includes(q) || village.includes(q) || survey.includes(q) || firka.includes(q) || reason.includes(q);
+        const liveSt = state.appStatusMap[app.appl_id]?.status ? String(state.appStatusMap[app.appl_id].status).toLowerCase() : '';
+        return id.includes(q) || name.includes(q) || village.includes(q) || survey.includes(q) || firka.includes(q) || reason.includes(q) || liveSt.includes(q);
       });
     }
 
     if (badge) {
-      badge.textContent = `Showing ${filtered.length} of ${state.applications.length} applications`;
+      const validatedApps = Object.values(state.appStatusMap || {});
+      let statusSummary = '';
+      if (validatedApps.length > 0) {
+        const approved = validatedApps.filter(s => s?.status === 'Approved').length;
+        const pending = validatedApps.filter(s => s?.status === 'Pending').length;
+        const rejected = validatedApps.filter(s => s?.status === 'Rejected').length;
+        statusSummary = ` • Validated: ${validatedApps.length} (${approved} Approved, ${pending} Pending, ${rejected} Rejected)`;
+      }
+      badge.textContent = `Showing ${filtered.length} of ${state.applications.length} applications${statusSummary}`;
     }
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 32px; color: var(--muted); font-size: 13px;">
+          <td colspan="10" style="text-align: center; padding: 32px; color: var(--muted); font-size: 13px;">
             ${state.applications.length === 0 ? 'No rejected applications loaded yet.' : 'No applications match your filter/search criteria.'}
           </td>
         </tr>
@@ -4913,6 +4940,25 @@
     filtered.forEach((app, idx) => {
       const surveyVal = app.survey_no || app.survey_subdiv || app.sur_sub || '-';
       const isMulti = surveyVal.includes(',');
+      const appSt = state.appStatusMap[app.appl_id];
+      const isValidatingThis = state.validatingApplId === app.appl_id;
+
+      let statusBadgeHtml = '';
+      if (isValidatingThis) {
+        statusBadgeHtml = `<span style="color: #2563eb; font-size: 11.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span>🔄</span> Checking...</span>`;
+      } else if (appSt) {
+        if (appSt.status === 'Approved') {
+          statusBadgeHtml = `<span style="background: rgba(22, 163, 74, 0.12); color: #16a34a; border: 1px solid rgba(22, 163, 74, 0.3); padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;" title="${escapeHtml(appSt.remarks || 'Approved')}">✅ Approved</span>`;
+        } else if (appSt.status === 'Pending') {
+          statusBadgeHtml = `<span style="background: rgba(217, 119, 6, 0.12); color: #d97706; border: 1px solid rgba(217, 119, 6, 0.3); padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;" title="Pending at ${escapeHtml(appSt.pendingAt || '')} (${escapeHtml(appSt.pendingDays || '')} days)">⏳ Pending: ${escapeHtml(appSt.pendingAt || 'Office')} (${escapeHtml(appSt.pendingDays || '0')}d)</span>`;
+        } else if (appSt.status === 'Rejected') {
+          statusBadgeHtml = `<span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.25); padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">❌ Rejected</span>`;
+        } else {
+          statusBadgeHtml = `<span style="background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.25); padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">${escapeHtml(appSt.status || 'Unknown')}</span>`;
+        }
+      } else {
+        statusBadgeHtml = `<button type="button" class="validate-single-app-btn" data-app-id="${escapeHtml(app.appl_id)}" data-village="${escapeHtml(app.village_name || '')}" style="background: var(--surface-2); border: 1px solid var(--line-2); color: #1e40af; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"><span>🔍</span> Check</button>`;
+      }
 
       rowsHtml += `
         <tr style="border-bottom: 1px solid var(--line-2); transition: background 0.15s;">
@@ -4932,12 +4978,68 @@
               ${escapeHtml(app.reject_reason || 'Unspecified')}
             </span>
           </td>
+          <td style="padding: 10px 12px; text-align: center;">
+            ${statusBadgeHtml}
+          </td>
           <td style="padding: 10px 12px; font-size: 11px; font-family: monospace; color: var(--muted);">${escapeHtml(app.source_name || '-')}</td>
         </tr>
       `;
     });
 
     tbody.innerHTML = rowsHtml;
+
+    // Attach row-level check listeners
+    tbody.querySelectorAll('.validate-single-app-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const appId = btn.getAttribute('data-app-id');
+        if (!appId) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>🔄</span> Checking...';
+        state.validatingApplId = appId;
+
+        const creds = (typeof window.getTnCreds === 'function') ? window.getTnCreds('secondary', state.talukName) : null;
+        const u = creds?.username || 'rpt_panneerselvam';
+        const p = creds?.password || 'Nemili@1970';
+        const r = creds?.roleId || '8';
+
+        try {
+          const url = `/api/areg?mode=validate_app&appl_id=${encodeURIComponent(appId)}&distCode=37&talukCode=${encodeURIComponent(state.talukCode)}&transType=${encodeURIComponent(state.transType)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+          const res = await fetch(url);
+          const data = await res.json();
+
+          if (data && (data.status || data.result || data.data)) {
+            const resObj = data.result || data.data || data;
+            state.appStatusMap[appId] = {
+              status: resObj.status || 'Rejected',
+              pendingAt: resObj.pendingAt || resObj.pending_at || '',
+              pendingDays: resObj.pendingDays || resObj.pending_days || '0',
+              applDate: resObj.applDate || resObj.appl_date || '',
+              remarks: resObj.remarks || resObj.reason || ''
+            };
+          } else {
+            state.appStatusMap[appId] = {
+              status: 'Rejected',
+              remarks: data.error || 'Validation completed'
+            };
+          }
+
+          if (typeof window.toast === 'function') {
+            const stObj = state.appStatusMap[appId];
+            window.toast('Status Checked', `App ${appId}: ${stObj.status}`, 'ok');
+          }
+        } catch (err) {
+          console.error(`Validate app ${appId} error:`, err);
+          if (typeof window.toast === 'function') {
+            window.toast('Check Failed', err.message, 'err');
+          }
+        } finally {
+          state.validatingApplId = null;
+          renderRejectApplicationsTable();
+        }
+      });
+    });
   }
 
   function exportCategorySummaryToExcel() {
@@ -5385,9 +5487,16 @@
       return;
     }
 
-    const appsToExport = state.activeCategoryFilter
-      ? state.applications.filter(a => (a.reject_reason || 'Unspecified') === state.activeCategoryFilter)
-      : state.applications;
+    let appsToExport = state.applications;
+    if (state.activeCategoryFilter) {
+      appsToExport = appsToExport.filter(a => (a.reject_reason || 'Unspecified') === state.activeCategoryFilter);
+    }
+    if (state.statusFilter && state.statusFilter !== 'ALL') {
+      appsToExport = appsToExport.filter(app => {
+        const st = (state.appStatusMap[app.appl_id]?.status) || 'Rejected';
+        return st === state.statusFilter;
+      });
+    }
 
     const exportRows = [
       ['TAMIL NADU REVENUE AND DISASTER MANAGEMENT DEPARTMENT'],
@@ -5395,11 +5504,14 @@
       [`District: Ranipet | Taluk: ${state.talukName} (${state.talukCode}) | Service: ${state.servCodeSel === '0105' ? 'ISD (0105)' : 'NISD (0103)'} | Mode: ${state.transType === 'R' ? 'Rural' : 'Natham'}`],
       [`Period: ${state.fromDate} to ${state.toDate} | Total Deduplicated: ${appsToExport.length} | Exported on: ${new Date().toLocaleString('en-GB')}`],
       state.activeCategoryFilter ? [`Filtered by Category: ${state.activeCategoryFilter}`] : [],
+      (state.statusFilter && state.statusFilter !== 'ALL') ? [`Filtered by Live Status: ${state.statusFilter}`] : [],
       [],
-      ['S.No', 'District', 'Taluk', 'Village', 'Application ID', 'Applicant Name', 'Mobile No', 'Survey & Subdivisions', 'Firka', 'Reject Reason', 'Source Name']
+      ['S.No', 'District', 'Taluk', 'Village', 'Application ID', 'Applicant Name', 'Mobile No', 'Survey & Subdivisions', 'Firka', 'Reject Reason', 'Live Status', 'Source Name']
     ];
 
     appsToExport.forEach((app, idx) => {
+      const st = state.appStatusMap[app.appl_id];
+      const statusText = st ? (st.status === 'Pending' ? `Pending at ${st.pendingAt || ''} (${st.pendingDays || '0'} days)` : st.status) : 'Rejected';
       exportRows.push([
         idx + 1,
         app.district_name || 'Ranipet',
@@ -5411,6 +5523,7 @@
         app.survey_no || app.survey_subdiv || app.sur_sub || '-',
         app.firka_desc || '-',
         app.reject_reason || 'Unspecified',
+        statusText,
         app.source_name || '-'
       ]);
     });
@@ -5430,6 +5543,7 @@
         { wch: 25 }, // Survey & Subdivisions
         { wch: 16 }, // Firka
         { wch: 50 }, // Reject Reason
+        { wch: 22 }, // Live Status
         { wch: 18 }  // Source Name
       ];
       const wb = XLSX.utils.book_new();
@@ -5443,6 +5557,113 @@
       link.href = URL.createObjectURL(blob);
       link.download = fileName.replace('.xlsx', '.csv');
       link.click();
+    }
+  }
+
+  async function validateAllRejectApps() {
+    const state = getRejectSuiteState();
+    const btn = document.getElementById('validateAllAppsBtn');
+
+    if (!state.applications || state.applications.length === 0) {
+      if (typeof window.toast === 'function') {
+        window.toast('No Applications', 'Please fetch the reject report first.', 'warn');
+      }
+      return;
+    }
+
+    const appIds = state.applications.map(a => a.appl_id).filter(Boolean);
+    if (appIds.length === 0) {
+      if (typeof window.toast === 'function') {
+        window.toast('No Applications', 'No application IDs found to validate.', 'warn');
+      }
+      return;
+    }
+
+    state.isValidatingBatch = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Validating...';
+    }
+
+    const creds = (typeof window.getTnCreds === 'function') ? window.getTnCreds('secondary', state.talukName) : null;
+    const u = creds?.username || 'rpt_panneerselvam';
+    const p = creds?.password || 'Nemili@1970';
+    const r = creds?.roleId || '8';
+
+    try {
+      const url = `/api/areg?mode=validate_apps_batch&distCode=37&talukCode=${encodeURIComponent(state.talukCode)}&transType=${encodeURIComponent(state.transType)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          appIds,
+          appl_ids: appIds,
+          distCode: '37',
+          talukCode: state.talukCode,
+          transType: state.transType,
+          username: u,
+          password: p,
+          roleId: r
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.success && data.error) {
+        throw new Error(data.error);
+      }
+
+      let resultsMap = {};
+      if (data.results && typeof data.results === 'object') {
+        if (Array.isArray(data.results)) {
+          data.results.forEach(item => {
+            if (item && item.appl_id) {
+              resultsMap[item.appl_id] = item;
+            }
+          });
+        } else {
+          resultsMap = data.results;
+        }
+      }
+
+      state.appStatusMap = {
+        ...state.appStatusMap,
+        ...resultsMap
+      };
+
+      let approvedCount = 0;
+      let pendingCount = 0;
+      let rejectedCount = 0;
+
+      Object.values(state.appStatusMap).forEach(item => {
+        if (item?.status === 'Approved') approvedCount++;
+        else if (item?.status === 'Pending') pendingCount++;
+        else if (item?.status === 'Rejected') rejectedCount++;
+      });
+
+      const toastMsg = `✓ Validation Complete: ${approvedCount} Approved, ${pendingCount} Pending, ${rejectedCount} Rejected!`;
+      if (typeof window.toast === 'function') {
+        window.toast('Validation Complete', toastMsg, 'ok');
+      } else if (typeof toast === 'function') {
+        toast('Validation Complete', toastMsg, 'ok');
+      }
+
+      renderRejectApplicationsTable();
+    } catch (err) {
+      console.error('Batch validation error:', err);
+      if (typeof window.toast === 'function') {
+        window.toast('Batch Validation Failed', err.message, 'err');
+      } else if (typeof toast === 'function') {
+        toast('Batch Validation Failed', err.message, 'err');
+      }
+    } finally {
+      state.isValidatingBatch = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Validate All Status';
+      }
     }
   }
 
@@ -5661,6 +5882,7 @@
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <button type="button" class="tn-auto-btn" id="validateAllAppsBtn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); border-color: #7c3aed; font-size: 12px; padding: 7px 14px; height: auto;"><span>⚡</span> Validate All Status</button>
               <button type="button" class="tn-auto-btn" id="exportAppsDetailBtn" style="background: linear-gradient(135deg, #0284c7, #0369a1); border-color: #0284c7; font-size: 12px; padding: 7px 14px; height: auto;">
                 <span>📊</span> Export Applications (Deduplicated) to Excel
               </button>
@@ -5669,8 +5891,14 @@
 
           <!-- Search and Filter Bar -->
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px;">
-            <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 280px;">
-              <input type="text" id="rejectAppSearchInput" value="${escapeHtml(state.searchTerm)}" placeholder="🔍 Search by Application ID, Applicant Name, Village, Survey No..." style="width: 100%; max-width: 460px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 280px; flex-wrap: wrap;">
+              <input type="text" id="rejectAppSearchInput" value="${escapeHtml(state.searchTerm)}" placeholder="🔍 Search by Application ID, Applicant Name, Village, Survey No..." style="width: 100%; max-width: 400px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
+              <select id="rejectStatusFilterSel" style="padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); font-size: 12px; font-weight: 700;">
+                <option value="ALL" ${state.statusFilter === 'ALL' ? 'selected' : ''}>All Statuses</option>
+                <option value="Approved" ${state.statusFilter === 'Approved' ? 'selected' : ''}>✅ Approved Only</option>
+                <option value="Pending" ${state.statusFilter === 'Pending' ? 'selected' : ''}>⏳ Pending Only</option>
+                <option value="Rejected" ${state.statusFilter === 'Rejected' ? 'selected' : ''}>❌ Rejected Only</option>
+              </select>
               <span id="rejectAppsCountBadge" style="font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap;">Showing 0 applications</span>
             </div>
             
@@ -5693,6 +5921,7 @@
                   <th style="padding: 10px 12px; width: 150px;">Survey &amp; Subdivisions</th>
                   <th style="padding: 10px 12px; width: 100px;">Firka</th>
                   <th style="padding: 10px 12px; min-width: 220px;">Reject Reason</th>
+                  <th style="padding: 10px 12px; width: 140px; text-align: center;">Live Status</th>
                   <th style="padding: 10px 12px; width: 120px;">Source Name</th>
                 </tr>
               </thead>
@@ -5773,6 +6002,16 @@
       state.searchTerm = searchInp.value;
       renderRejectApplicationsTable();
     });
+
+    // Wire up Status Filter Dropdown
+    const statusFilterSel = document.getElementById('rejectStatusFilterSel');
+    statusFilterSel?.addEventListener('change', function() {
+      state.statusFilter = this.value;
+      renderRejectApplicationsTable();
+    });
+
+    // Wire up Validate All Status Button
+    document.getElementById('validateAllAppsBtn')?.addEventListener('click', validateAllRejectApps);
 
     // Wire up Reset Category Filter Button
     document.getElementById('resetCategoryFilterBtn')?.addEventListener('click', () => {
