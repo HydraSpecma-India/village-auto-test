@@ -1257,7 +1257,7 @@
       </div>
       <button class="iconbtn" id="acctBtn" title="My account" aria-label="My account" style="display:none">&#128273;</button>
       <button class="iconbtn" id="usersBtn" title="Users &amp; stored files" aria-label="Users" style="display:none">&#128100;</button>
-      <button class="iconbtn" id="adminBtn" title="Admin — set the day ranges" aria-label="Admin settings" style="display:none">&#9881;</button>
+      <button class="iconbtn" id="adminBtn" title="Day / Date Ranges &amp; Settings" aria-label="Day / Date Ranges &amp; Settings">&#9881;</button>
       <button class="iconbtn" id="signOutBtn" title="Sign out" aria-label="Sign out" style="display:none">&#9099;</button>
       <button class="iconbtn" id="themeBtn" title="Toggle dark / light theme" aria-label="Toggle theme">&#9789;</button>
     </div>
@@ -6211,8 +6211,6 @@ window.saveAllTnCreds = saveAllTnCreds;
 window.saveTnCreds = saveTnCreds;
 
 function openAdmin(){
-  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if(!isAdmin) return;
   renderAdmin();
   document.getElementById('adminPanel').hidden = false;
   document.getElementById('adminBack').hidden = false;
@@ -6385,7 +6383,8 @@ function renderWhoAmI(){
   }
   const adminBtn = document.getElementById('adminBtn');
   if(adminBtn){
-    adminBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    adminBtn.style.display = 'inline-flex';
+    adminBtn.title = 'Day / Date Ranges & Settings';
   }
 }
 

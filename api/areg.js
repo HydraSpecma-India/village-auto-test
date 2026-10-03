@@ -39,6 +39,64 @@ const SERVICE_NAMES = {
 
 const pattaLookupCache = new Map();
 const appValidationCache = new Map();
+const talukVillagesCache = new Map();
+
+async function resolveVillageCode(distCode, talukCode, villageName) {
+  if (!villageName) return '';
+  const cleanName = String(villageName).trim().toLowerCase();
+  const cacheKey = `${distCode || '37'}_${talukCode || '12'}`;
+  let vList = talukVillagesCache.get(cacheKey);
+  if (!vList) {
+    try {
+      const data = await callTnService('Master/getVillage', { DistrictCode: distCode || '37', talukCode: talukCode || '12' }, 'GET', FALLBACK_U, FALLBACK_P, FALLBACK_R);
+      let arr = [];
+      if (Array.isArray(data)) arr = data;
+      else if (data && data.villageArray) {
+        arr = typeof data.villageArray === 'string' ? JSON.parse(data.villageArray) : data.villageArray;
+      }
+      if (Array.isArray(arr) && arr.length > 0) {
+        vList = arr.map(v => ({
+          code: String(v.village_code || v.vcode || v.id || '').padStart(3, '0'),
+          name: String(v.village_name || v.vill_name || v.name || '').trim()
+        }));
+        talukVillagesCache.set(cacheKey, vList);
+      }
+    } catch (e) {}
+  }
+  if (Array.isArray(vList)) {
+    const match = vList.find(v => {
+      const vn = v.name.toLowerCase();
+      return vn === cleanName || vn.includes(cleanName) || cleanName.includes(vn);
+    });
+    if (match) return match.code;
+  }
+  if (String(distCode) === '37' && String(talukCode) === '12') {
+    const nemiliFallbacks = [
+      { code: '045', name: 'karivedu' },
+      { code: '122', name: 'nemili' },
+      { code: '034', name: 'kaveripakkam' },
+      { code: '059', name: 'kilvenpakka' },
+      { code: '059', name: 'keelvenpakkam' },
+      { code: '059', name: 'kilvenpakkam' },
+      { code: '059', name: 'keelvenpakka' },
+      { code: '001', name: 'akkachikuppam' },
+      { code: '002', name: 'alapakkam' },
+      { code: '003', name: 'ambarithapuram' },
+      { code: '004', name: 'anamallur' },
+      { code: '005', name: 'ananthapuram' },
+      { code: '006', name: 'arigilapadi' },
+      { code: '007', name: 'arumbakkam' },
+      { code: '008', name: 'asamandhur' },
+      { code: '009', name: 'athipattu' },
+      { code: '010', name: 'attuputhur' },
+      { code: '011', name: 'banavaram' },
+      { code: '070', name: 'panapakkam' }
+    ];
+    const fbMatch = nemiliFallbacks.find(v => v.name === cleanName || v.name.includes(cleanName) || cleanName.includes(v.name));
+    if (fbMatch) return fbMatch.code;
+  }
+  return '';
+}
 
 function isPlaceholderOwner(name) {
   if (!name || typeof name !== 'string') return true;
@@ -1837,6 +1895,7 @@ module.exports = async (req, res) => {
           const record = {
             ...raw,
             appl_id: applId,
+            village_code: String(raw.village_code || raw.villageCode || raw.vill_code || raw.vcode || '').trim(),
             village_name: String(raw.village_name || raw.villageName || raw.vill_name || '').trim(),
             appl_name: String(raw.appl_name || raw.applName || raw.applicant_name || raw.applicantName || '').trim(),
             mobile_no: String(raw.mobile_no || raw.mobileNo || raw.mobile || raw.phone_no || '').trim(),
@@ -1852,6 +1911,9 @@ module.exports = async (req, res) => {
           const existing = appMap.get(applId);
           if (pair && !existing._pairs.includes(pair)) {
             existing._pairs.push(pair);
+          }
+          if (!existing.village_code && (raw.village_code || raw.villageCode || raw.vill_code || raw.vcode)) {
+            existing.village_code = String(raw.village_code || raw.villageCode || raw.vill_code || raw.vcode).trim();
           }
           if (!existing.village_name && raw.village_name) existing.village_name = String(raw.village_name).trim();
           if (!existing.appl_name && raw.appl_name) existing.appl_name = String(raw.appl_name).trim();
@@ -1872,28 +1934,39 @@ module.exports = async (req, res) => {
       const uniqueAppsArray = [];
       for (const app of appMap.values()) {
         const surveyPairsStr = app._pairs.join(', ');
+        const firstPair = app._pairs[0] || '';
         delete app._pairs;
         app.survey_no = surveyPairsStr || app.survey_no || '';
         app.survey_subdiv = surveyPairsStr || app.survey_subdiv || '';
+        app.sur_sub = surveyPairsStr || app.sur_sub || '';
+        if (firstPair && firstPair.includes('/')) {
+          const [s, sub] = firstPair.split('/');
+          app.primary_survey_no = s;
+          app.primary_subdiv_no = sub;
+        }
         app.sur_sub = surveyPairsStr || app.sur_sub || '';
         uniqueAppsArray.push(app);
       }
 
       // 2. CATEGORY-WISE AGGREGATION:
       // Group the unique applications by reject_reason.
+      // Collect application IDs belonging to each reason.
       // Count unique applications per category.
       // Sort categories by count descending.
-      // Calculate percentage share for each category.
       const categoryMap = new Map();
       for (const app of uniqueAppsArray) {
         const reason = sanitizeRejectReason(app.reject_reason);
         app.reject_reason = reason;
-        categoryMap.set(reason, (categoryMap.get(reason) || 0) + 1);
+        if (!categoryMap.has(reason)) {
+          categoryMap.set(reason, []);
+        }
+        categoryMap.get(reason).push(app.appl_id);
       }
 
       const totalUnique = uniqueAppsArray.length;
       const categoriesArray = Array.from(categoryMap.entries())
-        .map(([reason, count]) => {
+        .map(([reason, appIds]) => {
+          const count = appIds.length;
           const percentage = totalUnique > 0 ? parseFloat(((count / totalUnique) * 100).toFixed(2)) : 0;
           return {
             reason,
@@ -1901,7 +1974,9 @@ module.exports = async (req, res) => {
             category: reason,
             count,
             percentage,
-            percentage_str: `${percentage}%`
+            percentage_str: `${percentage}%`,
+            application_ids: appIds,
+            application_ids_str: appIds.join(', ')
           };
         })
         .sort((a, b) => b.count - a.count);
@@ -2068,6 +2143,50 @@ module.exports = async (req, res) => {
       const cleanApplId = appl_id.toLowerCase();
       let foundPending = null;
 
+      if (!villageCode && (params.villageName || params.village_name || params.vill_name)) {
+        villageCode = await resolveVillageCode(distCode, talukCode, params.villageName || params.village_name || params.vill_name);
+      }
+
+      // Check Tamil Nilam PattaOrder Completed Application Orders first (direct Approval check)
+      if (villageCode) {
+        try {
+          const completed = await callTnService(
+            'Master/getCompletedApplicationIds',
+            {
+              districtCode: String(distCode).padStart(2, '0'),
+              talukCode: String(talukCode).padStart(2, '0'),
+              villageCode: String(villageCode).padStart(3, '0'),
+              frmdt: '01-01-2025',
+              todt: '31-12-2026',
+              txntype: serv_codeSel === '0103' ? '0103' : '0105'
+            },
+            'POST',
+            FALLBACK_U,
+            FALLBACK_P,
+            FALLBACK_R,
+            { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/PattaOrder_vs.html' }
+          );
+          if (completed && Array.isArray(completed.applIds)) {
+            const matched = completed.applIds.find(a => a && a.applid && a.applid.toLowerCase().replace(/[\/\\]/g, '') === cleanApplId.replace(/[\/\\]/g, ''));
+            if (matched) {
+              const resObj = {
+                appl_id,
+                status: 'Approved',
+                pendingAt: null,
+                pendingDays: null,
+                applDate: matched.order_date || '',
+                remarks: `Patta Order Copy Issued / Approved (${matched.appl_name || ''})`,
+                timestamp: Date.now()
+              };
+              appValidationCache.set(cacheKey, resObj);
+              return res.status(200).json({ success: true, ...resObj, source: 'live_completed_order' });
+            }
+          }
+        } catch (eComp) {
+          console.warn('Completed apps lookup error:', eComp.message);
+        }
+      }
+
       if (villageCode) {
         try {
           const vPending = await callTnService(
@@ -2214,9 +2333,42 @@ module.exports = async (req, res) => {
           }
         }
 
+        // Check Tamil Nilam PattaOrder Completed Application Orders
+        if (!isApproved && villageCode) {
+          try {
+            const completed = await callTnService(
+              'Master/getCompletedApplicationIds',
+              {
+                districtCode: String(distCode).padStart(2, '0'),
+                talukCode: String(talukCode).padStart(2, '0'),
+                villageCode: String(villageCode).padStart(3, '0'),
+                frmdt: '01-01-2025',
+                todt: '31-12-2026',
+                txntype: serv_codeSel === '0103' ? '0103' : '0105'
+              },
+              'POST',
+              FALLBACK_U,
+              FALLBACK_P,
+              FALLBACK_R,
+              { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/PattaOrder_vs.html' }
+            );
+            if (completed && Array.isArray(completed.applIds)) {
+              const matched = completed.applIds.find(a => a && a.applid && a.applid.toLowerCase().replace(/[\/\\]/g, '') === cleanApplId.replace(/[\/\\]/g, ''));
+              if (matched) {
+                isApproved = true;
+                remarks = `Patta Order Copy Issued / Approved (${matched.appl_name || ''})`;
+              }
+            }
+          } catch (eComp) {
+            console.warn('Completed apps lookup error:', eComp.message);
+          }
+        }
+
         if (isApproved) {
           status = 'Approved';
-          remarks = 'Patta Transfer Approved / Order Issued';
+          if (!remarks || remarks === 'Statutory Rejection Maintained') {
+            remarks = 'Patta Transfer Approved / Order Issued';
+          }
         } else {
           status = 'Rejected';
           remarks = 'Statutory Rejection Maintained';
@@ -2433,6 +2585,9 @@ module.exports = async (req, res) => {
           // 1. Identifies distinct village codes for the requested applications.
           const distinctVillages = new Set();
           for (const app of pendingValidationApps) {
+            if (!app.village_code && app.village_name) {
+              app.village_code = await resolveVillageCode(distCode, talukCode, app.village_name);
+            }
             if (app.village_code) {
               distinctVillages.add(String(app.village_code).trim());
             }
@@ -2515,10 +2670,48 @@ module.exports = async (req, res) => {
             }
           }
 
+          // 2b. Fetches completed application orders for those villages via Master/getCompletedApplicationIds
+          const completedMap = new Map(); // normalized appl_id without slashes -> orderObj
+          for (let i = 0; i < villageArray.length; i += BATCH_SIZE) {
+            const batch = villageArray.slice(i, i + BATCH_SIZE);
+            const compBatchRes = await Promise.all(
+              batch.map(vc =>
+                callTnService(
+                  'Master/getCompletedApplicationIds',
+                  {
+                    districtCode: String(distCode).padStart(2, '0'),
+                    talukCode: String(talukCode).padStart(2, '0'),
+                    villageCode: String(vc).padStart(3, '0'),
+                    frmdt: '01-01-2025',
+                    todt: '31-12-2026',
+                    txntype: serv_codeSel === '0103' ? '0103' : '0105'
+                  },
+                  'POST',
+                  FALLBACK_U,
+                  FALLBACK_P,
+                  FALLBACK_R,
+                  { 'Referer': 'https://tamilnilam.tn.gov.in/Revenue/PattaOrder_vs.html' }
+                ).catch(() => ({}))
+              )
+            );
+
+            for (const cRes of compBatchRes) {
+              if (cRes && Array.isArray(cRes.applIds)) {
+                for (const ord of cRes.applIds) {
+                  if (ord && ord.applid) {
+                    const normId = String(ord.applid).trim().toLowerCase().replace(/[\/\\]/g, '');
+                    completedMap.set(normId, ord);
+                  }
+                }
+              }
+            }
+          }
+
           // 3. For each application: determine Pending vs Approved vs Rejected
           for (const meta of pendingValidationApps) {
             const id = meta.appl_id;
             const cleanId = id.toLowerCase();
+            const normId = cleanId.replace(/[\/\\]/g, '');
 
             let status = 'Rejected';
             let pendingAt = null;
@@ -2533,6 +2726,10 @@ module.exports = async (req, res) => {
               pendingDays = String(v.total_pending || v.pending_at_days || '0');
               applDate = v.appl_date || '';
               remarks = `Pending at ${pendingAt}`;
+            } else if (completedMap.has(normId)) {
+              const ord = completedMap.get(normId);
+              status = 'Approved';
+              remarks = `Patta Order Copy Issued / Approved (${ord.appl_name || ''})`;
             } else {
               let isApproved = false;
               const vCode = meta.village_code;

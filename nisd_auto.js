@@ -4636,6 +4636,7 @@
         applications: [],
         activeCategoryFilter: null,
         searchTerm: '',
+        surveySearchTerm: '',
         isLoading: false,
         hasLoadedOnce: false,
         appStatusMap: {},
@@ -4748,14 +4749,28 @@
   function updateRejectKPIs() {
     const state = getRejectSuiteState();
     const elUnique = document.getElementById('kpiUniqueApps');
+    const elApproved = document.getElementById('kpiApprovedApps');
+    const elRejected = document.getElementById('kpiRejectedApps');
+    const elPending = document.getElementById('kpiPendingApps');
     const elRaw = document.getElementById('kpiRawRecords');
     const elDups = document.getElementById('kpiDuplicatesRemoved');
     const elTopReason = document.getElementById('kpiTopReason');
     const elTopCount = document.getElementById('kpiTopReasonCount');
 
-    if (elUnique) elUnique.textContent = state.uniqueAppsCount.toLocaleString();
-    if (elRaw) elRaw.textContent = state.rawRecordsCount.toLocaleString();
-    if (elDups) elDups.textContent = `${state.duplicatesEliminated} removed`;
+    const totalUnique = state.uniqueAppsCount || 0;
+    const validatedList = Object.values(state.appStatusMap || {});
+    const approvedCount = validatedList.filter(s => s?.status === 'Approved').length;
+    const pendingCount = validatedList.filter(s => s?.status === 'Pending').length;
+    // As applications are validated/found approved, the rejected count reduces:
+    const netRejected = Math.max(0, totalUnique - approvedCount - pendingCount);
+
+    if (elUnique) elUnique.textContent = totalUnique.toLocaleString();
+    if (elApproved) elApproved.textContent = approvedCount.toLocaleString();
+    if (elRejected) elRejected.textContent = netRejected.toLocaleString();
+    if (elPending) elPending.textContent = pendingCount.toLocaleString();
+
+    if (elRaw) elRaw.textContent = (state.rawRecordsCount || 0).toLocaleString();
+    if (elDups) elDups.textContent = `${state.duplicatesEliminated || 0} removed`;
 
     if (elTopReason && elTopCount) {
       if (state.categories.length > 0) {
@@ -4763,7 +4778,7 @@
         const reasonText = top.reason || 'Unspecified';
         elTopReason.textContent = reasonText;
         elTopReason.title = reasonText;
-        elTopCount.textContent = `${top.count} applications (${top.percentage_str || `${top.percentage}%`})`;
+        elTopCount.textContent = `${top.count} applications`;
       } else {
         elTopReason.textContent = '-';
         elTopReason.title = '';
@@ -4790,8 +4805,13 @@
     state.categories.forEach((cat, idx) => {
       grandTotal += (cat.count || 0);
       const isFiltered = state.activeCategoryFilter === cat.reason;
-      const pct = cat.percentage != null ? cat.percentage : 0;
-      const pctStr = cat.percentage_str || `${pct}%`;
+
+      // Extract all application IDs for this category as comma-separated single string
+      const catApps = state.applications.filter(app => (app.reject_reason || 'Unspecified') === (cat.reason || 'Unspecified'));
+      const appIds = (cat.application_ids && cat.application_ids.length > 0)
+        ? cat.application_ids
+        : catApps.map(a => a.appl_id).filter(Boolean);
+      const appIdsStr = cat.application_ids_str || appIds.join(', ');
 
       rowsHtml += `
         <tr style="border-bottom: 1px solid var(--line-2); transition: background 0.15s; ${isFiltered ? 'background: rgba(37, 99, 235, 0.12);' : ''}">
@@ -4803,12 +4823,9 @@
             </div>
           </td>
           <td style="padding: 10px 14px; text-align: right; font-weight: 700; font-size: 13.5px; color: var(--ink);">${(cat.count || 0).toLocaleString()}</td>
-          <td style="padding: 10px 14px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div style="flex: 1; height: 8px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden;">
-                <div style="width: ${Math.min(100, Math.max(0, pct))}%; height: 100%; background: linear-gradient(90deg, #dc2626, #b91c1c); border-radius: 4px;"></div>
-              </div>
-              <span style="font-size: 11.5px; font-weight: 700; color: var(--muted); min-width: 44px; text-align: right;">${pctStr}</span>
+          <td style="padding: 8px 12px; font-family: monospace; font-size: 11px; color: #1e40af; line-height: 1.45;">
+            <div style="max-height: 75px; overflow-y: auto; padding: 4px 8px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; word-break: break-all; user-select: all;" title="Application IDs in this category (comma-separated)">
+              ${escapeHtml(appIdsStr || '-')}
             </div>
           </td>
           <td style="padding: 10px 14px; text-align: center;">
@@ -4828,7 +4845,7 @@
           <td style="padding: 12px 14px; text-align: center; font-weight: 800; color: var(--ink);">Total</td>
           <td style="padding: 12px 14px; font-weight: 800; color: var(--ink);">Grand Total (Unique Applications)</td>
           <td style="padding: 12px 14px; text-align: right; font-weight: 800; font-size: 14px; color: var(--ink);">${grandTotal.toLocaleString()}</td>
-          <td style="padding: 12px 14px; font-weight: 800; color: #16a34a;">100.00%</td>
+          <td style="padding: 12px 14px; font-weight: 700; font-size: 11.5px; color: var(--muted); font-family: monospace;">All ${grandTotal} Application IDs Concatenated</td>
           <td style="padding: 12px 14px; text-align: center;">
             <button type="button" class="clear-cat-filter-btn" style="background: transparent; border: 1px solid var(--line-2); color: var(--ink); font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
               Show All (${grandTotal})
@@ -4913,6 +4930,15 @@
       });
     }
 
+    // Filter by dedicated survey number search query
+    const sq = (state.surveySearchTerm || '').trim().toLowerCase();
+    if (sq) {
+      filtered = filtered.filter(app => {
+        const survey = String(app.survey_no || app.survey_subdiv || app.sur_sub || '').toLowerCase();
+        return survey.includes(sq);
+      });
+    }
+
     if (badge) {
       const validatedApps = Object.values(state.appStatusMap || {});
       let statusSummary = '';
@@ -4957,7 +4983,7 @@
           statusBadgeHtml = `<span style="background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.25); padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">${escapeHtml(appSt.status || 'Unknown')}</span>`;
         }
       } else {
-        statusBadgeHtml = `<button type="button" class="validate-single-app-btn" data-app-id="${escapeHtml(app.appl_id)}" data-village="${escapeHtml(app.village_name || '')}" style="background: var(--surface-2); border: 1px solid var(--line-2); color: #1e40af; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"><span>🔍</span> Check</button>`;
+        statusBadgeHtml = `<button type="button" class="validate-single-app-btn" data-app-id="${escapeHtml(app.appl_id)}" data-village-code="${escapeHtml(app.village_code || '')}" data-village-name="${escapeHtml(app.village_name || '')}" data-survey-no="${escapeHtml(app.survey_no || app.primary_survey_no || '')}" data-subdiv-no="${escapeHtml(app.subdiv_no || app.primary_subdiv_no || '')}" style="background: var(--surface-2); border: 1px solid var(--line-2); color: #1e40af; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"><span>🔍</span> Check</button>`;
       }
 
       rowsHtml += `
@@ -4993,6 +5019,10 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const appId = btn.getAttribute('data-app-id');
+        const villageCode = btn.getAttribute('data-village-code') || '';
+        const villageName = btn.getAttribute('data-village-name') || '';
+        const surveyNo = btn.getAttribute('data-survey-no') || '';
+        const subdivNo = btn.getAttribute('data-subdiv-no') || '';
         if (!appId) return;
 
         btn.disabled = true;
@@ -5005,7 +5035,7 @@
         const r = creds?.roleId || '8';
 
         try {
-          const url = `/api/areg?mode=validate_app&appl_id=${encodeURIComponent(appId)}&distCode=37&talukCode=${encodeURIComponent(state.talukCode)}&transType=${encodeURIComponent(state.transType)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
+          const url = `/api/areg?mode=validate_app&appl_id=${encodeURIComponent(appId)}&villageCode=${encodeURIComponent(villageCode)}&villageName=${encodeURIComponent(villageName)}&surveyNo=${encodeURIComponent(surveyNo)}&subdivNo=${encodeURIComponent(subdivNo)}&distCode=37&talukCode=${encodeURIComponent(state.talukCode)}&transType=${encodeURIComponent(state.transType)}&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&roleId=${encodeURIComponent(r)}`;
           const res = await fetch(url);
           const data = await res.json();
 
@@ -5036,6 +5066,8 @@
           }
         } finally {
           state.validatingApplId = null;
+          updateRejectKPIs();
+          renderRejectCategoryTable();
           renderRejectApplicationsTable();
         }
       });
@@ -5055,28 +5087,36 @@
       [`District: Ranipet | Taluk: ${state.talukName} (${state.talukCode}) | Service: ${state.servCodeSel === '0105' ? 'ISD (0105)' : 'NISD (0103)'} | Mode: ${state.transType === 'R' ? 'Rural' : 'Natham'}`],
       [`Period: ${state.fromDate} to ${state.toDate} | Exported on: ${new Date().toLocaleString('en-GB')}`],
       [],
-      ['S.No', 'Reject Reason Category', 'Application Count', '% of Total']
+      ['S.No', 'Reject Reason Category', 'Application Count', 'Application IDs']
     ];
 
     let totalCount = 0;
+    const allAppIds = [];
     state.categories.forEach((cat, idx) => {
+      const catApps = state.applications.filter(app => (app.reject_reason || 'Unspecified') === (cat.reason || 'Unspecified'));
+      const appIds = (cat.application_ids && cat.application_ids.length > 0)
+        ? cat.application_ids
+        : catApps.map(a => a.appl_id).filter(Boolean);
+      const appIdsStr = cat.application_ids_str || appIds.join(', ');
+      allAppIds.push(...appIds);
+
       exportRows.push([
         idx + 1,
         cat.reason || 'Unspecified',
         cat.count || 0,
-        cat.percentage_str || `${cat.percentage}%`
+        appIdsStr
       ]);
       totalCount += (cat.count || 0);
     });
 
     exportRows.push([]);
-    exportRows.push(['', 'Grand Total', totalCount, '100.00%']);
+    exportRows.push(['', 'Grand Total', totalCount, allAppIds.join(', ')]);
 
     const fileName = `Reject_Reasons_Summary_${state.talukName}_${state.servCodeSel}_${state.transType}_${state.fromDate}_${state.toDate}.xlsx`;
 
     if (typeof XLSX !== 'undefined') {
       const ws = XLSX.utils.aoa_to_sheet(exportRows);
-      ws['!cols'] = [{ wch: 8 }, { wch: 55 }, { wch: 20 }, { wch: 15 }];
+      ws['!cols'] = [{ wch: 8 }, { wch: 55 }, { wch: 20 }, { wch: 85 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Category_Summary');
       XLSX.writeFile(wb, fileName);
@@ -5101,16 +5141,25 @@
       grandTotal += (cat.count || 0);
     });
 
+    const totalUnique = state.uniqueAppsCount || 0;
+    const validatedList = Object.values(state.appStatusMap || {});
+    const approvedCount = validatedList.filter(s => s?.status === 'Approved').length;
+    const pendingCount = validatedList.filter(s => s?.status === 'Pending').length;
+    const netRejected = Math.max(0, totalUnique - approvedCount - pendingCount);
+
     const rowsHtml = (state.categories || []).map((cat, idx) => {
-      const pct = cat.percentage != null ? cat.percentage : (grandTotal > 0 ? ((cat.count || 0) / grandTotal * 100) : 0);
-      const pctStr = cat.percentage_str || `${Number(pct).toFixed(2)}%`;
+      const catApps = (state.applications || []).filter(app => (app.reject_reason || 'Unspecified') === (cat.reason || 'Unspecified'));
+      const appIds = (cat.application_ids && cat.application_ids.length > 0)
+        ? cat.application_ids
+        : catApps.map(a => a.appl_id).filter(Boolean);
+      const appIdsStr = cat.application_ids_str || appIds.join(', ');
       const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
       return `
         <tr style="background: ${bg};">
-          <td style="width: 50px; text-align: center !important; font-weight: 600; color: #475569; padding: 8px 6px; border: 1px solid #cbd5e1; font-size: 12px;">${idx + 1}</td>
-          <td style="width: 460px; text-align: left !important; font-weight: 600; color: #0f172a; line-height: 1.45; padding: 8px 12px !important; border: 1px solid #cbd5e1; font-size: 12px;">${escapeHtml(cat.reason || 'Unspecified')}</td>
-          <td style="width: 140px; text-align: right !important; font-weight: 800; font-size: 13px !important; color: #0f172a; padding: 8px 14px !important; border: 1px solid #cbd5e1;">${(cat.count || 0).toLocaleString()}</td>
-          <td style="width: 110px; text-align: right !important; font-weight: 700; color: #dc2626; font-size: 12px !important; padding: 8px 14px !important; border: 1px solid #cbd5e1;">${escapeHtml(pctStr)}</td>
+          <td style="width: 45px; text-align: center !important; font-weight: 600; color: #475569; padding: 7px 6px; border: 1px solid #cbd5e1; font-size: 11px;">${idx + 1}</td>
+          <td style="width: 310px; text-align: left !important; font-weight: 600; color: #0f172a; line-height: 1.4; padding: 7px 10px !important; border: 1px solid #cbd5e1; font-size: 11.5px;">${escapeHtml(cat.reason || 'Unspecified')}</td>
+          <td style="width: 105px; text-align: right !important; font-weight: 800; font-size: 12.5px !important; color: #0f172a; padding: 7px 12px !important; border: 1px solid #cbd5e1;">${(cat.count || 0).toLocaleString()}</td>
+          <td style="width: 320px; text-align: left !important; font-family: monospace; font-size: 10px; color: #1e40af; line-height: 1.35; padding: 6px 10px !important; border: 1px solid #cbd5e1; word-break: break-all;">${escapeHtml(appIdsStr || '-')}</td>
         </tr>
       `;
     }).join('');
@@ -5192,29 +5241,41 @@
           </div>
         </div>
 
-        <!-- KPI Summary Cards (Total Unique Applications, Duplicate Subdivisions Removed) -->
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
+        <!-- KPI Summary Cards (Total Unique, Approved, Net Rejected, Deduplicated Subdivisions) -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
           <!-- KPI 1: Total Unique Applications -->
-          <div style="background: #fff5f5; border: 1px solid #fecaca; border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
-            <div style="width: 44px; height: 44px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
-              🚫
-            </div>
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 20px;">📋</div>
             <div>
-              <div style="font-size: 11px; color: #991b1b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Total Unique Applications</div>
-              <div style="font-size: 22px; font-weight: 800; color: #7f1d1d; margin-top: 1px;">${(state.uniqueAppsCount || 0).toLocaleString()}</div>
-              <div style="font-size: 11px; color: #b91c1c; margin-top: 1px;">Single deduplicated application IDs</div>
+              <div style="font-size: 9.5px; color: #475569; font-weight: 700; text-transform: uppercase;">Total Unique</div>
+              <div style="font-size: 16px; font-weight: 800; color: #0f172a;">${totalUnique.toLocaleString()}</div>
             </div>
           </div>
 
-          <!-- KPI 2: Duplicate Subdivisions Removed -->
-          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
-            <div style="width: 44px; height: 44px; border-radius: 8px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
-              ✂️
-            </div>
+          <!-- KPI 2: Approved Applications -->
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 20px;">✅</div>
             <div>
-              <div style="font-size: 11px; color: #92400e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Duplicate Subdivisions Removed</div>
-              <div style="font-size: 22px; font-weight: 800; color: #78350f; margin-top: 1px;">${(state.duplicatesEliminated || 0).toLocaleString()} removed</div>
-              <div style="font-size: 11px; color: #15803d; font-weight: 600; margin-top: 1px;">Multi-subdivision portal rows consolidated</div>
+              <div style="font-size: 9.5px; color: #166534; font-weight: 700; text-transform: uppercase;">Approved</div>
+              <div style="font-size: 16px; font-weight: 800; color: #15803d;">${approvedCount.toLocaleString()}</div>
+            </div>
+          </div>
+
+          <!-- KPI 3: Net Rejected Applications -->
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 20px;">❌</div>
+            <div>
+              <div style="font-size: 9.5px; color: #991b1b; font-weight: 700; text-transform: uppercase;">Net Rejected</div>
+              <div style="font-size: 16px; font-weight: 800; color: #b91c1c;">${netRejected.toLocaleString()}</div>
+            </div>
+          </div>
+
+          <!-- KPI 4: Deduplicated Subdivisions -->
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 20px;">✂️</div>
+            <div>
+              <div style="font-size: 9.5px; color: #92400e; font-weight: 700; text-transform: uppercase;">Deduplicated</div>
+              <div style="font-size: 16px; font-weight: 800; color: #b45309;">${(state.duplicatesEliminated || 0).toLocaleString()}</div>
             </div>
           </div>
         </div>
@@ -5228,17 +5289,17 @@
 
           <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; border: 1px solid #cbd5e1; table-layout: fixed;">
             <colgroup>
-              <col style="width: 50px;">
-              <col style="width: 460px;">
-              <col style="width: 140px;">
-              <col style="width: 110px;">
+              <col style="width: 45px;">
+              <col style="width: 310px;">
+              <col style="width: 105px;">
+              <col style="width: 320px;">
             </colgroup>
             <thead>
               <tr style="background: #1e293b; color: #ffffff;">
-                <th style="width: 50px; text-align: center !important; font-weight: 700; padding: 10px 8px; border: 1px solid #334155;">S.No</th>
-                <th style="width: 460px; text-align: left !important; font-weight: 700; padding: 10px 12px; padding-left: 12px !important; border: 1px solid #334155;">Reject Reason Category</th>
-                <th style="width: 140px; text-align: right !important; font-weight: 700; padding: 10px 14px; padding-right: 14px !important; border: 1px solid #334155;">Unique Applications Count</th>
-                <th style="width: 110px; text-align: right !important; font-weight: 700; padding: 10px 14px; padding-right: 14px !important; border: 1px solid #334155;">% of Total</th>
+                <th style="width: 45px; text-align: center !important; font-weight: 700; padding: 9px 6px; border: 1px solid #334155;">S.No</th>
+                <th style="width: 310px; text-align: left !important; font-weight: 700; padding: 9px 10px; border: 1px solid #334155;">Reject Reason Category</th>
+                <th style="width: 105px; text-align: right !important; font-weight: 700; padding: 9px 12px; border: 1px solid #334155;">Application Count</th>
+                <th style="width: 320px; text-align: left !important; font-weight: 700; padding: 9px 10px; border: 1px solid #334155;">Application IDs (All in Single Field)</th>
               </tr>
             </thead>
             <tbody>
@@ -5246,10 +5307,10 @@
             </tbody>
             <tfoot>
               <tr style="background: #f1f5f9; border-top: 2px solid #0f172a;">
-                <td style="width: 50px; text-align: center !important; font-weight: 800; color: #0f172a; padding: 10px 8px; border: 1px solid #cbd5e1;">Total</td>
-                <td style="width: 460px; text-align: left !important; font-weight: 800; color: #0f172a; padding: 10px 12px; border: 1px solid #cbd5e1;">Grand Total (Unique Applications)</td>
-                <td style="width: 140px; text-align: right !important; font-weight: 900; font-size: 13.5px !important; color: #0f172a; padding: 10px 14px; border: 1px solid #cbd5e1;">${grandTotal.toLocaleString()}</td>
-                <td style="width: 110px; text-align: right !important; font-weight: 900; color: #16a34a; font-size: 12.5px !important; padding: 10px 14px; border: 1px solid #cbd5e1;">100.00%</td>
+                <td style="width: 45px; text-align: center !important; font-weight: 800; color: #0f172a; padding: 9px 6px; border: 1px solid #cbd5e1;">Total</td>
+                <td style="width: 310px; text-align: left !important; font-weight: 800; color: #0f172a; padding: 9px 10px; border: 1px solid #cbd5e1;">Grand Total (Unique Applications)</td>
+                <td style="width: 105px; text-align: right !important; font-weight: 900; font-size: 13px !important; color: #0f172a; padding: 9px 12px; border: 1px solid #cbd5e1;">${grandTotal.toLocaleString()}</td>
+                <td style="width: 320px; text-align: left !important; font-weight: 700; color: #1e40af; font-size: 10px !important; font-family: monospace; padding: 9px 10px; border: 1px solid #cbd5e1;">All ${grandTotal} Application IDs Concatenated</td>
               </tr>
             </tfoot>
           </table>
@@ -5598,6 +5659,14 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          applications: state.applications.map(a => ({
+            appl_id: a.appl_id,
+            village_code: a.village_code || '',
+            village_name: a.village_name || '',
+            survey_no: a.survey_no || a.primary_survey_no || '',
+            subdiv_no: a.subdiv_no || a.primary_subdiv_no || '',
+            patta_no: a.patta_no || ''
+          })),
           appIds,
           appl_ids: appIds,
           distCode: '37',
@@ -5650,6 +5719,8 @@
         toast('Validation Complete', toastMsg, 'ok');
       }
 
+      updateRejectKPIs();
+      renderRejectCategoryTable();
       renderRejectApplicationsTable();
     } catch (err) {
       console.error('Batch validation error:', err);
@@ -5707,7 +5778,7 @@
                 <span>🚫</span> Reject Reason Analysis Suite (Tahsildar Level)
               </h3>
               <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
-                Multi-subdivision deduplication, category-wise breakdown, and comprehensive application audit
+                Multi-subdivision deduplication, category-wise breakdown, and comprehensive live application audit
               </div>
             </div>
 
@@ -5778,53 +5849,77 @@
           <div id="rejectStatusBox" style="margin-top: 14px; display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;"></div>
         </div>
 
-        <!-- Metrics KPI Cards -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px;">
-          <!-- Card 1 -->
-          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(220, 38, 38, 0.12); color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
-              🚫
+        <!-- Metrics KPI Cards: Total, Approved, Net Rejected, Pending, Dups, Top Reason -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
+          <!-- Card 1: Total Unique -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(100, 116, 139, 0.12); color: #475569; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+              📋
             </div>
             <div style="overflow: hidden;">
-              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Total Unique Applications</div>
-              <div id="kpiUniqueApps" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.uniqueAppsCount.toLocaleString()}</div>
-              <div style="font-size: 11px; color: var(--muted); margin-top: 1px;">Single application IDs</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Total Unique</div>
+              <div id="kpiUniqueApps" style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 1px;">${state.uniqueAppsCount.toLocaleString()}</div>
+              <div style="font-size: 10.5px; color: var(--muted); margin-top: 1px;">Application IDs</div>
             </div>
           </div>
 
-          <!-- Card 2 -->
-          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(37, 99, 235, 0.12); color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
-              🗃️
+          <!-- Card 2: Approved Applications (Incremented live) -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid rgba(22, 163, 74, 0.3); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); background: rgba(22, 163, 74, 0.04);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(22, 163, 74, 0.15); color: #16a34a; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+              ✅
             </div>
             <div style="overflow: hidden;">
-              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Raw Portal Records</div>
-              <div id="kpiRawRecords" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.rawRecordsCount.toLocaleString()}</div>
-              <div style="font-size: 11px; color: var(--muted); margin-top: 1px;">Subdivision rows from portal</div>
+              <div style="font-size: 11px; color: #15803d; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Approved</div>
+              <div id="kpiApprovedApps" style="font-size: 22px; font-weight: 800; color: #16a34a; margin-top: 1px;">0</div>
+              <div style="font-size: 10.5px; color: #15803d; margin-top: 1px;">Orders Issued</div>
             </div>
           </div>
 
-          <!-- Card 3 -->
-          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(217, 119, 6, 0.12); color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+          <!-- Card 3: Net Rejected Applications (Decremented live) -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid rgba(220, 38, 38, 0.25); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); background: rgba(220, 38, 38, 0.04);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(220, 38, 38, 0.12); color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+              ❌
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11px; color: #b91c1c; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Net Rejected</div>
+              <div id="kpiRejectedApps" style="font-size: 22px; font-weight: 800; color: #dc2626; margin-top: 1px;">${state.uniqueAppsCount.toLocaleString()}</div>
+              <div style="font-size: 10.5px; color: #b91c1c; margin-top: 1px;">Reduced as approved</div>
+            </div>
+          </div>
+
+          <!-- Card 4: Pending in Office -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid rgba(217, 119, 6, 0.25); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); background: rgba(217, 119, 6, 0.04);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(217, 119, 6, 0.12); color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+              ⏳
+            </div>
+            <div style="overflow: hidden;">
+              <div style="font-size: 11px; color: #b45309; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Pending</div>
+              <div id="kpiPendingApps" style="font-size: 22px; font-weight: 800; color: #d97706; margin-top: 1px;">0</div>
+              <div style="font-size: 10.5px; color: #b45309; margin-top: 1px;">In Office Process</div>
+            </div>
+          </div>
+
+          <!-- Card 5: Deduplicated Subdivisions -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(147, 51, 234, 0.12); color: #9333ea; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
               ✂️
             </div>
             <div style="overflow: hidden;">
-              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Subdivisions Deduplicated</div>
-              <div id="kpiDuplicatesRemoved" style="font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px;">${state.duplicatesEliminated} removed</div>
-              <div style="font-size: 11px; color: #16a34a; font-weight: 600; margin-top: 1px;">Duplicate rows merged</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Deduplicated</div>
+              <div id="kpiDuplicatesRemoved" style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 1px;">${state.duplicatesEliminated}</div>
+              <div style="font-size: 10.5px; color: #16a34a; font-weight: 600; margin-top: 1px;">Duplicate rows merged</div>
             </div>
           </div>
 
-          <!-- Card 4 -->
-          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow);">
-            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(124, 58, 237, 0.12); color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+          <!-- Card 6: Top Reject Category -->
+          <div style="background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line-2); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow);">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(14, 165, 233, 0.12); color: #0ea5e9; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
               🏷️
             </div>
             <div style="overflow: hidden;">
-              <div style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Top Reject Category</div>
-              <div id="kpiTopReason" style="font-size: 13.5px; font-weight: 800; color: var(--ink); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
-              <div id="kpiTopReasonCount" style="font-size: 11px; color: var(--muted); margin-top: 1px;">-</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Top Category</div>
+              <div id="kpiTopReason" style="font-size: 13px; font-weight: 800; color: var(--ink); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+              <div id="kpiTopReasonCount" style="font-size: 10.5px; color: var(--muted); margin-top: 1px;">-</div>
             </div>
           </div>
         </div>
@@ -5837,7 +5932,7 @@
                 <span>📊</span> Section 1: Category-wise Summary
               </h3>
               <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
-                Distribution of unique rejected applications across statutory rejection reasons
+                Distribution of unique rejected applications across statutory rejection reasons with all Application IDs
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -5854,10 +5949,10 @@
               <thead>
                 <tr style="background: var(--surface-2); border-bottom: 2px solid var(--line-2); font-weight: 700; color: var(--ink);">
                   <th style="padding: 10px 14px; width: 60px; text-align: center;">S.No</th>
-                  <th style="padding: 10px 14px;">Reject Reason Category</th>
+                  <th style="padding: 10px 14px; width: 280px;">Reject Reason Category</th>
                   <th style="padding: 10px 14px; width: 140px; text-align: right;">Application Count</th>
-                  <th style="padding: 10px 14px; width: 180px;">% of Total</th>
-                  <th style="padding: 10px 14px; width: 160px; text-align: center;">Actions</th>
+                  <th style="padding: 10px 14px; min-width: 260px;">Application IDs (All in single field)</th>
+                  <th style="padding: 10px 14px; width: 150px; text-align: center;">Actions</th>
                 </tr>
               </thead>
               <tbody id="rejectCategoryTableBody">
@@ -5878,7 +5973,7 @@
                 <span>📑</span> Section 2: Deduplicated Applications Detail
               </h3>
               <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
-                Granular record of all rejected applications with merged multi-subdivision surveys
+                Granular record of all applications with merged multi-subdivisions, live status validation, and survey filters
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -5892,7 +5987,8 @@
           <!-- Search and Filter Bar -->
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px;">
             <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 280px; flex-wrap: wrap;">
-              <input type="text" id="rejectAppSearchInput" value="${escapeHtml(state.searchTerm)}" placeholder="🔍 Search by Application ID, Applicant Name, Village, Survey No..." style="width: 100%; max-width: 400px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
+              <input type="text" id="rejectAppSearchInput" value="${escapeHtml(state.searchTerm)}" placeholder="🔍 Search by Application ID, Applicant Name, Village, Reason..." style="width: 100%; max-width: 320px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
+              <input type="text" id="rejectSurveySearchInput" value="${escapeHtml(state.surveySearchTerm || '')}" placeholder="🔍 Survey / Subdiv No (e.g. 728/4)..." style="width: 100%; max-width: 220px; padding: 8px 12px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2); color: var(--ink);">
               <select id="rejectStatusFilterSel" style="padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); font-size: 12px; font-weight: 700;">
                 <option value="ALL" ${state.statusFilter === 'ALL' ? 'selected' : ''}>All Statuses</option>
                 <option value="Approved" ${state.statusFilter === 'Approved' ? 'selected' : ''}>✅ Approved Only</option>
@@ -6000,6 +6096,13 @@
     const searchInp = document.getElementById('rejectAppSearchInput');
     searchInp?.addEventListener('input', () => {
       state.searchTerm = searchInp.value;
+      renderRejectApplicationsTable();
+    });
+
+    // Wire up Survey Number Search Input
+    const surveySearchInp = document.getElementById('rejectSurveySearchInput');
+    surveySearchInp?.addEventListener('input', () => {
+      state.surveySearchTerm = surveySearchInp.value;
       renderRejectApplicationsTable();
     });
 
