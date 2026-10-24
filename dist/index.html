@@ -1311,7 +1311,7 @@
 
   <div class="no-print" style="height:20px"></div>
 
-  <div class="card no-print">
+  <div class="card no-print" id="uploadCard">
     <h2><span class="step">1</span> Upload source files <span class="grow"></span><button type="button" class="ghost" id="openStoredFilesBtn" style="font-size:12px; padding:4px 10px; font-weight:700; color:var(--accent); border:1px solid var(--accent-border); margin-right:8px; cursor:pointer;" title="View and download all stored files from cloud">📂 Stored Files &amp; Downloads</button><span style="text-transform:none; letter-spacing:0; font-size:11.5px">Drag &amp; drop supported · nothing leaves your browser</span></h2>
     
     <div class="uploads">
@@ -6042,11 +6042,13 @@ function mayUseTaluk(name){
 window.myTaluks = myTaluks;
 window.mayUseTaluk = mayUseTaluk;
 
-/* Menu-by-menu access control: 'isd', 'nisd', 'fline', 'chitta', 'eservices', 'areg_pdf', 'patta' */
+/* Menu-by-menu access control: 'upload', 'isd', 'single', 'fline', 'nisd', 'chitta', 'eservices', 'areg_pdf', 'patta', 'reject_reasons' */
 const ALL_MENUS = [
-  { key: 'isd', label: 'ISD' },
-  { key: 'nisd', label: 'NISD' },
-  { key: 'fline', label: 'F-Line' },
+  { key: 'upload', label: '1 Upload Files' },
+  { key: 'isd', label: '2 ISD Rural' },
+  { key: 'single', label: '2B Rural Overall (Single Report)' },
+  { key: 'fline', label: '5 Summary / F-Line' },
+  { key: 'nisd', label: '6 NISD Firka' },
   { key: 'chitta', label: 'Chitta Extract' },
   { key: 'eservices', label: 'e-Services (No OTP)' },
   { key: 'areg_pdf', label: 'A-Register Extract (PDF)' },
@@ -6061,14 +6063,17 @@ function userMenus(){
     return ME.menu_access;
   }
   const r = String(ME.report_access || 'combined').toLowerCase().trim();
-  if(r === 'isd') return ['isd'];
-  if(r === 'nisd') return ['nisd'];
-  if(r === 'fline') return ['fline'];
+  if(r === 'isd') return ['upload', 'isd', 'single'];
+  if(r === 'nisd') return ['upload', 'nisd'];
+  if(r === 'fline') return ['upload', 'fline', 'single'];
   return ALL_MENU_KEYS.slice();
 }
 function hasMenu(key){
   if(!ME || ME.role === 'admin') return true;
-  return userMenus().includes(key);
+  const menus = userMenus();
+  if(menus.includes(key)) return true;
+  if(key === 'single' && (menus.includes('single_report') || menus.includes('2b'))) return true;
+  return false;
 }
 window.ALL_MENUS = ALL_MENUS;
 window.userMenus = userMenus;
@@ -6463,10 +6468,10 @@ async function onSignedIn(session){
   ME.site_access = ME.site_access || 'both';
   ME.report_access = ME.report_access || 'combined';
   if(!Array.isArray(ME.menu_access)){
-    if (ME.report_access === 'isd') ME.menu_access = ['isd'];
-    else if (ME.report_access === 'nisd') ME.menu_access = ['nisd'];
-    else if (ME.report_access === 'fline') ME.menu_access = ['fline'];
-    else ME.menu_access = ['isd', 'nisd', 'fline', 'chitta', 'eservices'];
+    if (ME.report_access === 'isd') ME.menu_access = ['upload', 'isd', 'single'];
+    else if (ME.report_access === 'nisd') ME.menu_access = ['upload', 'nisd'];
+    else if (ME.report_access === 'fline') ME.menu_access = ['upload', 'fline', 'single'];
+    else ME.menu_access = ['upload', 'isd', 'single', 'fline', 'nisd', 'chitta', 'eservices'];
   }
   showGate(false);
   renderWhoAmI();
@@ -6549,12 +6554,17 @@ function applyTalukPermissions(){
 }
 
 function applyReportPermissions(){
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const canUpload = isAdmin || hasMenu('upload');
   const canIsd = hasMenu('isd');
+  const canSingle = hasMenu('single') || hasMenu('single_report') || hasMenu('2b');
   const canNisd = hasMenu('nisd');
   const canFline = hasMenu('fline');
   const canChitta = hasMenu('chitta');
   const canEservices = hasMenu('eservices');
   const canAregPdf = hasMenu('areg_pdf');
+  const canReject = isAdmin || hasMenu('reject_reasons');
+  const canCreds = isAdmin || canManageCreds();
 
   // Update active CATS for summary table
   CATS = CATS_ALL.filter(c => {
@@ -6566,16 +6576,20 @@ function applyReportPermissions(){
   CATS_FLINE = CATS.filter(c => c.key === 'flineRural' || c.key === 'flineNatham');
 
   // 1. Cards visibility
+  const uploadCard = document.getElementById('uploadCard');
   const isdCard = document.getElementById('isdCard');
+  const singleCard = document.getElementById('singleReportCard');
   const nisdCard = document.getElementById('nisdCard');
   const summaryCard = document.getElementById('summaryCard');
   const statsCard = document.getElementById('statsCard');
   const chartCard = document.getElementById('chartCard');
 
+  if(uploadCard) uploadCard.style.display = canUpload ? '' : 'none';
   if(isdCard) isdCard.style.display = canIsd ? '' : 'none';
+  if(singleCard) singleCard.style.display = canSingle ? '' : 'none';
   if(nisdCard) nisdCard.style.display = canNisd ? '' : 'none';
   if(summaryCard) summaryCard.style.display = (canIsd || canFline) ? '' : 'none';
-  if(statsCard) statsCard.style.display = (canIsd || canFline) ? '' : 'none';
+  if(statsCard) statsCard.style.display = (canIsd || canFline || canSingle) ? '' : 'none';
   if(chartCard) chartCard.style.display = (canIsd || canFline) ? '' : 'none';
 
   // 2. Upload drops visibility
@@ -6584,12 +6598,13 @@ function applyReportPermissions(){
   const flineDrops = document.querySelectorAll('[data-drop="flineRural"], [data-drop="flineNatham"]');
   const refDrops = document.querySelectorAll('[data-drop="village"], [data-drop="vaoDetails"]');
 
-  isdDrops.forEach(el => el.style.display = canIsd ? '' : 'none');
+  isdDrops.forEach(el => el.style.display = (canIsd || canSingle) ? '' : 'none');
   nisdDrops.forEach(el => el.style.display = canNisd ? '' : 'none');
-  flineDrops.forEach(el => el.style.display = canFline ? '' : 'none');
-  refDrops.forEach(el => el.style.display = (canIsd || canNisd || canFline) ? '' : 'none');
+  flineDrops.forEach(el => el.style.display = (canFline || canSingle) ? '' : 'none');
+  refDrops.forEach(el => el.style.display = (canIsd || canNisd || canFline || canSingle) ? '' : 'none');
 
   // 3. Topbar buttons
+  const singleReportBtn = document.getElementById('singleReportBtn');
   const chittaBtn = document.getElementById('chittaMenuBtn');
   const eservicesBtn = document.getElementById('eservicesMenuBtn');
   const aregPdfBtn = document.getElementById('aregPdfMenuBtn');
@@ -6598,17 +6613,16 @@ function applyReportPermissions(){
   const pattaBtn = document.getElementById('pattaMenuBtn');
   const rejectReasonMenuBtn = document.getElementById('rejectReasonMenuBtn');
   const ffBtn = document.getElementById('tnFlashFillBtn');
-  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  const canCreds = isAdmin || canManageCreds();
-  const canReject = isAdmin || hasMenu('reject_reasons');
-  if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-block' : 'none';
-  if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-block' : 'none';
-  if(aregPdfBtn) aregPdfBtn.style.display = (isAdmin || canAregPdf) ? 'inline-block' : 'none';
-  if(credsBtn) credsBtn.style.display = canCreds ? 'inline-block' : 'none';
-  if(aregBtn) aregBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  if(pattaBtn) pattaBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-block' : 'none';
-  if(rejectReasonMenuBtn) rejectReasonMenuBtn.style.display = canReject ? 'inline-block' : 'none';
-  if(ffBtn) ffBtn.style.display = (canIsd || canNisd || canFline) ? 'inline-block' : 'none';
+
+  if(singleReportBtn) singleReportBtn.style.display = canSingle ? 'inline-flex' : 'none';
+  if(chittaBtn) chittaBtn.style.display = canChitta ? 'inline-flex' : 'none';
+  if(eservicesBtn) eservicesBtn.style.display = canEservices ? 'inline-flex' : 'none';
+  if(aregPdfBtn) aregPdfBtn.style.display = (isAdmin || canAregPdf) ? 'inline-flex' : 'none';
+  if(credsBtn) credsBtn.style.display = canCreds ? 'inline-flex' : 'none';
+  if(aregBtn) aregBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+  if(pattaBtn) pattaBtn.style.display = (isAdmin || hasMenu('patta')) ? 'inline-flex' : 'none';
+  if(rejectReasonMenuBtn) rejectReasonMenuBtn.style.display = canReject ? 'inline-flex' : 'none';
+  if(ffBtn) ffBtn.style.display = (canUpload && (canIsd || canNisd || canFline || canSingle)) ? 'inline-flex' : 'none';
 
   // 4. Print layout sections
   const printIsdWrap = document.getElementById('printIsdWrap');
@@ -6992,9 +7006,8 @@ async function renderUsers(){
     '<div class="f"><label>Email</label><input type="email" id="nuEmail" placeholder="name@example.com"></div>' +
     '<div class="f"><label>Name</label><input type="text" id="nuName" placeholder="optional"></div>' +
     '<div class="f" style="flex:0 0 100px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
-    '<div class="f" style="flex:0 0 150px"><label>Site Access</label><select id="nuSite"><option value="both" selected>Both Sites</option><option value="village-auto-test">village-auto-test</option><option value="village-applications">village-applications</option></select></div>' +
-    '<div class="f" style="flex:1 1 100%"><label>Menu Access <span class="fstate" style="text-transform:none">— choose which menus this person can access</span></label>' +
-      menuPicker(['isd','nisd','fline','chitta','eservices'], 'id="nuMenus"') + '</div>' +
+    '<div class="f" style="flex:1 1 100%"><label>Menu &amp; Table Access <span class="fstate" style="text-transform:none">— choose which report tables and tools this person can access (e.g. 2B Single Report, 2 ISD Rural, 1 Upload, etc.)</span></label>' +
+      menuPicker(['upload','isd','single','fline','nisd','chitta','eservices'], 'id="nuMenus"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
       talukPicker([], 'id="nuTaluks"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Credentials Access <span class="fstate" style="text-transform:none">— specify if this user can view or update portal passwords for their taluks</span></label>' +
@@ -7011,11 +7024,11 @@ async function renderUsers(){
   h += '<p class="fstate" style="margin:0 0 10px">A person you add here can set their own password on the sign-in page using that email. ' +
        'Nobody else can get in.</p>';
 
-  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th style="min-width:270px">Menu Access</th><th>Site Access</th><th>Taluks allowed</th><th>Credentials</th><th>Status</th><th></th></tr></thead><tbody>';
+  h += '<table class="utable"><thead><tr><th>Person</th><th>Role</th><th style="min-width:270px">Menu &amp; Table Access</th><th>Site Access</th><th>Taluks allowed</th><th>Credentials</th><th>Status</th><th></th></tr></thead><tbody>';
   (users||[]).forEach(u=>{
     const isMe = ME && u.id === ME.id;
     const sAcc = u.site_access || 'both';
-    const currentMenus = u.menu_access || (u.report_access === 'isd' ? ['isd'] : u.report_access === 'nisd' ? ['nisd'] : ['isd','nisd','fline','chitta','eservices']);
+    const currentMenus = u.menu_access || (u.report_access === 'isd' ? ['upload','isd','single'] : u.report_access === 'nisd' ? ['upload','nisd'] : ['upload','isd','single','fline','nisd','chitta','eservices']);
     h += '<tr class="'+(u.active?'':'off')+'" data-id="'+esc(u.id)+'">' +
       '<td class="who"><b>'+esc(u.full_name || u.email)+'</b><small>'+esc(u.email)+'</small></td>' +
       '<td><select data-act="role"'+(isMe?' disabled title="You cannot change your own role"':'')+'>' +
@@ -7126,7 +7139,7 @@ async function addUser(){
     full_name: document.getElementById('nuName').value.trim() || null,
     role,
     taluks,
-    menu_access: menu_access.length ? menu_access : ['isd','nisd','fline','chitta','eservices'],
+    menu_access: menu_access.length ? menu_access : ['upload','isd','single','fline','nisd','chitta','eservices'],
     report_access: repAcc,
     site_access,
     can_view_creds,
@@ -13032,7 +13045,21 @@ function savePrintSel(set){
 
 function renderPrintMenu(){
   const sel = printSel();
-  document.getElementById('printMenuBody').innerHTML = PRINT_ITEMS.map(it=>{
+  const canSingle = hasMenu('single') || hasMenu('single_report') || hasMenu('2b');
+  const canIsd = hasMenu('isd');
+  const canFline = hasMenu('fline');
+  const canNisd = hasMenu('nisd');
+
+  const visibleItems = PRINT_ITEMS.filter(it => {
+    if(it.key === 'single') return canSingle;
+    if(it.key === 'isd' || it.key === 'vao') return canIsd;
+    if(it.key === 'natham') return canIsd;
+    if(it.key === 'flr' || it.key === 'fln') return canFline;
+    if(it.key === 'nisd') return canNisd;
+    return true;
+  });
+
+  document.getElementById('printMenuBody').innerHTML = visibleItems.map(it=>{
     const ready = it.ready();
     return '<label class="pm-row'+(ready?'':' off')+'" title="'+(ready?'':'Nothing loaded for this report yet')+'">' +
       '<input type="checkbox" data-pk="'+it.key+'"'+(sel.has(it.key)&&ready?' checked':'')+(ready?'':' disabled')+'>' +
