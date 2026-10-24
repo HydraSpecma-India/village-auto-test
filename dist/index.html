@@ -57,7 +57,7 @@
     --row-alt:rgba(30,37,52,.55); --grp-bg:#1e2a44; --vao-bg:#3a2130;
   }
   *{box-sizing:border-box}
-  html,body{scroll-behavior:smooth; overflow-x:hidden; max-width:100vw; width:100%}
+  html{scroll-behavior:smooth; max-width:100vw; width:100%}
   body{
     margin:0; padding:0 0 60px;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -68,16 +68,31 @@
       var(--bg);
     background-attachment:fixed;
     transition:background-color .3s, color .3s;
+    overflow-x:clip;
+    max-width:100vw;
+    width:100%;
   }
   .shell{max-width:1360px; width:100%; box-sizing:border-box; margin:0 auto; padding:0 16px}
 
   /* ============ Top bar ============ */
   .topbar{
-    position:sticky; top:0; z-index:60; backdrop-filter:blur(14px);
+    position:-webkit-sticky;
+    position:sticky;
+    top:0;
+    z-index:110;
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
     background:var(--topbar-bg);
     border-bottom:1px solid var(--line);
-    width:100%; max-width:100%; box-sizing:border-box;
+    width:100%;
+    max-width:100%;
+    box-sizing:border-box;
     overflow:visible;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
+    transition:background-color .2s, box-shadow .2s;
+  }
+  .topbar.scrolled{
+    box-shadow:0 4px 20px rgba(0,0,0,.09);
   }
   .topbar .inner{
     max-width:1360px; width:100%; box-sizing:border-box;
@@ -172,7 +187,8 @@
     td.user, th.corner { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
   }
   @media (max-width: 480px) {
-    .topbar .flash-fill-btn { font-size: 11px; padding: 0 8px; }
+    .topbar .tn-auto-btn { width: 32px; height: 32px; min-width: 32px; font-size: 14px; padding: 0; }
+    .topbar .flash-fill-btn { font-size: 14px; padding: 0; }
     .pill { padding: 3px 6px; font-size: 10px; }
     .iconbtn { width: 32px; height: 32px; font-size: 14px; }
     .stats { grid-template-columns: 1fr !important; }
@@ -188,6 +204,7 @@
     background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px;
     margin-bottom:18px; box-shadow:var(--shadow); transition:background .3s, border-color .3s;
     width:100%; max-width:100%; box-sizing:border-box;
+    scroll-margin-top:64px;
   }
   .card>h2{
     font-size:12px; margin:0 0 15px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
@@ -14208,6 +14225,21 @@ if (isdDownloadPdfActionBtn) {
     downloadIsdRuralStatusPdf();
   });
 }
+
+// Keep header icons and topbar fixed on scroll
+(function setupFixedHeaderOnScroll(){
+  const topbar = document.querySelector('.topbar');
+  if(!topbar) return;
+  const onScroll = () => {
+    if(window.scrollY > 4){
+      topbar.classList.add('scrolled');
+    } else {
+      topbar.classList.remove('scrolled');
+    }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
 
 initCloud();
 
