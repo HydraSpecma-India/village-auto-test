@@ -788,9 +788,9 @@
   .fstate{font-size:11.5px; color:var(--muted)}
   .fstate b{color:var(--ok)}
 
-  /* ============ NISD firka report ============ */
-  .nisd-wrap{display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start}
-  .nisd-block{flex:1 1 460px; min-width:0; overflow-x:auto}
+  /* ============ NISD firka report (Stacked Top & Bottom) ============ */
+  .nisd-wrap{display:flex; flex-direction:column; gap:24px; width:100%; align-items:stretch}
+  .nisd-block{width:100%; flex:1 1 100%; min-width:0}
   table.nisd-t{border-collapse:separate; border-spacing:0; width:100%; font-size:12.5px; background:var(--surface)}
   table.nisd-t th, table.nisd-t td{border:1px solid var(--line-2); padding:6px 7px; text-align:center; white-space:nowrap}
   table.nisd-t th{font-weight:700; background:var(--surface-2)}
@@ -831,10 +831,35 @@
 
   html[data-theme="dark"] table.nisd-t tr.nisd-total td{background:#39414f}
 
+  /* ============ Sticky & Fixed Table Headers on Scroll ============ */
+  .sticky-table-wrap{max-height:78vh; overflow:auto; position:relative; border:1px solid var(--line-2); border-radius:var(--r-sm, 8px); background:var(--surface); -webkit-overflow-scrolling:touch}
+
+  #singleReportTable thead th { position:sticky!important; z-index:10!important }
+  #singleReportTable thead tr.sh-row-1 th { top:0!important; z-index:12!important }
+  #singleReportTable thead tr.sh-row-2 th { top:32px!important; z-index:11!important; background:var(--surface-2)!important }
+  html[data-theme="dark"] #singleReportTable thead tr.sh-row-2 th { background:#1e293b!important }
+
+  #isdPrintVao table thead th { position:sticky!important; top:0!important; z-index:10!important; background:var(--surface-2)!important; color:var(--ink)!important }
+  html[data-theme="dark"] #isdPrintVao table thead th { background:#1e293b!important; color:#f1f5f9!important }
+
+  table.rep-t thead th { position:sticky!important; top:0!important; z-index:10!important; background:var(--surface-2)!important }
+  table.rep-t thead tr:nth-child(2) th { top:35px!important; z-index:9!important; background:var(--surface-2)!important }
+
+  table.nisd-t thead th { position:sticky!important; z-index:10!important }
+  table.nisd-t thead tr:nth-child(1) th { top:0!important; z-index:14!important }
+  table.nisd-t thead tr:nth-child(2) th { top:31px!important; z-index:13!important }
+  table.nisd-t thead tr:nth-child(3) th { top:59px!important; z-index:12!important }
+  table.nisd-t thead tr:nth-child(4) th { top:87px!important; z-index:11!important }
+
+  .tablewrap thead th { position:sticky!important; top:0!important; z-index:10!important; background:var(--surface-2)!important }
+  .tablewrap thead tr:nth-child(2) th { top:33px!important; z-index:9!important; background:var(--surface-2)!important }
+
   @media print{
     #nisdCard{page-break-before:always}
-    .nisd-wrap{gap:10px}
-    .nisd-block{flex:1 1 46%}
+    .nisd-wrap{display:flex; flex-direction:column; gap:16px; width:100%}
+    .nisd-block{width:100%; flex:1 1 100%; page-break-inside:avoid}
+    .sticky-table-wrap, .tablewrap, .rep{max-height:none!important; overflow:visible!important; border:none!important}
+    table.nisd-t thead th, #singleReportTable thead th, #isdPrintVao table thead th, table.rep-t thead th, .tablewrap thead th{position:static!important; top:auto!important}
     table.nisd-t{font-size:11px!important}
     table.nisd-t th, table.nisd-t td{padding:4px 5px!important; color:#111827!important; border:1px solid #9aa0aa!important}
   }
@@ -1582,12 +1607,21 @@ const CAT_LABELS = {isdRural:'ISD (Rural)', isdNatham:'ISD (Natham)', flineRural
    ============================================================ */
 const CFG_DEFAULT = {
   isdRural:    {thresholds:[25,30],      labels:['25 Days below','25 Days above','30 Days above']},
+  isdNatham:   {thresholds:[25,30],      labels:['25 Days below','25 Days above','30 Days above']},
+  flineRural:  {thresholds:[60,90],      labels:['60 Days below','60 Days above','90 Days above']},
+  flineNatham: {thresholds:[60,90],      labels:['60 Days below','60 Days above','90 Days above']},
+};
+const CFG_STORE_KEY = 'village_test.dayRanges.v2';
+const BUCKET_COLORS = ['#4caf50','#ffc107','#ff9800','#fb8c00','#f4511e','#e53935'];
+
+/* Single Page Combined Report retains the extended 60d (ISD Natham) & 120d (F-Line) buckets */
+const SINGLE_REPORT_CFG = {
+  isdRural:    {thresholds:[25,30],      labels:['25 Days below','25 Days above','30 Days above']},
   isdNatham:   {thresholds:[25,30,60],   labels:['25 Days below','25 Days above','30 Days above','60 Days above']},
   flineRural:  {thresholds:[60,90,120],  labels:['60 Days below','60 Days above','90 Days above','120 Days above']},
   flineNatham: {thresholds:[60,90,120],  labels:['60 Days below','60 Days above','90 Days above','120 Days above']},
 };
-const CFG_STORE_KEY = 'village_test.dayRanges.v1';
-const BUCKET_COLORS = ['#4caf50','#ffc107','#ff9800','#fb8c00','#f4511e','#e53935'];
+let SINGLE_REPORT_BUCKETS = {};
 
 function autoLabel(th, i){
   if(i === 0) return th[0] + ' Days below';
@@ -1638,6 +1672,12 @@ function makeBuckets(c){
 function rebuildBuckets(){
   BUCKETS_BY_CAT = {};
   CAT_KEYS.forEach(k => BUCKETS_BY_CAT[k] = makeBuckets(CFG[k] || CFG_DEFAULT[k]));
+  SINGLE_REPORT_BUCKETS = {
+    isdRural:    makeBuckets(SINGLE_REPORT_CFG.isdRural),
+    isdNatham:   makeBuckets(SINGLE_REPORT_CFG.isdNatham),
+    flineRural:  makeBuckets(SINGLE_REPORT_CFG.flineRural),
+    flineNatham: makeBuckets(SINGLE_REPORT_CFG.flineNatham),
+  };
 }
 rebuildBuckets();
 
@@ -2109,6 +2149,7 @@ function bucketKey(days, list){
 function aggregate(){
   const vmap = buildVillageMap();
   const counts = {};              // cat -> user -> bucketKey -> count
+  const singleReportCounts = { isdNatham: {}, flineRural: {}, flineNatham: {} };
   const villages = {};            // cat -> user -> village -> bucketKey -> count
   const users = new Set();
   const unmatched = new Map();
@@ -2188,6 +2229,12 @@ function aggregate(){
       (counts[cat.key][user] = counts[cat.key][user] || {});
       counts[cat.key][user][bk] = (counts[cat.key][user][bk]||0) + 1;
 
+      if(SINGLE_REPORT_BUCKETS && SINGLE_REPORT_BUCKETS[cat.key]){
+        const sbk = bucketKey(days, SINGLE_REPORT_BUCKETS[cat.key]);
+        (singleReportCounts[cat.key][user] = singleReportCounts[cat.key][user] || {});
+        singleReportCounts[cat.key][user][sbk] = (singleReportCounts[cat.key][user][sbk]||0) + 1;
+      }
+
       const vLabel = (vRaw==null||String(vRaw).trim()==='') ? '(blank village)' : String(vRaw).trim();
       (villages[cat.key][user] = villages[cat.key][user] || {});
       (villages[cat.key][user][vLabel] = villages[cat.key][user][vLabel] || {});
@@ -2199,7 +2246,7 @@ function aggregate(){
   CATS.forEach(c=> Object.keys(disposal[c.key]).forEach(u=>users.add(u)));
 
   const userList = sortSurveyorNames(Array.from(users), TALUK, currentIsdSortMode);
-  return {counts, villages, disposal, villDisposal, users:userList, unmatched, unreadable,
+  return {counts, singleReportCounts, villages, disposal, villDisposal, users:userList, unmatched, unreadable,
           totalRows, matchedRows, statusSkipped, statusDrop, noStatusCol, talukSkipped,
           vmapInfo:vmap.info};
 }
@@ -2902,8 +2949,11 @@ async function exportIsdStyled(){
   xDataRow(ws, [R.surveyorNames.length+1, 'VAO'], vTotal, {fill:XC.vao, bold:true, tall:true});
 
   R.vaoNames.forEach(n=>{
+    if(!n || /^surveyor/i.test(n) || isCorruptedNoise(n)) return;
     const rec = R.vaos[n];
+    if(!rec) return;
     Object.keys(rec.villages).sort().forEach(v=>{
+      if(isCorruptedNoise(v)) return;
       const x = rec.villages[v];
       if(!x.pending && !x.approved && !x.rejected) return;
       const row = xDataRow(ws, ['', '      ' + n + ' — ' + v], x);
@@ -2923,8 +2973,11 @@ async function exportIsdStyled(){
     ['S.No','VAO Name','Village']);
   let n = 0;
   R.vaoNames.forEach(name=>{
+    if(!name || /^surveyor/i.test(name) || isCorruptedNoise(name)) return;
     const rec = R.vaos[name];
+    if(!rec) return;
     Object.keys(rec.villages).sort().forEach(v=>{
+      if(isCorruptedNoise(v)) return;
       const x = rec.villages[v];
       if(!x.pending && !x.approved && !x.rejected) return;
       xDataRow(wv, [++n, name, v], x);
@@ -3412,6 +3465,17 @@ const RE_PDF_VILLAGE = /^(\d{1,3})\s+(\d{1,4})\s+(.+?)\s+(\d+)\s+(\d+)\s+(\d+)\s
 const RE_PDF_SUB     = /^(not\s+involving|involving)\s+sub\s*-?\s*division\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$/i;
 const RE_PDF_TOTAL   = /^total\s+\d+/i;
 
+/* Helper to filter corrupted OCR noise strings (e.g. "5 6 * 7 8 4 , 8 * 7 9 6 : ; < = > * 8 * ? * 4 7") */
+function isCorruptedNoise(s){
+  if(!s) return true;
+  const str = String(s).trim();
+  if(!str) return true;
+  if(/[*?:;<=>]/.test(str)) return true;
+  if(!/[a-zA-Z\u0B80-\u0BFF]/.test(str)) return true;
+  return false;
+}
+window.isCorruptedNoise = isCorruptedNoise;
+
 function pdfLines(items){
   const rows = new Map();
   for(const it of items){
@@ -3450,7 +3514,9 @@ function parsePdfLines(lines){
     }
     m = ln.match(RE_PDF_VILLAGE);
     if(m && !/^total$/i.test(m[3].trim())){
-      cur = {sno:+m[1], code:m[2], village:m[3].trim(),
+      const vCandidate = m[3].trim();
+      if(isCorruptedNoise(vCandidate)) continue;
+      cur = {sno:+m[1], code:m[2], village:vCandidate,
              approved:+m[4], pending:+m[5], rejected:+m[6], returned:+m[7], total:+m[8],
              inv:null, notinv:null};
       villages.set(cur.village, cur);
@@ -3821,7 +3887,8 @@ function getCountsForSurveyor(sName, aggA){
 
   matchedUsers.forEach(matchedUser => {
     ['isdNatham', 'flineRural', 'flineNatham'].forEach(ck => {
-      const cObj = aggA.counts[ck] && aggA.counts[ck][matchedUser];
+      const srcMap = (aggA.singleReportCounts && aggA.singleReportCounts[ck]) || (aggA.counts && aggA.counts[ck]);
+      const cObj = srcMap && srcMap[matchedUser];
       if(cObj){
         res[ck].b0 += cObj['b0'] || 0;
         res[ck].b1 += cObj['b1'] || 0;
@@ -3934,6 +4001,7 @@ function aggregateIsdRural(){
 
       pdfVillages.forEach(pv => {
         const label = pv.village || pv.village_name || '';
+        if(isCorruptedNoise(label)) return;
         const pend = (pv.inv && pv.inv.pending != null) ? pv.inv.pending : 0;
         if(!pend) return;
 
@@ -3963,6 +4031,7 @@ function aggregateIsdRural(){
 
     f.rows.forEach(r=>{
       const label = r.label || r.village || r.villageName || r.village_name || '';
+      if(isCorruptedNoise(label)) return;
       const taluk = r.taluk || r.talukName || r.taluk_name || '';
       if(!inTaluk(taluk)) return;
       const surv = (r.surv != null ? r.surv : (r.total_sur != null ? r.total_sur : (r.sur != null ? r.sur : 0)));
@@ -4015,6 +4084,9 @@ function aggregateIsdRural(){
       ? Array.from(pdf.villages.values())
       : (Array.isArray(pdf.villages) ? pdf.villages : Object.values(pdf.villages || {}));
     for(const pv of pdfVillages){
+      const pvName = pv.village || pv.village_name || '';
+      if(isCorruptedNoise(pvName)) continue;
+
       // Use Involving Sub-Division counts only — matches portal calculation standard
       const appr = (pv.inv && pv.inv.approved != null) ? pv.inv.approved : 0;
       const rej  = (pv.inv && pv.inv.rejected != null) ? pv.inv.rejected : 0;
@@ -4022,15 +4094,28 @@ function aggregateIsdRural(){
       if(!appr && !rej) continue;
 
       /* the village goes to whichever role is actually holding its pending */
-      const p = pendingByVillage.get(norm(pv.village)) || {surv:0, vao:0};
+      const p = pendingByVillage.get(norm(pvName)) || {surv:0, vao:0};
       let bag = null, name = null;
-      if(p.vao > p.surv){ name = lookupVillage(pv.village, vaoL); bag = vaos; if(!name){ name = 'VAO — ' + pv.village; noVao.add(pv.village); } }
-      else{
-        name = lookupVillage(pv.village, villageL); bag = surveyors;
-        if(!name){ name = lookupVillage(pv.village, vaoL); bag = vaos; }
-        if(!name){ name = 'Surveyor — ' + pv.village; }
+      if(p.vao > p.surv){
+        name = lookupVillage(pvName, vaoL);
+        bag = vaos;
+        if(!name){ name = 'VAO — ' + pvName; noVao.add(pvName); }
+      } else {
+        name = lookupVillage(pvName, villageL);
+        if(name){
+          bag = surveyors;
+        } else {
+          const vaoHit = lookupVillage(pvName, vaoL);
+          if(vaoHit){
+            name = vaoHit;
+            bag = vaos;
+          } else {
+            name = 'Surveyor — ' + pvName;
+            bag = surveyors;
+          }
+        }
       }
-      const rec = get(bag, name), v = addVillage(rec, pv.village);
+      const rec = get(bag, name), v = addVillage(rec, pvName);
       rec.approved += appr; rec.rejected += rej;
       v.approved   += appr; v.rejected   += rej;
     }
@@ -4267,8 +4352,11 @@ function renderVaoPrintPage(vTotal){
   };
   let body = '', n = 0;
   R.vaoNames.forEach(name=>{
+    if(!name || /^surveyor/i.test(name) || isCorruptedNoise(name)) return;
     const rec = R.vaos[name];
+    if(!rec) return;
     Object.keys(rec.villages).sort().forEach(v=>{
+      if(isCorruptedNoise(v)) return;
       const x = rec.villages[v];
       if(!x.pending && !x.approved && !x.rejected) return;
       body += '<tr><td class="nm">'+(++n)+'</td><td class="nm">'+esc(name)+'</td><td class="nm">'+esc(v)+'</td>'+cell(x)+'</tr>';
@@ -4277,9 +4365,9 @@ function renderVaoPrintPage(vTotal){
   if(!n){ box.innerHTML = ''; return; }
   box.innerHTML =
     '<h3>ISD (Rural) \u2014 VAO Details, village wise (' + n + ' village' + (n!==1?'s':'') + ')</h3>' +
-    '<table><thead>'+head+'</thead><tbody>'+body+
+    '<div class="sticky-table-wrap"><table style="width:100%; border-collapse:collapse;"><thead>'+head+'</thead><tbody>'+body+
     '<tr class="grand"><td colspan="3" style="text-align:center">VAO Total</td>'+cell(vTotal)+'</tr>'+
-    '</tbody></table>';
+    '</tbody></table></div>';
 }
 
 let isdLastMatrix = null;
@@ -4292,8 +4380,11 @@ function isdMatrix(sTotal, vTotal, gTotal){
   rows.push(line('', 'Total', sTotal));
   rows.push(line(R.surveyorNames.length+1, 'VAO', vTotal));
   R.vaoNames.forEach(n=>{
+    if(!n || /^surveyor/i.test(n) || isCorruptedNoise(n)) return;
     const rec = R.vaos[n];
+    if(!rec) return;
     Object.keys(rec.villages).sort().forEach(v=>{
+      if(isCorruptedNoise(v)) return;
       const x = rec.villages[v];
       if(!x.pending && !x.approved && !x.rejected) return;
       rows.push(line('', '    ' + n + ' — ' + v, x));
@@ -4569,7 +4660,7 @@ function renderSingleReport(){
     <div style="margin-bottom:10px; font-size:15px; font-weight:800; color:var(--text); text-align:center; letter-spacing:0.3px;">
       ${esc(title)}
     </div>
-    <div style="overflow-x:auto;">
+    <div class="sticky-table-wrap">
     <table class="rep-t single-rep-t" id="singleReportTable" style="width:100%; border-collapse:collapse; font-size:12px;">
       <thead>
         <tr class="sh-row-1">
@@ -12344,7 +12435,11 @@ function nisdFirkaMap(){
     map.set(norm(r.village), {firka:r.firka, village:r.village});
     if(order.indexOf(r.firka) < 0) order.push(r.firka);
   });
-  order.sort((a,b)=>a.localeCompare(b));
+  order.sort((a,b)=>{
+    const rA = /hqdt/i.test(a) ? 1 : (/zdt/i.test(a) ? 2 : 3);
+    const rB = /hqdt/i.test(b) ? 1 : (/zdt/i.test(b) ? 2 : 3);
+    return (rA - rB) || a.localeCompare(b);
+  });
   return {map, firkas:order};
 }
 
@@ -12463,8 +12558,13 @@ function aggregateNisd(){
   });
   Object.keys(byFirka).forEach(fk => byFirka[fk].sort((a,b)=>a.village.localeCompare(b.village)));
 
+  const firkaSorter = (a,b)=>{
+    const rA = /hqdt/i.test(a) ? 1 : (/zdt/i.test(a) ? 2 : 3);
+    const rB = /hqdt/i.test(b) ? 1 : (/zdt/i.test(b) ? 2 : 3);
+    return (rA - rB) || a.localeCompare(b);
+  };
   const first = loaded[0] ? store[loaded[0].key] : null;
-  return {ready:true, byFirka, firkas:Object.keys(byFirka).sort((a,b)=>a.localeCompare(b)),
+  return {ready:true, byFirka, firkas:Object.keys(byFirka).sort(firkaSorter),
           loaded, checks, unknown, detailRows, detailUsed, detailNoDays, detailOther, daysFrom,
           period: first ? (first.period||'') : '', asOn: first ? (first.asOn||'') : ''};
 }
@@ -12482,7 +12582,7 @@ function nisdHeat(v){ return v <= 0 ? '' : (v === 1 ? ' heat1' : (v === 2 ? ' he
 const NISD_COLS = () => 2 + NISD_SECTIONS.length * NISD_LABELS.length * 3;
 
 function nisdBlockHtml(firka, list){
-  let h = '<table class="nisd-t"><thead>';
+  let h = '<div class="sticky-table-wrap"><table class="nisd-t"><thead>';
   h += '<tr><th class="nisd-firka" colspan="'+NISD_COLS()+'">'+esc(firka)+' Firka</th></tr>';
   h += '<tr><th rowspan="3" class="nisd-sn">S.No</th><th rowspan="3" class="nisd-vn">Village Name</th>';
   NISD_SECTIONS.forEach((sec,si)=> h += '<th colspan="'+(NISD_LABELS.length*3)+'" class="nisd-sec'+(si%2?' alt':'')+'">'+esc(sec.name)+'</th>');
@@ -12513,7 +12613,7 @@ function nisdBlockHtml(firka, list){
     const t = nisdSum(list, si, ri);
     h += '<td class="num">'+cell(t.rtr)+'</td><td class="num">'+cell(t.str)+'</td><td class="num nisd-tot">'+cell(t.total)+'</td>';
   }));
-  h += '</tr></tbody></table>';
+  h += '</tr></tbody></table></div>';
   return h;
 }
 
@@ -13685,7 +13785,7 @@ async function pullIsdRuralPdfDirect() {
 
     const vMap = new Map();
     (data.villages || []).forEach(v => {
-      if (v.village) {
+      if (v.village && !isCorruptedNoise(v.village)) {
         // If incoming village has 0 approved & 0 rejected, but existing loaded data has real approved/rejected, preserve it!
         if (v.approved === 0 && v.rejected === 0 && existingMap.has(v.village)) {
           const ev = existingMap.get(v.village);
@@ -13716,7 +13816,7 @@ async function pullIsdRuralPdfDirect() {
 
     // Also include any villages from existing that might not be in incoming
     existingMap.forEach((ev, evName) => {
-      if (!vMap.has(evName)) {
+      if (!vMap.has(evName) && !isCorruptedNoise(evName)) {
         vMap.set(evName, ev);
       }
     });

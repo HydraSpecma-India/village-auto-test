@@ -2690,14 +2690,30 @@
     }
   };
 
+  function isCorruptedNoise(s) {
+    if (!s) return true;
+    const str = String(s).trim();
+    if (!str) return true;
+    if (/[*?:;<=>]/.test(str)) return true;
+    if (!/[a-zA-Z\u0B80-\u0BFF]/.test(str)) return true;
+    return false;
+  }
+  window.isCorruptedNoise = isCorruptedNoise;
+
   async function ensureVillageAndVaoDetails(allVillages, explicitTaluk) {
     if (!window.store) window.store = {};
-    const list = Array.from(new Set(allVillages.map(v => String(v || '').trim()))).filter(Boolean);
+    const list = Array.from(new Set(allVillages.map(v => String(v || '').trim()))).filter(v => v && !isCorruptedNoise(v));
     if (!list.length) return;
     const rawTName = explicitTaluk || window.TALUK || (typeof window.talukName === 'function' ? window.talukName() : '') || 'Arakkonam';
     const tName = cleanTalukTitle(rawTName);
 
-    const existingVillageRows = window.store.village?.objs || [];
+    const isValidRow = r => {
+      const v = String(r['Village Name'] || r.Village || '').trim();
+      const n = String(r['Surveyor Name'] || r['VAO Name'] || r.Name || '').trim();
+      return v && !isCorruptedNoise(v) && !/[*?:;<=>]/.test(n);
+    };
+
+    const existingVillageRows = (window.store.village?.objs || []).filter(isValidRow);
     const hasCurrentTalukVillages = existingVillageRows.some(r => {
       const rowTaluk = r.Taluk || r.taluk || '';
       return (rowTaluk && norm(rowTaluk) === norm(tName)) || list.includes(r['Village Name'] || r.Village);
@@ -2728,7 +2744,7 @@
       }
     }
 
-    const existingVaoRows = window.store.vaoDetails?.objs || [];
+    const existingVaoRows = (window.store.vaoDetails?.objs || []).filter(isValidRow);
     const hasCurrentTalukVao = existingVaoRows.some(r => {
       const rowTaluk = r.Taluk || r.taluk || '';
       return (rowTaluk && norm(rowTaluk) === norm(tName)) || list.includes(r['Village Name'] || r.Village);
@@ -3499,7 +3515,7 @@
             const vList = (window.store['isdRuralPdf'].villages instanceof Map)
               ? Array.from(window.store['isdRuralPdf'].villages.values())
               : (Array.isArray(window.store['isdRuralPdf'].villages) ? window.store['isdRuralPdf'].villages : []);
-            const synRows = vList.map(v => {
+            const synRows = vList.filter(v => !isCorruptedNoise(v.village)).map(v => {
               const vName = v.village || '';
               const pend = (v.inv && v.inv.pending != null) ? v.inv.pending : (v.pending || 0);
               return {
@@ -3825,7 +3841,7 @@
 
       const vMap = new Map();
       (data.villages || []).forEach(v => {
-        if (v.village) {
+        if (v.village && !isCorruptedNoise(v.village)) {
           if (v.approved === 0 && v.rejected === 0 && existingMap.has(v.village)) {
             const ev = existingMap.get(v.village);
             if ((ev.approved || 0) > 0 || (ev.rejected || 0) > 0) {
@@ -3854,7 +3870,7 @@
       });
 
       existingMap.forEach((ev, evName) => {
-        if (!vMap.has(evName)) {
+        if (!vMap.has(evName) && !isCorruptedNoise(evName)) {
           vMap.set(evName, ev);
         }
       });
