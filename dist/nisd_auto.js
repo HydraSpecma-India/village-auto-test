@@ -941,7 +941,18 @@
         const pattaNoInp = document.getElementById('pattaNoInput');
         if (pattaNoInp) pattaNoInp.value = data.pattaNo;
 
-        const bannerMsg = '✓ Live Patta details fetched: ' + data.ownerName + ' | Extent: ' + data.totalExtent + ' (Survey: ' + data.surveyNo + '/' + data.subdivNo + ')';
+        const activeCorr = (typeof findPattaCorrection === 'function')
+          ? findPattaCorrection(distCode, talukCode, villageCode, pattaNo, surveyNo, subdivNo)
+          : null;
+        if (activeCorr) {
+          if (activeCorr.newName) data.ownerName = activeCorr.newName;
+          if (activeCorr.newExtent) data.totalExtent = activeCorr.newExtent;
+          if (oldNameInp) oldNameInp.value = activeCorr.newName;
+          if (oldExtentInp) oldExtentInp.value = activeCorr.newExtent;
+        }
+        const bannerMsg = activeCorr
+          ? '✓ Live Patta details fetched: ' + data.ownerName + ' | Extent: ' + data.totalExtent + ' (Saved Correction Applied ★)'
+          : '✓ Live Patta details fetched: ' + data.ownerName + ' | Extent: ' + data.totalExtent + ' (Survey: ' + data.surveyNo + '/' + data.subdivNo + ')';
         if (banner) {
           banner.className = 'tn-status-banner success';
           banner.style.background = 'rgba(34, 197, 94, 0.15)';
@@ -996,6 +1007,30 @@
       localStorage.setItem('patta_corrections_list', JSON.stringify(list));
     } catch(e) {}
   }
+  function findPattaCorrection(distCode, talukCode, villageCode, pattaNo, surveyNo, subdivNo) {
+    const list = getPattaCorrectionsList();
+    if (!list || !list.length) return null;
+    const vClean = String(villageCode || '').replace(/^0+/, '');
+    const pClean = String(pattaNo || '').trim();
+    const sClean = String(surveyNo || '').trim();
+    const subClean = String(subdivNo || '').trim();
+
+    return list.find(item => {
+      const itemV = String(item.villageCode || '').replace(/^0+/, '');
+      const itemP = String(item.pattaNo || '').trim();
+      const itemS = String(item.surveyNo || '').trim();
+      const itemSub = String(item.subdivNo || '').trim();
+
+      if (vClean && itemV === vClean && pClean && itemP === pClean) return true;
+      if (pClean && itemP === pClean && (!vClean || !itemV || itemV === vClean)) return true;
+      if (vClean && itemV === vClean && sClean && itemS === sClean) {
+        if (!subClean || !itemSub || subClean === itemSub) return true;
+      }
+      if (sClean && itemS === sClean && subClean && itemSub && subClean === itemSub) return true;
+      return false;
+    });
+  }
+
 
   function clearPattaCorrectionForm(opts) {
     _editingPattaIdx = -1;
