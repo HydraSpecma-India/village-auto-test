@@ -913,11 +913,19 @@
     }
 
     try {
-      const url = '/api/areg?mode=fetch_patta&distCode=37&talukCode=' + talukCode + '&villageCode=' + villageCode + '&pattaNo=' + pattaNo + '&surveyNo=' + surveyNo + '&subdivNo=' + subdivNo + '&transType=' + landType;
+      const creds = (typeof getTnCreds === 'function' ? getTnCreds('primary') : null) || {};
+      let url = '/api/areg?mode=fetch_patta&distCode=37&talukCode=' + encodeURIComponent(talukCode) + '&villageCode=' + encodeURIComponent(villageCode) + '&pattaNo=' + encodeURIComponent(pattaNo) + '&surveyNo=' + encodeURIComponent(surveyNo) + '&subdivNo=' + encodeURIComponent(subdivNo) + '&transType=' + encodeURIComponent(landType);
+      if (creds.username && creds.password) {
+        url += '&username=' + encodeURIComponent(creds.username) + '&password=' + encodeURIComponent(creds.password) + '&roleId=' + encodeURIComponent(creds.roleId || '7');
+      }
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.success) {
+        if (data.isNatham !== undefined) {
+          const landTypeSel = document.getElementById('pattaLandTypeSelect');
+          if (landTypeSel) landTypeSel.value = data.isNatham ? 'N' : 'R';
+        }
         const oldNameInp = document.getElementById('pattaOldNameInput');
         if (oldNameInp) oldNameInp.value = data.ownerName;
 
