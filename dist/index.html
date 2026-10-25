@@ -107,6 +107,7 @@
   .brand p{margin:1px 0 0; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .topbar .spacer{flex:1 1 auto; min-width:8px}
   .topbar-controls{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0}
+  .topbar-controls .switch-btn, .topbar-controls .app-switch-btn { width: auto !important; min-width: auto !important; height: 34px !important; padding: 0 12px !important; line-height: 34px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
   .topbar-controls .tn-auto-btn{
     width:34px; height:34px; min-width:34px; padding:0; font-size:15px; border-radius:8px;
     display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; line-height:1;
@@ -1265,7 +1266,7 @@
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Flash Fill Control Center">⚡</button>
       <button type="button" class="tn-auto-btn" id="singleReportBtn" title="Rural Overall Pending Single Report" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff;">📊</button>
       <button type="button" class="tn-auto-btn" id="rejectReasonMenuBtn" title="Reject Reason Analysis (Tahsildar)" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border-color:#dc2626; color:#fff;">🚫</button>
-      <a href="https://taluk-work.vercel.app" class="tn-auto-btn switch-btn" id="citizenServicesSwitcherBtn" title="Open Land Records & Citizen Services Suite" target="_blank" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border-color:#7c3aed; color:#fff; text-decoration:none; padding:7px 14px; border-radius:8px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;"><span>📑</span> Citizen Services Suite &rarr;</a>
+      <a href="https://taluk-work.vercel.app" class="switch-btn app-switch-btn" id="citizenServicesSwitcherBtn" title="Open Land Records & Citizen Services Suite (Chitta, e-Services, A-Register, Patta Correction)" target="_blank" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:1px solid #7c3aed; color:#fff; text-decoration:none; padding:0 12px; height:34px; border-radius:8px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0; width:auto; min-width:auto; line-height:34px; box-shadow:0 2px 8px rgba(124,58,237,0.35);"><span>📑</span> Citizen Services Suite &rarr;</a>
     </div>
     <div class="topbar-actions">
       <span class="whoami" id="whoami" style="display:none"></span>
@@ -6468,7 +6469,7 @@ function renderWhoAmI(){
   const box = document.getElementById('whoami');
   if(!box || !ME) return;
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  box.innerHTML = '<img src="' + TN_GOV_EMBLEM_B64 + '" alt="Profile" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid var(--line-2);"><span class="rolechip' + (isAdmin ? ' admin' : '') + '">' + esc(ME.role) + '</span>' +
+  box.innerHTML = '<img src="/logo.jpg" alt="Profile" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid var(--line-2);"><span class="rolechip' + (isAdmin ? ' admin' : '') + '">' + esc(ME.role) + '</span>' +
                   '<b>' + esc(ME.full_name || ME.email) + '</b>';
   box.style.display = 'inline-flex';
   document.getElementById('signOutBtn').style.display = 'inline-flex';
@@ -6790,16 +6791,11 @@ function canManageCreds(){
 
 function openUsersPanel(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  const canChitta = hasMenu('chitta');
-  const canEservices = hasMenu('eservices');
-  const canCreds = canManageCreds();
+  const canReject = isAdmin || hasMenu('reject_reasons');
 
   if(!isAdmin){
     if(ADMIN_TAB === 'users'){
-      if(canCreds) ADMIN_TAB = 'creds';
-      else if(canChitta) ADMIN_TAB = 'chitta';
-      else if(canEservices) ADMIN_TAB = 'eservices';
-      else ADMIN_TAB = 'files';
+      ADMIN_TAB = canReject ? 'reject_reasons' : 'files';
     }
   }
   const panel = document.getElementById('usersPanel');
@@ -6816,7 +6812,7 @@ function openUsersPanel(){
   }
   const titleEl = document.querySelector('#usersPanel .full-page-head h2 span:last-child');
   if(titleEl){
-    titleEl.textContent = isAdmin ? 'Users, Stored Files & Credentials Hub' : 'Stored Files, Credentials & Services Hub';
+    titleEl.textContent = isAdmin ? 'Users, Stored Files & Reject Analysis Hub' : 'Stored Files & Reject Analysis Hub';
   }
   renderAdminTabs();
 }
@@ -6896,7 +6892,7 @@ const pickedMenus = el => el ? Array.from(el.querySelectorAll('input:checked')).
 
 async function renderUsers(){
   const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if(!isAdmin){ ADMIN_TAB = 'chitta'; renderChittaTab(); return; }
+  if(!isAdmin){ ADMIN_TAB = 'files'; renderFiles(); return; }
   const box = document.getElementById('usersBody');
   if(!CLOUD_ON){ box.innerHTML = '<div class="empty">Not connected to the account service.</div>'; return; }
   box.innerHTML = '<div class="empty">Loading…</div>';
@@ -6911,7 +6907,7 @@ async function renderUsers(){
     '<div class="f"><label>Name</label><input type="text" id="nuName" placeholder="optional"></div>' +
     '<div class="f" style="flex:0 0 100px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
     '<div class="f" style="flex:1 1 100%"><label>Menu &amp; Table Access <span class="fstate" style="text-transform:none">— choose which report tables and tools this person can access (e.g. 2B Single Report, 2 ISD Rural, 1 Upload, etc.)</span></label>' +
-      menuPicker(['upload','isd','single','fline','nisd','chitta','eservices'], 'id="nuMenus"') + '</div>' +
+      menuPicker(['upload','isd','single','fline','nisd','reject_reasons'], 'id="nuMenus"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
       talukPicker([], 'id="nuTaluks"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Credentials Access <span class="fstate" style="text-transform:none">— specify if this user can view or update portal passwords for their taluks</span></label>' +
@@ -9411,73 +9407,3 @@ if(typeof toast !== 'undefined') window.toast = toast;
 <script src="/nisd_auto.js"></script>
 </body>
 </html>
-function renderAdminTabs(){
-  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  const canReject = isAdmin || hasMenu('reject_reasons');
-
-  const usersBtn = document.querySelector('#usersTabs button[data-tab="users"]');
-  const filesBtn = document.querySelector('#usersTabs button[data-tab="files"]');
-  const rejectBtn = document.querySelector('#usersTabs button[data-tab="reject_reasons"]');
-  const rejectMenuBtn = document.getElementById('rejectReasonMenuBtn');
-  
-  if(usersBtn) usersBtn.style.display = isAdmin ? 'inline-block' : 'none';
-  if(filesBtn) filesBtn.style.display = (isAdmin || CLOUD_ON) ? 'inline-block' : 'none';
-  if(rejectBtn) rejectBtn.style.display = canReject ? 'inline-block' : 'none';
-  if(rejectMenuBtn) rejectMenuBtn.style.display = canReject ? 'inline-block' : 'none';
-  
-  if(!isAdmin){
-    if(ADMIN_TAB === 'users'){
-      ADMIN_TAB = canReject ? 'reject_reasons' : 'files';
-    } else if(ADMIN_TAB === 'reject_reasons' && !canReject){
-      ADMIN_TAB = 'files';
-    }
-  }
-  
-  document.querySelectorAll('#usersTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab === ADMIN_TAB));
-  if(ADMIN_TAB === 'users'){
-    if(!isAdmin){ renderAdminTabs(); return; }
-    renderUsers();
-  }
-  else if(ADMIN_TAB === 'files'){
-    renderFiles();
-  }
-  else if(ADMIN_TAB === 'reject_reasons'){
-    if(!isAdmin && !canReject){ renderAdminTabs(); return; }
-    if(typeof renderRejectReasonsTab === 'function') renderRejectReasonsTab();
-    else if(typeof window.renderRejectReasonsTab === 'function') window.renderRejectReasonsTab();
-  }
-document.getElementById('rejectReasonMenuBtn')?.addEventListener('click', () => {
-  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-  if(!isAdmin && !hasMenu('reject_reasons')){
-    toast('Access restricted', 'Your account does not have access to Reject Reason Analysis.', 'warn');
-    return;
-  }
-  ADMIN_TAB = 'reject_reasons';
-  openUsersPanel();
-  renderAdminTabs();
-});
-document.getElementById('usersClose').addEventListener('click', closeUsersPanel);
-document.getElementById('usersBack').addEventListener('click', closeUsersPanel);
-document.getElementById('usersTabs').addEventListener('click', e=>{
-  const b = e.target.closest('button[data-tab]');
-  if(b){
-    const tab = b.dataset.tab;
-    const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
-    if(tab === 'reject_reasons'){
-      const canReject = isAdmin || hasMenu('reject_reasons');
-      if(!canReject){
-        toast('Access restricted', 'Your account does not have access to Reject Reason Analysis.', 'warn');
-        return;
-      }
-      ADMIN_TAB = 'reject_reasons';
-      renderAdminTabs();
-      return;
-    }
-    if(!isAdmin && tab === 'users'){
-      toast('Access restricted', 'Only Admin accounts can manage users.', 'warn');
-      return;
-    }
-    ADMIN_TAB = tab;
-    renderAdminTabs();
-  }
-});
