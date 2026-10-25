@@ -6458,6 +6458,28 @@ async function onSignedIn(session){
     else if (ME.report_access === 'fline') ME.menu_access = ['upload', 'fline', 'single'];
     else ME.menu_access = ['upload', 'isd', 'single', 'fline', 'nisd', 'chitta', 'eservices'];
   }
+  const isAdmin = !CLOUD_ON || (ME && ME.role === 'admin');
+  const siteAcc = String((ME && ME.site_access) || 'both').toLowerCase().trim();
+  const hasReportsAccess = isAdmin || siteAcc === 'both' || siteAcc === 'village-auto-test';
+  if (!hasReportsAccess) {
+    gateMsg('err', `
+      <div style="text-align:center; padding:14px 6px;">
+        <span style="font-size:38px; display:block; margin-bottom:8px;">🔒</span>
+        <h3 style="margin:0 0 8px; color:#ef4444; font-size:16.5px; font-weight:800;">Access Restricted to Reports Dashboard</h3>
+        <p style="margin:0 0 12px; font-size:13px; color:var(--muted); line-height:1.45;">
+          Your account (<b>${esc(ME.email)}</b>) is assigned to <b>Taluk Work Only</b> and does not have access to the <b>Reports &amp; Reject Reason Dashboard</b>.
+        </p>
+        <p style="margin:0 0 16px; font-size:12px; color:var(--muted);">
+          Please contact an administrator to grant access in User Settings.
+        </p>
+        <a href="https://talukwork.vercel.app" class="switch-btn app-switch-btn" style="display:inline-flex; align-items:center; gap:7px; background:linear-gradient(135deg, #7c3aed, #6d28d9); color:#fff; text-decoration:none; padding:10px 20px; border-radius:8px; font-weight:700; font-size:13px; box-shadow:0 2px 8px rgba(124,58,237,0.35);">
+          <span style="font-size:15px;">📑</span> Open Taluk Work Portal &rarr;
+        </a>
+      </div>
+    `);
+    showGate(true);
+    return;
+  }
   showGate(false);
   renderWhoAmI();
   applyTalukPermissions();
@@ -6595,6 +6617,10 @@ function applyReportPermissions(){
 
   if(singleReportBtn) singleReportBtn.style.display = canSingle ? 'inline-flex' : 'none';
   if(rejectReasonMenuBtn) rejectReasonMenuBtn.style.display = canReject ? 'inline-flex' : 'none';
+  const siteAcc = String((ME && ME.site_access) || 'both').toLowerCase().trim();
+  const canAccessTalukWork = isAdmin || siteAcc === 'both' || siteAcc === 'talukwork' || siteAcc === 'village-applications';
+  const citizenServicesSwitcherBtn = document.getElementById('citizenServicesSwitcherBtn');
+  if(citizenServicesSwitcherBtn) citizenServicesSwitcherBtn.style.display = canAccessTalukWork ? 'inline-flex' : 'none';
   if(ffBtn) ffBtn.style.display = (canUpload && (canIsd || canNisd || canFline || canSingle)) ? 'inline-flex' : 'none';
   // 4. Print layout sections
   const printIsdWrap = document.getElementById('printIsdWrap');
@@ -6906,6 +6932,12 @@ async function renderUsers(){
     '<div class="f"><label>Email</label><input type="email" id="nuEmail" placeholder="name@example.com"></div>' +
     '<div class="f"><label>Name</label><input type="text" id="nuName" placeholder="optional"></div>' +
     '<div class="f" style="flex:0 0 100px"><label>Role</label><select id="nuRole"><option value="user">User</option><option value="admin">Admin</option></select></div>' +
+    '<div class="f" style="flex:0 0 170px"><label>Site Access</label>' +
+      '<select id="nuSite">' +
+        '<option value="both" selected>Both Sites (Reports &amp; Taluk Work)</option>' +
+        '<option value="talukwork">Taluk Work Only (Citizen Services)</option>' +
+        '<option value="village-auto-test">Reports Only (village-auto-test)</option>' +
+      '</select></div>' +
     '<div class="f" style="flex:1 1 100%"><label>Menu &amp; Table Access <span class="fstate" style="text-transform:none">— choose which report tables and tools this person can access (e.g. 2B Single Report, 2 ISD Rural, 1 Upload, etc.)</span></label>' +
       menuPicker(['upload','isd','single','fline','nisd','reject_reasons'], 'id="nuMenus"') + '</div>' +
     '<div class="f" style="flex:1 1 100%"><label>Taluks <span class="fstate" style="text-transform:none">— tick the ones this person may open; none ticked means every taluk</span></label>' +
@@ -6939,8 +6971,8 @@ async function renderUsers(){
                : menuPicker(currentMenus, 'data-act="menus"'))+'</td>' +
       '<td><select data-act="site"'+(u.role==='admin'?' disabled title="Admin always has access to both sites"':'')+'>' +
         '<option value="both"'+(sAcc==='both'?' selected':'')+'>Both Sites</option>' +
-        '<option value="village-auto-test"'+(sAcc==='village-auto-test'?' selected':'')+'>village-auto-test</option>' +
-        '<option value="village-applications"'+(sAcc==='village-applications'?' selected':'')+'>village-applications</option></select></td>' +
+        '<option value="talukwork"'+((sAcc==='talukwork'||sAcc==='village-applications')?' selected':'')+'>Taluk Work Only</option>' +
+        '<option value="village-auto-test"'+(sAcc==='village-auto-test'?' selected':'')+'>Reports Only</option></select></td>' +
       '<td>'+(u.role === 'admin'
                ? '<span class="fstate">every taluk (admin)</span>'
                : talukPicker(u.taluks, 'data-act="taluks"'))+'</td>' +
