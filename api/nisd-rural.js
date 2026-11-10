@@ -394,8 +394,14 @@ module.exports = async (req, res) => {
     const talukName = (params.talukName || TALUK_MAP[String(talukCode).padStart(2, '0')] || TALUK_MAP[String(talukCode)] || '').trim();
     const flag = params.flag || 'N'; // NISD vs ISD
     const landCategory = (params.landCategory || 'rural').toLowerCase(); // 'rural' vs 'natham'
-    const fromDate = formatDateToYYYYMMDD(params.fromDate || '2026-08-30');
-    const toDate = formatDateToYYYYMMDD(params.toDate || '2026-09-11');
+    const now = new Date();
+    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const curYear = now.getFullYear();
+    const curDay = String(now.getDate()).padStart(2, '0');
+    const defaultFrom = `01-${curMonth}-${curYear}`;
+    const defaultTo = `${curDay}-${curMonth}-${curYear}`;
+    const fromDate = formatDateToYYYYMMDD(params.fromDate || defaultFrom);
+    const toDate = formatDateToYYYYMMDD(params.toDate || defaultTo);
     const mode = params.mode || 'details';
     const villageCode = params.villageCode || '';
     const username = params.username || 'rpt_panneerselvam';

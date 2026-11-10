@@ -112,7 +112,34 @@
     return { username: 'dlurpet', password: '16-03-1992', roleId: '7' };
   }
 
+  function getCurrentMonthRange() {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return {
+      fromDate: `01-${month}-${year}`,
+      toDate: `${day}-${month}-${year}`
+    };
+  }
+
+  function getLast3MonthsRange() {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const toDate = `${day}-${month}-${year}`;
+
+    const d3 = new Date(d.getFullYear(), d.getMonth() - 3, 1);
+    const m3 = String(d3.getMonth() + 1).padStart(2, '0');
+    const y3 = d3.getFullYear();
+    const fromDate = `01-${m3}-${y3}`;
+
+    return { fromDate, toDate };
+  }
+
   function createModalHtml() {
+    const curMonthRange = getCurrentMonthRange();
     const distOptions = TN_DISTRICTS.map(d =>
       `<option value="${d.code}" ${d.code === '37' ? 'selected' : ''}>${d.name}</option>`
     ).join('');
@@ -213,7 +240,7 @@
 
                 <div class="tn-field">
                   <label for="tnFromDate">From Date</label>
-                  <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="01-09-2026">
+                  <input type="text" id="tnFromDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="${curMonthRange.fromDate}">
                   <div class="tn-quick-dates" id="tnQuickDatesContainer">
                     <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
                     <button type="button" class="tn-quick-btn" data-range="10">10 Days</button>
@@ -223,7 +250,7 @@
 
                 <div class="tn-field">
                   <label for="tnToDate">To Date</label>
-                  <input type="text" id="tnToDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="10-09-2026">
+                  <input type="text" id="tnToDate" placeholder="DD-MM-YYYY or YYYY-MM-DD" value="${curMonthRange.toDate}">
                 </div>
               </div>
 
@@ -248,32 +275,6 @@
         </div>
       </div>
     `;
-  }
-
-  function getCurrentMonthRange() {
-    const d = new Date();
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return {
-      fromDate: `01-${month}-${year}`,
-      toDate: `${day}-${month}-${year}`
-    };
-  }
-
-  function getLast3MonthsRange() {
-    const d = new Date();
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const toDate = `${day}-${month}-${year}`;
-
-    const d3 = new Date(d.getFullYear(), d.getMonth() - 3, 1);
-    const m3 = String(d3.getMonth() + 1).padStart(2, '0');
-    const y3 = d3.getFullYear();
-    const fromDate = `01-${m3}-${y3}`;
-
-    return { fromDate, toDate };
   }
 
   function createFlashFillModalHtml() {
@@ -371,7 +372,7 @@
                   <td><b>ISD Natham</b><br><small style="color:var(--muted)">Surveyor &amp; VAO Pending</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
                   <td>ISD (Surveyor &amp; VAO)</td>
-                  <td><input type="text" id="ff_from_isd_natham" class="tn-ff-date-input" value="${defaultFromStr}"></td>
+                  <td><input type="text" id="ff_from_isd_natham" class="tn-ff-date-input" value="${curMonthRange.fromDate}"></td>
                   <td><input type="text" id="ff_to_isd_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_isd_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -389,7 +390,7 @@
                       <option value="OPT">Closing Date</option>
                     </select>
                   </td>
-                  <td><input type="text" id="ff_from_fline_rural" class="tn-ff-date-input" value="${defaultFromStr}"></td>
+                  <td><input type="text" id="ff_from_fline_rural" class="tn-ff-date-input" value="${curMonthRange.fromDate}"></td>
                   <td><input type="text" id="ff_to_fline_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_fline_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -407,7 +408,7 @@
                       <option value="OPT">Closing Date</option>
                     </select>
                   </td>
-                  <td><input type="text" id="ff_from_fline_natham" class="tn-ff-date-input" value="${defaultFromStr}"></td>
+                  <td><input type="text" id="ff_from_fline_natham" class="tn-ff-date-input" value="${curMonthRange.fromDate}"></td>
                   <td><input type="text" id="ff_to_fline_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_fline_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -1674,7 +1675,14 @@
     if (ffSetAllFromBtn) {
       ffSetAllFromBtn.addEventListener('click', () => {
         const l3m = getLast3MonthsRange();
-        document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = l3m.fromDate);
+        const cur = getCurrentMonthRange();
+        document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => {
+          if (i.id === 'ff_from_isd_rural_pdf' || i.id === 'ff_from_isd_natham' || i.id === 'ff_from_fline_rural' || i.id === 'ff_from_fline_natham') {
+            i.value = cur.fromDate;
+          } else {
+            i.value = l3m.fromDate;
+          }
+        });
       });
     }
     if (ffSetAllToBtn) {
@@ -1836,6 +1844,11 @@
       if (optRow) optRow.style.display = 'none';
       if (flineRow) flineRow.style.display = 'block';
       if (dateModeRow) dateModeRow.style.display = 'block';
+      const cur = getCurrentMonthRange();
+      const fromEl = document.getElementById('tnFromDate');
+      const toEl = document.getElementById('tnToDate');
+      if (fromEl) fromEl.value = cur.fromDate;
+      if (toEl) toEl.value = cur.toDate;
       if (applyBtn) applyBtn.innerHTML = '⚡ Auto-Load F-Line Data into Dashboard';
     } else {
       if (optRow) optRow.style.display = 'block';
@@ -1850,10 +1863,25 @@
     if (serviceGroup === 'FLINE' || serviceGroup === 'ISD_PDF') return;
 
     const optType = document.querySelector('input[name="tnOptType"]:checked')?.value || 'N';
+    const landCategory = document.querySelector('input[name="tnLandCat"]:checked')?.value || 'rural';
     const quickContainer = document.getElementById('tnQuickDatesContainer');
     const applyBtn = document.getElementById('tnBtnApply');
 
+    const cur = getCurrentMonthRange();
+    const l3m = getLast3MonthsRange();
+    const fromEl = document.getElementById('tnFromDate');
+    const toEl = document.getElementById('tnToDate');
+
     if (optType === 'I') {
+      if (landCategory === 'natham') {
+        // ISD Natham: Default From Date to Current Month 1st
+        if (fromEl) fromEl.value = cur.fromDate;
+        if (toEl) toEl.value = cur.toDate;
+      } else {
+        // ISD Rural: Default From Date to Last 3 Months
+        if (fromEl) fromEl.value = l3m.fromDate;
+        if (toEl) toEl.value = l3m.toDate;
+      }
       if (quickContainer) {
         quickContainer.innerHTML = `
           <button type="button" class="tn-quick-btn" data-range="isd30">30 Days above</button>
@@ -1866,6 +1894,8 @@
         applyBtn.innerHTML = '⚡ Auto-Load All into Dashboard (30d+ / 25-29d / &lt;25d)';
       }
     } else {
+      if (fromEl) fromEl.value = l3m.fromDate;
+      if (toEl) toEl.value = l3m.toDate;
       if (quickContainer) {
         quickContainer.innerHTML = `
           <button type="button" class="tn-quick-btn" data-range="12">12 Days</button>
@@ -3315,7 +3345,9 @@
     const defaultToDate = formatD(new Date());
 
     const getRowDates = (prefix) => {
-      const from = document.getElementById(`ff_from_${prefix}`)?.value?.trim() || getLast3MonthsRange().fromDate;
+      const isCurMonth = (prefix === 'isd_rural_pdf' || prefix === 'isd_natham' || prefix === 'fline_rural' || prefix === 'fline_natham');
+      const defaultFrom = isCurMonth ? getCurrentMonthRange().fromDate : getLast3MonthsRange().fromDate;
+      const from = document.getElementById(`ff_from_${prefix}`)?.value?.trim() || defaultFrom;
       const to = document.getElementById(`ff_to_${prefix}`)?.value?.trim() || defaultToDate;
       return { fromDate: from, toDate: to };
     };
