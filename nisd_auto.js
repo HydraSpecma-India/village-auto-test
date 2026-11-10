@@ -261,9 +261,26 @@
     };
   }
 
+  function getLast3MonthsRange() {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const toDate = `${day}-${month}-${year}`;
+
+    const d3 = new Date(d.getFullYear(), d.getMonth() - 3, 1);
+    const m3 = String(d3.getMonth() + 1).padStart(2, '0');
+    const y3 = d3.getFullYear();
+    const fromDate = `01-${m3}-${y3}`;
+
+    return { fromDate, toDate };
+  }
+
   function createFlashFillModalHtml() {
     const curMonthRange = getCurrentMonthRange();
+    const last3mRange = getLast3MonthsRange();
     const toDateStr = curMonthRange.toDate;
+    const defaultFromStr = last3mRange.fromDate;
 
     return `
       <div id="tnFFModalBackdrop" class="tn-ff-modal-backdrop">
@@ -287,7 +304,7 @@
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
                 <button type="button" class="tn-quick-btn" id="tnFFSetCurrentMonth">Set Current Month</button>
-                <button type="button" class="tn-quick-btn" id="tnFFSetAllFrom">Set All From (01-01-2025)</button>
+                <button type="button" class="tn-quick-btn" id="tnFFSetAllFrom">Set All From (Last 3 Months)</button>
                 <button type="button" class="tn-quick-btn" id="tnFFSetAllTo">Set All To (Today)</button>
                 <button type="button" class="tn-quick-btn" id="tnFFToggleAll">Toggle All</button>
               </div>
@@ -327,7 +344,7 @@
                   <td><b>NISD Rural</b><br><small style="color:var(--muted)">VAO Pending (12d / 10d / &lt;10d)</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
                   <td>NISD (VAO Only)</td>
-                  <td><input type="text" id="ff_from_nisd_rural" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_nisd_rural" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_nisd_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_nisd_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -336,7 +353,7 @@
                   <td><b>ISD Rural (OPT)</b><br><small style="color:var(--muted)">Surveyor &amp; VAO Pending (3 Buckets)</small></td>
                   <td><span class="tn-badge-role">Rural</span></td>
                   <td>ISD (Surveyor &amp; VAO)</td>
-                  <td><input type="text" id="ff_from_isd_rural" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_isd_rural" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_isd_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_isd_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -345,7 +362,7 @@
                   <td><b>NISD Natham</b><br><small style="color:var(--muted)">VAO Pending (12d / 10d / &lt;10d)</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
                   <td>NISD (VAO Only)</td>
-                  <td><input type="text" id="ff_from_nisd_natham" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_nisd_natham" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_nisd_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_nisd_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -354,7 +371,7 @@
                   <td><b>ISD Natham</b><br><small style="color:var(--muted)">Surveyor &amp; VAO Pending</small></td>
                   <td><span class="tn-badge-role vao">Natham</span></td>
                   <td>ISD (Surveyor &amp; VAO)</td>
-                  <td><input type="text" id="ff_from_isd_natham" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_isd_natham" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_isd_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_isd_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -372,7 +389,7 @@
                       <option value="OPT">Closing Date</option>
                     </select>
                   </td>
-                  <td><input type="text" id="ff_from_fline_rural" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_fline_rural" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_fline_rural" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_fline_rural" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -390,7 +407,7 @@
                       <option value="OPT">Closing Date</option>
                     </select>
                   </td>
-                  <td><input type="text" id="ff_from_fline_natham" class="tn-ff-date-input" value="01-01-2025"></td>
+                  <td><input type="text" id="ff_from_fline_natham" class="tn-ff-date-input" value="${defaultFromStr}"></td>
                   <td><input type="text" id="ff_to_fline_natham" class="tn-ff-date-input" value="${toDateStr}"></td>
                   <td><span id="ff_status_fline_natham" class="tn-ff-status-badge">Ready</span></td>
                 </tr>
@@ -1656,7 +1673,8 @@
     }
     if (ffSetAllFromBtn) {
       ffSetAllFromBtn.addEventListener('click', () => {
-        document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = '01-01-2025');
+        const l3m = getLast3MonthsRange();
+        document.querySelectorAll('.tn-ff-date-input[id^="ff_from_"]').forEach(i => i.value = l3m.fromDate);
       });
     }
     if (ffSetAllToBtn) {
@@ -3297,7 +3315,7 @@
     const defaultToDate = formatD(new Date());
 
     const getRowDates = (prefix) => {
-      const from = document.getElementById(`ff_from_${prefix}`)?.value?.trim() || '01-01-2025';
+      const from = document.getElementById(`ff_from_${prefix}`)?.value?.trim() || getLast3MonthsRange().fromDate;
       const to = document.getElementById(`ff_to_${prefix}`)?.value?.trim() || defaultToDate;
       return { fromDate: from, toDate: to };
     };

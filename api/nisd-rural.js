@@ -263,6 +263,66 @@ function normVName(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const TALUK_MASTER_VILLAGES = {
+  'nemili': [
+    'agavalam', 'alappakkam', 'asanellikuppam', 'athipattu', 'avalur', 'ayarpadi', 'cherri', 'dharmaneedhi',
+    'elathur', 'eralacherry', 'jagirthandalam', 'kalathur', 'kariakudal', 'karivedu', 'karnavur', 'kattalai',
+    'kattupakkam', 'kaveripakkam', 'keelandurai', 'keelkalathur', 'keelveedhi', 'keelvenkatapuram', 'keelvenpakkam',
+    'kodampakkam', 'kondapuram', 'maganipattu', 'mahendravadi', 'mamandoor', 'melanthurai', 'melapulam', 'melari',
+    'melkalathur', 'nagavedu', 'nangamangalam', 'nedumpuli', 'nelvoy', 'nemili', 'ochalam', 'ocheri', 'panappakkam',
+    'panniyur', 'perapperi', 'perumpulipakkam', 'peruvalayam', 'poigainallur', 'puduppattu', 'punnai', 'reddivalam',
+    'sangarampadi', 'sayanavaram', 'silamandai', 'sirukarumpur', 'sirunamalli', 'siruvalayam', 'skulathur',
+    'thenmambakkam', 'thirumalpoor', 'thuraiperumpakkam', 'thuraiyur', 'uliyanallur', 'uthirampattu', 'vegamangalam',
+    'velithangipuram', 'veliyanallur', 'vepperi', 'vettankulam'
+  ],
+  'arakkonam': [
+    'sitheri', 'thandalam', 'vedal', 'perumalrajapettai', 'sithambadi', 'asamandur', 'thakkolam', 'vuriyur',
+    'nagarikuppam', 'vadamampakkam', 'aarikilapadi', 'ganapathipuram', 'pinnavaram', 'murungai', 'chithur',
+    'poiyapakkam', 'kavanoor', 'keelkuppam', 'mulvoy', 'keelpakkam', 'anaipakkam', 'vellur', 'konalam',
+    'thanigaipolur', 'keelanthur', 'mudur', 'perunkalathur', 'vuliampakkam', 'valarpuram', 'krishnapuram',
+    'melpakkam', 'parithiputhur', 'perumunchi', 'ammanur', 'ambarisipuram', 'anaikkattapudur', 'minnal',
+    'anvarthikhanpettai', 'kainur', 'paranji', 'arumpakkam', 'kilavanam', 'ilupaithandalam', 'pallur',
+    'mankattucheri', 'attuppakkam', 'parameswaramglm', 'nanthiveduthangal', 'echiputhur', 'sembedu',
+    'puliamangalam', 'cheyyur', 'anandapuram', 'athur', 'pudukesavaram', 'mosur', 'arakkonam'
+  ],
+  'walajah': [
+    'ammananthangal', 'ammoor', 'anandalai', 'arappakkam', 'arunkundram', 'ayilam', 'chennasamudram', 'chettithangal',
+    'egambaranallur', 'gudimallur', 'kadapperi', 'kalmelkuppam', 'karai', 'katharikuppam', 'kathiavadi', 'katteri',
+    'keelminnal', 'kelkuppam', 'kondakuppam', 'koorampadi', 'lalapettai', 'maniampattu', 'manthaangal', 'maruthampakkam',
+    'melakuppam', 'mukundarayapuram', 'musiri', 'nandhiyalam', 'narasingapuram', 'navlock', 'padiyambakkam', 'pagaveli',
+    'palleri', 'pinchi', 'poondi', 'rasathupuram', 'sathampakkam', 'sengadu', 'sikkarajapuram', 'sumaithangi',
+    'thalanur', 'thalandalam', 'thengal', 'thenkadappanthangal', 'thimnacharikpm', 'thirumalaicheri', 'thirupparkadal',
+    'vadagal', 'valluambakkam', 'vanapadi', 'vannivedu', 'vasur', 'veppur', 'visharam', 'wallajah', 'walajah', 'ranipet'
+  ],
+  'kalavai': [
+    'aaroor', 'agaram', 'allalacheri', 'athiyanam', 'ayiramangalam', 'cheiyathuvannam', 'chenkanavaram', 'chennaleri',
+    'chennasamudram', 'chittanthangal', 'irungur', 'kalavai', 'kalavaiputhur', 'kaniyanur', 'kelpadi', 'kodali',
+    'kundaleri', 'kuppudisatham', 'kuttiyam', 'malaiyur', 'mampakkam', 'marudam', 'marudamangalam', 'melapalanthai',
+    'melnelli', 'melnethampkm', 'melpudupakkam', 'melpulam', 'nagaleri', 'nallur', 'nangamangalam', 'palaiyanur',
+    'pali', 'pariamangalam', 'parikkalpattu', 'pennagar', 'perumanthangal', 'pindithangal', 'pinnanthangal', 'ponnambalam',
+    'sembakkam', 'siruvidagam', 'soraiyur', 'thattacheri', 'thenmanapakkam', 'thonimedu', 'valapandal', 'valayathur',
+    'vellambi', 'vembi'
+  ]
+};
+
+function villageBelongsToTaluk(vName, targetTaluk) {
+  if (!targetTaluk || !vName) return true;
+  const tClean = String(targetTaluk).toLowerCase().replace(/[^a-z]/g, '');
+  const tNorm = tClean.includes('nemili') ? 'nemili' : (tClean.includes('arakkonam') ? 'arakkonam' : (tClean.includes('walajah') ? 'walajah' : (tClean.includes('kalavai') ? 'kalavai' : tClean)));
+  const vNorm = normVName(vName);
+  if (!vNorm) return false;
+
+  const targetList = TALUK_MASTER_VILLAGES[tNorm];
+  if (targetList && targetList.includes(vNorm)) return true;
+
+  for (const [otherT, otherList] of Object.entries(TALUK_MASTER_VILLAGES)) {
+    if (otherT !== tNorm && otherList.includes(vNorm)) {
+      return false;
+    }
+  }
+  return !targetList || targetList.length === 0;
+}
+
 function fetchStoredIsdDataset(talukName) {
   return new Promise((resolve) => {
     if (!talukName) return resolve(null);
@@ -529,7 +589,7 @@ module.exports = async (req, res) => {
       // Index stored verified dataset if available
       const storedByCode = new Map();
       const storedByName = new Map();
-      const rawStoredVillages = (storedData && Array.isArray(storedData.villages)) ? storedData.villages : [];
+      const rawStoredVillages = ((storedData && Array.isArray(storedData.villages)) ? storedData.villages : []).filter(sv => villageBelongsToTaluk(sv.village, targetTalukName));
       rawStoredVillages.forEach(sv => {
         if (sv.code) {
           storedByCode.set(String(sv.code).padStart(3, '0'), sv);
