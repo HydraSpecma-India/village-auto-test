@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Tamil Nilam Reports</string>
+    <string name="title_activity_main">Tamil Nilam Reports</string>
+    <string name="perm_storage_rationale">Storage permission is needed to download and save reports (Excel and PDF) to your device.</string>
+</resources>

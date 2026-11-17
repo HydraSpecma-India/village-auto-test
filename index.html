@@ -1266,6 +1266,8 @@
       <button type="button" class="tn-auto-btn flash-fill-btn" id="tnFlashFillBtn" title="Flash Fill Control Center">⚡</button>
       <button type="button" class="tn-auto-btn" id="singleReportBtn" title="Rural Overall Pending Single Report" style="background:linear-gradient(135deg, #1e40af, #1d4ed8); border-color:#2563eb; color:#fff;">📊</button>
       <button type="button" class="tn-auto-btn" id="rejectReasonMenuBtn" title="Reject Reason Analysis (Tahsildar)" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border-color:#dc2626; color:#fff;">🚫</button>
+      <button type="button" class="tn-auto-btn gv-toggle-btn" id="goodViewToggleBtn" title="Toggle Mobile Good View (Cards layout for easy phone reading)" style="background:linear-gradient(135deg, #059669, #10b981); border-color:#059669; color:#fff; font-weight:700; width:auto; min-width:auto; padding:0 10px; font-size:12px; gap:4px;">📱 Good View</button>
+      <a href="/TamilNilam-Reports.apk" class="tn-auto-btn" id="downloadApkBtn" title="Download Official Android App (APK)" download="TamilNilam-Reports.apk" style="background:linear-gradient(135deg, #0284c7, #0369a1); border-color:#0284c7; color:#fff; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; width:auto; min-width:auto; padding:0 10px; font-weight:700; font-size:12px; gap:4px;">📲 APK</a>
       <a href="https://talukwork.vercel.app" class="switch-btn app-switch-btn" id="citizenServicesSwitcherBtn" title="Open Land Records & Citizen Services Suite (Chitta, e-Services, A-Register, Patta Correction)" target="_blank" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:1px solid #7c3aed; color:#fff; text-decoration:none; padding:0 14px; height:34px; border-radius:8px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0; width:auto; min-width:auto; line-height:34px; box-shadow:0 2px 8px rgba(124,58,237,0.35);"><span>📑</span> Citizen Services Suite &rarr;</a>
     </div>
     <div class="topbar-actions">
@@ -1403,6 +1405,7 @@
     <div class="print-only" id="isdPrintVao"></div>
 
     <div class="actions no-print" id="isdActions" style="display:none; margin-top:12px; flex-wrap:wrap; align-items:center; gap:8px;">
+      <button class="ghost gv-toggle-btn" id="isdGoodViewActionBtn" style="color:#10b981; font-weight:700; border-color:#059669;">📱 Good View</button>
       <button class="ghost" id="isdExpandBtn">&#8942; Expand all</button>
       <div style="display:inline-flex; align-items:center; gap:5px; background:var(--surface); padding:2px 8px; border-radius:7px; border:1px solid var(--line-2);">
         <label for="isdSortSelect" style="font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase;">Sort:</label>
@@ -4279,6 +4282,267 @@ function villageSubTable(rec){
   return h + '</tbody></table>';
 }
 
+let isGoodViewMode = localStorage.getItem('tn_good_view_mode') === 'true' || (window.innerWidth <= 768);
+let gvSearchQuery = '';
+let gvFilter = 'all';
+
+function toggleGoodView(forceState) {
+  if (typeof forceState === 'boolean') {
+    isGoodViewMode = forceState;
+  } else {
+    isGoodViewMode = !isGoodViewMode;
+  }
+  localStorage.setItem('tn_good_view_mode', isGoodViewMode ? 'true' : 'false');
+  updateGoodViewButtons();
+  if (R && R.ready) {
+    renderIsdReport();
+  }
+}
+
+function updateGoodViewButtons() {
+  const topbarBtn = document.getElementById('goodViewToggleBtn');
+  const actionBtn = document.getElementById('isdGoodViewActionBtn');
+  const dockBtn = document.getElementById('dockGoodViewBtn');
+  
+  if (topbarBtn) {
+    topbarBtn.innerHTML = isGoodViewMode ? '📱 Good View ✓' : '📱 Good View';
+    topbarBtn.classList.toggle('active', isGoodViewMode);
+  }
+  if (actionBtn) {
+    actionBtn.innerHTML = isGoodViewMode ? '📊 Table View' : '📱 Good View';
+    actionBtn.classList.toggle('active', isGoodViewMode);
+  }
+  if (dockBtn) {
+    dockBtn.classList.toggle('active', isGoodViewMode);
+  }
+}
+
+function renderIsdGoodView(R, gTotal, sTotal, vTotal) {
+  const q = (gvSearchQuery || '').toLowerCase().trim();
+  const f = gvFilter || 'all';
+
+  let h = '<div class="good-view-root">';
+
+  // 1. View switcher banner & search
+  h += '<div class="gv-toolbar">';
+  h += '  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">';
+  h += '    <div style="font-size:13px; font-weight:700; color:#10b981; display:flex; align-items:center; gap:6px;">📱 <b>Mobile Good View Active</b></div>';
+  h += '    <button type="button" class="ghost" onclick="toggleGoodView(false)" style="font-size:11.5px; padding:3px 8px; border-color:var(--line-2); color:var(--muted); cursor:pointer;">📊 Switch to Full Table</button>';
+  h += '  </div>';
+
+  h += '  <div class="gv-search-wrap">';
+  h += '    <input type="text" id="gvSearchInput" class="gv-search-input" placeholder="🔍 Filter by surveyor or village name..." value="' + esc(gvSearchQuery) + '">';
+  h += '  </div>';
+
+  h += '  <div class="gv-filters">';
+  h += '    <button type="button" class="gv-chip ' + (f === 'all' ? 'active' : '') + '" data-filter="all">All Staff (' + (R.surveyorNames.length + 1) + ')</button>';
+  h += '    <button type="button" class="gv-chip ' + (f === 'pending' ? 'active' : '') + '" data-filter="pending">Pending > 0</button>';
+  h += '    <button type="button" class="gv-chip ' + (f === 'overdue' ? 'active' : '') + '" data-filter="overdue">30d+ Overdue Alert</button>';
+  h += '    <button type="button" class="gv-chip ' + (f === 'rejection' ? 'active' : '') + '" data-filter="rejection">Rejection > 25%</button>';
+  h += '  </div>';
+  h += '</div>';
+
+  // 2. Metrics summary cards
+  h += '<div class="gv-metrics-grid">';
+  h += '  <div class="gv-metric-card pending-card">';
+  h += '    <div class="gv-metric-val" style="color:#38bdf8;">' + gTotal.pending + '</div>';
+  h += '    <div class="gv-metric-lbl">Total Pending</div>';
+  h += '    <div class="gv-metric-sub">Surv: ' + sTotal.pending + ' · VAO: ' + vTotal.pending + '</div>';
+  h += '  </div>';
+
+  const dTot = gTotal.approved + gTotal.rejected;
+  const pTot = rejPct(gTotal);
+  h += '  <div class="gv-metric-card disposal-card">';
+  h += '    <div class="gv-metric-val" style="color:#10b981;">' + dTot + '</div>';
+  h += '    <div class="gv-metric-lbl">Total Disposal</div>';
+  h += '    <div class="gv-metric-sub">Appr: ' + gTotal.approved + ' · Rej: ' + gTotal.rejected + '</div>';
+  h += '  </div>';
+
+  h += '  <div class="gv-metric-card rej-card ' + pctCls(pTot) + '">';
+  h += '    <div class="gv-metric-val">' + (pTot == null ? '0%' : pTot + '%') + '</div>';
+  h += '    <div class="gv-metric-lbl">Rejection Rate</div>';
+  h += '    <div class="gv-metric-sub">' + (pTot <= 20 ? 'Optimal' : (pTot <= 50 ? 'Moderate' : 'High')) + '</div>';
+  h += '  </div>';
+
+  const b30 = gTotal.b['30'] || 0;
+  h += '  <div class="gv-metric-card alert-card ' + (b30 > 0 ? 'has-alert' : '') + '">';
+  h += '    <div class="gv-metric-val" style="' + (b30 > 0 ? 'color:#ef4444;' : '') + '">' + b30 + '</div>';
+  h += '    <div class="gv-metric-lbl">30d+ Overdue</div>';
+  h += '    <div class="gv-metric-sub">' + (b30 > 0 ? 'Needs Attention' : 'All Clear') + '</div>';
+  h += '  </div>';
+  h += '</div>';
+
+  // 3. Quick Action Buttons
+  h += '<div class="gv-quick-actions">';
+  h += '  <button type="button" class="gv-btn btn-blue" id="gvAutoPullBtn">⚡ Auto Pull PDF</button>';
+  h += '  <button type="button" class="gv-btn btn-green" id="gvDownloadPdfBtn">⬇ Download PDF</button>';
+  h += '  <button type="button" class="gv-btn btn-teal" id="gvExportXlsBtn">📊 Export Excel</button>';
+  h += '  <button type="button" class="gv-btn btn-purple" id="gvTalukWorkBtn">🏛️ Taluk Work</button>';
+  h += '</div>';
+
+  // 4. Staff Cards
+  h += '<div class="gv-cards-list">';
+
+  let matchCount = 0;
+
+  // Surveyors
+  R.surveyorNames.forEach((n, i) => {
+    const rec = R.surveyors[n];
+    const key = 's::' + n;
+    const open = openIsd.has(key);
+    const empCode = getSurveyorEmpCode(n, TALUK);
+    const p = rejPct(rec);
+    const overdue30 = rec.b['30'] || 0;
+    const overdue25 = rec.b['25'] || 0;
+    const below25 = rec.b['below25'] || 0;
+    const vNames = Object.keys(rec.villages);
+
+    // Apply Filter & Search
+    if (f === 'pending' && rec.pending <= 0) return;
+    if (f === 'overdue' && overdue30 <= 0) return;
+    if (f === 'rejection' && (p == null || p < 25)) return;
+
+    if (q) {
+      const matchName = n.toLowerCase().includes(q);
+      const matchCode = (empCode || '').toLowerCase().includes(q);
+      const matchVillage = vNames.some(v => v.toLowerCase().includes(q));
+      if (!matchName && !matchCode && !matchVillage) return;
+    }
+
+    matchCount++;
+
+    h += '<div class="gv-card ' + (open ? 'open' : '') + (overdue30 > 0 ? ' has-alert' : '') + '">';
+    h += '  <div class="gv-card-header" data-k="' + esc(key) + '">';
+    h += '    <div class="gv-card-title-group">';
+    h += '      <span class="gv-sno-badge">' + (i + 1) + '</span>';
+    if (empCode) h += '<span class="gv-emp-code">' + esc(empCode) + '</span>';
+    h += '      <span class="gv-staff-name">' + esc(n) + '</span>';
+    h += '    </div>';
+    h += '    <span class="gv-chev">&#9654;</span>';
+    h += '  </div>';
+
+    // Mini stats row
+    h += '  <div class="gv-card-metrics">';
+    h += '    <div class="gv-mini-stat">';
+    h += '      <span class="gv-mini-val" style="color:#38bdf8;">' + rec.pending + '</span>';
+    h += '      <span class="gv-mini-lbl">Pending</span>';
+    h += '    </div>';
+    h += '    <div class="gv-mini-stat">';
+    h += '      <span class="gv-mini-val ' + pctCls(p) + '">' + (p == null ? '—' : p + '%') + '</span>';
+    h += '      <span class="gv-mini-lbl">Rejection</span>';
+    h += '    </div>';
+    h += '    <div class="gv-mini-stat">';
+    h += '      <span class="gv-mini-val" style="color:#10b981;">' + rec.approved + ' / ' + rec.rejected + '</span>';
+    h += '      <span class="gv-mini-lbl">Appr / Rej</span>';
+    h += '    </div>';
+    h += '    <div class="gv-mini-stat">';
+    h += '      <span class="gv-mini-val" style="' + (overdue30 > 0 ? 'color:#ef4444; font-weight:800;' : 'color:var(--muted);') + '">' + overdue30 + '</span>';
+    h += '      <span class="gv-mini-lbl">30d+ Overdue</span>';
+    h += '    </div>';
+    h += '  </div>';
+
+    // Expandable villages details
+    h += '  <div class="gv-card-villages">';
+    const activeVillages = vNames.filter(v => {
+      const x = rec.villages[v];
+      return x && (x.pending > 0 || x.approved > 0 || x.rejected > 0);
+    }).sort();
+
+    if (!activeVillages.length) {
+      h += '    <div style="font-size:12px; color:var(--muted); padding:6px 0;">No active village pendency or disposal for this surveyor.</div>';
+    } else {
+      activeVillages.forEach(v => {
+        const x = rec.villages[v];
+        h += '    <div class="gv-village-item">';
+        h += '      <span class="gv-village-name">📍 ' + esc(v) + '</span>';
+        h += '      <div class="gv-village-badges">';
+        h += '        <span style="font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.15); padding:2px 6px; border-radius:4px;">' + x.pending + ' pend</span>';
+        if (x.approved > 0 || x.rejected > 0) {
+          h += '      <span style="font-size:11px; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 6px; border-radius:4px;">' + x.approved + ' app</span>';
+          if (x.rejected > 0) h += ' <span style="font-size:11px; color:#ef4444; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px;">' + x.rejected + ' rej</span>';
+        }
+        h += '      </div>';
+        h += '    </div>';
+      });
+    }
+    h += '  </div>';
+    h += '</div>';
+  });
+
+  // VAO Group Card
+  const vKey = 'vao::all';
+  const vOpen = openIsd.has(vKey);
+  const vp = rejPct(vTotal);
+  const vOverdue30 = vTotal.b['30'] || 0;
+
+  if (f === 'all' || (f === 'pending' && vTotal.pending > 0) || (f === 'overdue' && vOverdue30 > 0)) {
+    if (!q || 'vao'.includes(q) || R.vaoNames.some(n => n.toLowerCase().includes(q))) {
+      matchCount++;
+      h += '<div class="gv-card ' + (vOpen ? 'open' : '') + (vOverdue30 > 0 ? ' has-alert' : '') + '">';
+      h += '  <div class="gv-card-header" data-k="' + vKey + '">';
+      h += '    <div class="gv-card-title-group">';
+      h += '      <span class="gv-sno-badge">' + (R.surveyorNames.length + 1) + '</span>';
+      h += '      <span class="gv-emp-code" style="background:rgba(124,58,237,0.15); color:#a78bfa; border-color:rgba(124,58,237,0.3);">VAO</span>';
+      h += '      <span class="gv-staff-name">Village Administrative Officers (All VAOs)</span>';
+      h += '    </div>';
+      h += '    <span class="gv-chev">&#9654;</span>';
+      h += '  </div>';
+
+      h += '  <div class="gv-card-metrics">';
+      h += '    <div class="gv-mini-stat">';
+      h += '      <span class="gv-mini-val" style="color:#38bdf8;">' + vTotal.pending + '</span>';
+      h += '      <span class="gv-mini-lbl">Pending</span>';
+      h += '    </div>';
+      h += '    <div class="gv-mini-stat">';
+      h += '      <span class="gv-mini-val ' + pctCls(vp) + '">' + (vp == null ? '—' : vp + '%') + '</span>';
+      h += '      <span class="gv-mini-lbl">Rejection</span>';
+      h += '    </div>';
+      h += '    <div class="gv-mini-stat">';
+      h += '      <span class="gv-mini-val" style="color:#10b981;">' + vTotal.approved + ' / ' + vTotal.rejected + '</span>';
+      h += '      <span class="gv-mini-lbl">Appr / Rej</span>';
+      h += '    </div>';
+      h += '    <div class="gv-mini-stat">';
+      h += '      <span class="gv-mini-val" style="' + (vOverdue30 > 0 ? 'color:#ef4444; font-weight:800;' : 'color:var(--muted);') + '">' + vOverdue30 + '</span>';
+      h += '      <span class="gv-mini-lbl">30d+ Overdue</span>';
+      h += '    </div>';
+      h += '  </div>';
+
+      h += '  <div class="gv-card-villages">';
+      let anyVao = false;
+      R.vaoNames.forEach(n => {
+        const rec = R.vaos[n];
+        Object.keys(rec.villages).sort().forEach(v => {
+          const x = rec.villages[v];
+          if (!x.pending && !x.approved && !x.rejected) return;
+          anyVao = true;
+          h += '    <div class="gv-village-item">';
+          h += '      <span class="gv-village-name">👤 ' + esc(n) + ' · 📍 ' + esc(v) + '</span>';
+          h += '      <div class="gv-village-badges">';
+          h += '        <span style="font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.15); padding:2px 6px; border-radius:4px;">' + x.pending + ' pend</span>';
+          h += '      </div>';
+          h += '    </div>';
+        });
+      });
+      if (!anyVao) {
+        h += '    <div style="font-size:12px; color:var(--muted); padding:6px 0;">No VAO villages with pending applications.</div>';
+      }
+      h += '  </div>';
+      h += '</div>';
+    }
+  }
+
+  if (matchCount === 0) {
+    h += '<div style="text-align:center; padding:30px 14px; background:var(--surface); border:1px dashed var(--line-2); border-radius:12px; color:var(--muted);">';
+    h += '  <div style="font-size:24px; margin-bottom:8px;">🔍</div>';
+    h += '  <b>No matching surveyors or villages found.</b><br>Try clearing your search query or switching filters.';
+    h += '</div>';
+  }
+
+  h += '</div>'; // end gv-cards-list
+  h += '</div>'; // end good-view-root
+  return h;
+}
+
 function renderIsdReport(){
   const box = document.getElementById('isdRep');
   const note = document.getElementById('isdNote');
@@ -4351,7 +4615,13 @@ function renderIsdReport(){
 
   h += '<tr class="grand"><td colspan="2" style="text-align:center">Taluk Total</td>'+ repCells(gTotal) +'</tr>';
   h += '</tbody></table>';
-  box.innerHTML = h;
+
+  if (isGoodViewMode) {
+    box.innerHTML = renderIsdGoodView(R, gTotal, sTotal, vTotal);
+  } else {
+    box.innerHTML = h;
+  }
+  updateGoodViewButtons();
 
   /* ---- notes ---- */
   const bits = [];
@@ -5102,13 +5372,89 @@ async function exportSingleReportImage(){
 }
 
 
-/* ---------- ISD report events ---------- */
-document.addEventListener('click', e=>{
+/* ---------- ISD report events & Good View Handlers ---------- */
+document.addEventListener('click', e => {
+  // Table row expand
   const row = e.target.closest('tr.owner');
   if(row && row.dataset.k){
     const k = row.dataset.k;
     if(openIsd.has(k)) openIsd.delete(k); else openIsd.add(k);
     renderIsdReport();
+    return;
+  }
+
+  // Good view card expand
+  const gvCardHeader = e.target.closest('.gv-card-header');
+  if(gvCardHeader && gvCardHeader.dataset.k){
+    const k = gvCardHeader.dataset.k;
+    if(openIsd.has(k)) openIsd.delete(k); else openIsd.add(k);
+    renderIsdReport();
+    return;
+  }
+
+  // Good view filter chip
+  const chip = e.target.closest('.gv-chip');
+  if(chip && chip.dataset.filter){
+    gvFilter = chip.dataset.filter;
+    renderIsdReport();
+    return;
+  }
+
+  // Good view quick actions
+  if(e.target.closest('#gvAutoPullBtn')) {
+    document.getElementById('pullIsdRuralPdfBtn')?.click();
+    return;
+  }
+  if(e.target.closest('#gvDownloadPdfBtn')) {
+    document.getElementById('downloadIsdRuralPdfBtn')?.click();
+    return;
+  }
+  if(e.target.closest('#gvExportXlsBtn')) {
+    document.getElementById('isdXlsBtn')?.click();
+    return;
+  }
+  if(e.target.closest('#gvTalukWorkBtn')) {
+    window.open('https://talukwork.vercel.app', '_blank');
+    return;
+  }
+
+  // Good view toggle buttons
+  if(e.target.closest('#goodViewToggleBtn') || e.target.closest('#isdGoodViewActionBtn') || e.target.closest('#dockGoodViewBtn')) {
+    e.preventDefault();
+    toggleGoodView();
+    return;
+  }
+
+  // Dock actions
+  if(e.target.closest('#dockAutoPullBtn')) {
+    e.preventDefault();
+    document.getElementById('pullIsdRuralPdfBtn')?.click();
+    return;
+  }
+  if(e.target.closest('#dockDownloadPdfBtn')) {
+    e.preventDefault();
+    document.getElementById('downloadIsdRuralPdfBtn')?.click();
+    return;
+  }
+  if(e.target.closest('#dockExportXlsBtn')) {
+    e.preventDefault();
+    document.getElementById('isdXlsBtn')?.click();
+    return;
+  }
+});
+
+// Live filter/search inside Good View
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'gvSearchInput') {
+    gvSearchQuery = e.target.value;
+    if (R && R.ready && isGoodViewMode) {
+      renderIsdReport();
+      const input = document.getElementById('gvSearchInput');
+      if (input) {
+        input.focus();
+        input.selectionStart = input.selectionEnd = input.value.length;
+      }
+    }
   }
 });
 document.getElementById('isdExpandBtn').addEventListener('click', ()=>{
@@ -9601,6 +9947,7 @@ if (isdDownloadPdfActionBtn) {
 })();
 
 initCloud();
+if(typeof updateGoodViewButtons === 'function') updateGoodViewButtons();
 
 window.store = store;
 window.render = render;
@@ -9616,6 +9963,33 @@ if(typeof OPT_SLOTS !== 'undefined') window.OPT_SLOTS = OPT_SLOTS;
 if(typeof toast !== 'undefined') window.toast = toast;
 
 </script>
+<!-- Mobile Floating Bottom Action Dock -->
+<div id="mobileBottomDock" class="mobile-bottom-dock no-print">
+  <button type="button" class="dock-btn" id="dockAutoPullBtn" title="Auto Pull Status PDF">
+    <span class="dock-icon">⚡</span>
+    <span class="dock-label">Auto Pull</span>
+  </button>
+  <button type="button" class="dock-btn" id="dockGoodViewBtn" title="Toggle Good View">
+    <span class="dock-icon">📱</span>
+    <span class="dock-label">Good View</span>
+  </button>
+  <button type="button" class="dock-btn" id="dockDownloadPdfBtn" title="Download Official Status PDF">
+    <span class="dock-icon">📄</span>
+    <span class="dock-label">ISD PDF</span>
+  </button>
+  <button type="button" class="dock-btn" id="dockExportXlsBtn" title="Export Excel Reports">
+    <span class="dock-icon">📊</span>
+    <span class="dock-label">Excel</span>
+  </button>
+  <a href="https://talukwork.vercel.app" target="_blank" class="dock-btn" id="dockCitizenBtn" title="Citizen Services (Patta / Chitta)">
+    <span class="dock-icon">🏛️</span>
+    <span class="dock-label">Taluk</span>
+  </a>
+  <a href="/TamilNilam-Reports.apk" download="TamilNilam-Reports.apk" class="dock-btn apk-highlight" id="dockApkBtn" title="Download Official Android App (APK)">
+    <span class="dock-icon">📲</span>
+    <span class="dock-label">Get App</span>
+  </a>
+</div>
 <script src="/nisd_auto.js"></script>
 </body>
 </html>
